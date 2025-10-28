@@ -1,0 +1,78 @@
+config:
+  target: 'http://localhost:9000'
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm up"
+    
+    # Ramp up to 100 orders/sec
+    - duration: 300
+      arrivalRate: 100
+      name: "Sustained load - 100 orders/sec"
+    
+    # Peak load - 333 orders/sec (20K orders/hour)
+    - duration: 600
+      arrivalRate: 333
+      name: "Peak load - 20K orders/hour"
+    
+    # Cool down
+    - duration: 60
+      arrivalRate: 10
+      name: "Cool down"
+
+  processor: "./load-test-processor.js"
+
+scenarios:
+  - name: "Complete Purchase Flow"
+    weight: 70
+    flow:
+      # Create cart
+      - post:
+          url: "/store/carts"
+          json:
+            region_id: "{{ $randomString() }}"
+          capture:
+            - json: "$.cart.id"
+              as: "cartId"
+      
+      # Add item to cart
+      - post:
+          url: "/store/carts/{{ cartId }}/line-items"
+          json:
+            variant_id: "{{ $randomString() }}"
+            quantity: 1
+      
+      # Create payment session
+      - post:
+          url: "/store/carts/{{ cartId }}/payment-sessions"
+          json:
+            provider_id: "stripe"
+      
+      # Complete cart
+      - post:
+          url: "/store/carts/{{ cartId }}/complete"
+          expect:
+            - statusCode: 200
+
+  - name: "Browse Products"
+    weight: 20
+    flow:
+      - get:
+          url: "/store/products"
+          expect:
+            - statusCode: 200
+      
+      - get:
+          url: "/store/products/{{ $randomString() }}"
+
+  - name: "Check Keys"
+    weight: 10
+    flow:
+      - get:
+          url: "/store/customers/me/digital-keys"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [200, 401]
+

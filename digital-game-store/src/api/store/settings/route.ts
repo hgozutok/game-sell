@@ -1,0 +1,49 @@
+import type { MedusaRequest, MedusaResponse} from '@medusajs/framework/http'
+
+/**
+ * Get public store settings (theme, currencies, etc.)
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  try {
+    const storeSettingsModule = req.scope.resolve('storeSettings') as any
+
+    const themeSettings = await storeSettingsModule.getThemeSettings()
+    const enabledCurrencies = await storeSettingsModule.getSettingValue('currencies.enabled', ['USD', 'EUR', 'GBP'])
+    const defaultCurrency = await storeSettingsModule.getSettingValue('currencies.default', 'USD')
+    const storeName = await storeSettingsModule.getSettingValue('store.name', 'Digital Game Store')
+    const storeDescription = await storeSettingsModule.getSettingValue(
+      'store.description',
+      'Your trusted marketplace for digital game keys'
+    )
+
+    res.json({
+      theme: themeSettings,
+      currencies: {
+        enabled: enabledCurrencies,
+        default: defaultCurrency,
+      },
+      store: {
+        name: storeName,
+        description: storeDescription,
+      },
+    })
+  } catch (error: any) {
+    console.error('Settings GET error:', error)
+    // Return default settings if error
+    res.json({
+      theme: {
+        headerBgColor: '#15171c',
+        primaryColor: '#ff6b35',
+        secondaryColor: '#f7931e',
+      },
+      currencies: {
+        enabled: ['USD'],
+        default: 'USD',
+      },
+      store: {
+        name: 'Digital Game Store',
+        description: 'Your trusted marketplace for digital game keys',
+      },
+    })
+  }
+}

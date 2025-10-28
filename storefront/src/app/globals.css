@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0a0b0d] text-gray-100 antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white px-8 py-3 rounded-md font-bold hover:from-[#ff7b45] hover:to-[#ffa31e] transition-all duration-200 shadow-lg hover:shadow-xl uppercase text-sm tracking-wide;
+  }
+  
+  .btn-secondary {
+    @apply bg-[#1a1d24] border-2 border-[#ff6b35] text-white px-8 py-3 rounded-md font-bold hover:bg-[#ff6b35] transition-all duration-200 uppercase text-sm tracking-wide;
+  }
+  
+  .card {
+    @apply bg-[#15171c] rounded-lg shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-800 hover:border-[#ff6b35]/50;
+  }
+  
+  .gaming-card {
+    @apply bg-gradient-to-br from-[#1a1d24] to-[#15171c] rounded-xl overflow-hidden border border-gray-800 hover:border-[#ff6b35] transition-all duration-300 transform hover:-translate-y-2 shadow-2xl;
+  }
+}
+
