@@ -49,7 +49,9 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true)
   const [selectedVariant, setSelectedVariant] = useState(0)
   const [selectedImage, setSelectedImage] = useState(0)
+  const [amount, setAmount] = useState(0)
   const addItem = useCartStore((state) => state.addItem)
+  const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -87,21 +89,16 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     if (!product) return
 
-    const variant = product.variants[selectedVariant]
-    const variantPrices = variant.prices || []
-    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
-    const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
-    const price = currencyPrice || defaultPrice
-    const amount = price?.amount || 0
+    const currentVariant = product.variants[selectedVariant]
 
     addItem({
-      id: `${product.id}-${variant.id}`,
-      variantId: variant.id,
+      id: `${product.id}-${currentVariant.id}`,
+      variantId: currentVariant.id,
       productId: product.id,
       title: product.title,
       handle: product.handle,
       thumbnail: product.thumbnail || '',
-      price: amount,
+      price: amount, // Use the amount from state
       currency: selectedCurrency.code,
       metadata: product.metadata,
     })
@@ -137,16 +134,20 @@ export default function ProductDetailPage() {
     )
   }
 
-  const { selectedCurrency } = useCurrencyStore()
-  
   const variant = product.variants[selectedVariant]
-  const variantPrices = variant.prices || []
-  const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
-  const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
-  
-  const price = currencyPrice || defaultPrice
-  const amount = price?.amount || 0
   const images = product.images && product.images.length > 0 ? product.images : [{ url: product.thumbnail || '', id: '0' }]
+
+  // Update price when currency or variant changes
+  useEffect(() => {
+    if (!product) return
+    
+    const currentVariant = product.variants[selectedVariant]
+    const variantPrices = currentVariant?.prices || []
+    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+    const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
+    const price = currencyPrice || defaultPrice
+    setAmount(price?.amount || 0)
+  }, [selectedCurrency.code, product, selectedVariant])
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">

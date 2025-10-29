@@ -14,6 +14,7 @@ interface KinguinProduct {
   price: number
   platform?: string
   region?: string
+  image?: string | null
 }
 
 class KinguinService extends MedusaService({}) {
@@ -79,12 +80,13 @@ class KinguinService extends MedusaService({}) {
       const product = response.data
 
       return {
-        productId: product.kinguinId || product.productId,
-        name: product.name || product.title,
-        qty: product.qty || 1,
-        price: product.price?.value || product.price || 0,
+        productId: product.kinguinId || product.productId || product.id,
+        name: product.name || product.originalName || product.title,
+        qty: product.qty || product.textQty || product.totalQty || 0,
+        price: parseFloat(product.price || 0),
         platform: product.platform || 'Steam',
-        region: product.regionId || 'GLOBAL',
+        region: product.regionalLimitations || product.regionId || 'GLOBAL',
+        image: product.images?.cover?.url || product.images?.screenshots?.[0]?.url || null,
       }
     } catch (error: any) {
       console.error('Kinguin getProductInfo error:', error.response?.data || error.message)
@@ -100,17 +102,19 @@ class KinguinService extends MedusaService({}) {
           name: query,
           limit: 20,
           page: 1,
-          activePreorder: false,
         },
       })
 
       const products = response.data.results || []
 
       return products.map((product: any) => ({
-        productId: product.kinguinId || product.productId,
-        name: product.name || product.title,
-        qty: product.qty || 1,
-        price: product.price?.value || product.price || 0,
+        productId: product.kinguinId || product.productId || product.id,
+        name: product.name || product.originalName || product.title,
+        qty: product.qty || product.textQty || product.totalQty || 0,
+        price: parseFloat(product.price || 0),
+        platform: product.platform || 'Steam',
+        region: product.regionalLimitations || product.regionId || 'GLOBAL',
+        image: product.images?.cover?.url || product.images?.screenshots?.[0]?.url || null,
       }))
     } catch (error: any) {
       console.error('Kinguin searchProducts error:', error.response?.data || error.message)
@@ -126,19 +130,25 @@ class KinguinService extends MedusaService({}) {
           limit: limit,
           page: 1,
           sortBy: 'bestsellers', // Most popular products
-          activePreorder: false, // Only available products
         },
       })
 
       const products = response.data.results || []
+      
+      console.log('Kinguin API response:', {
+        hasResults: !!products,
+        count: products.length,
+        firstProduct: products[0]
+      })
 
       return products.map((product: any) => ({
-        productId: product.kinguinId || product.productId,
-        name: product.name || product.title,
-        qty: product.qty || 1,
-        price: product.price?.value || product.price || 0,
+        productId: product.kinguinId || product.productId || product.id,
+        name: product.name || product.originalName || product.title,
+        qty: product.qty || product.textQty || product.totalQty || 0,
+        price: parseFloat(product.price || 0), // Kinguin price is already a number
         platform: product.platform || 'Steam',
-        region: product.regionId || 'GLOBAL',
+        region: product.regionalLimitations || product.regionId || 'GLOBAL',
+        image: product.images?.cover?.url || product.images?.screenshots?.[0]?.url || null,
       }))
     } catch (error: any) {
       console.error('Kinguin listAllProducts error:', error.response?.data || error.message)

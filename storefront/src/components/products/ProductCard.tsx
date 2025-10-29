@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useCurrencyStore } from '@/store/currencyStore'
@@ -29,18 +30,20 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const { selectedCurrency } = useCurrencyStore()
-  
-  // Find price for selected currency
-  const variantPrices = product.variants?.[0]?.prices || []
-  const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
-  const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
-  
-  const price = currencyPrice || defaultPrice
-  const amount = price?.amount || 0
+  const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
+  const [amount, setAmount] = useState(0)
   
   // Use handle/slug for SEO-friendly URLs, fallback to ID
   const productUrl = product.handle || product.id
+
+  // Update price when currency changes
+  useEffect(() => {
+    const variantPrices = product.variants?.[0]?.prices || []
+    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+    const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
+    const price = currencyPrice || defaultPrice
+    setAmount(price?.amount || 0)
+  }, [selectedCurrency.code, product.variants])
 
   return (
     <Link href={`/products/${productUrl}`} className="group block h-full">

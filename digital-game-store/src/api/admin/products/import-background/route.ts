@@ -105,21 +105,36 @@ async function runImportInBackground(
 
     const importedProducts = []
     let processed = 0
+    let batchCount = 0
 
     // Import each product
     for (const externalProduct of availableProducts) {
       try {
+        // Debug first product
+        if (processed === 0) {
+          logger.info(`🔍 First product data:`)
+          logger.info(`  Name: ${externalProduct.name}`)
+          logger.info(`  Price: ${externalProduct.price}`)
+          logger.info(`  Qty: ${externalProduct.qty}`)
+          logger.info(`  ProductId: ${externalProduct.productId}`)
+          logger.info(`  Full object keys:`, Object.keys(externalProduct))
+        }
+
         // Skip if no stock
-        if ((externalProduct.quantity || externalProduct.qty || 0) <= 0) {
+        const stock = externalProduct.quantity || externalProduct.qty || 0
+        if (stock <= 0) {
+          logger.info(`⏭️ Skipping ${externalProduct.name} - out of stock (${stock})`)
           processed++
           continue
         }
 
-        const fullProduct = await providerService.getFullProductInfo(externalProduct.productId)
-        const productData = fullProduct || externalProduct
+        // Skip full product info for CodesWholesale to reduce API calls
+        // Use basic info from list (has everything we need)
+        const productData = externalProduct
 
         const basePrice = parseFloat(externalProduct.price) || parseFloat(productData.price) || 0
         if (basePrice <= 0) {
+          logger.info(`⏭️ Skipping ${externalProduct.name} - invalid price (${basePrice})`)
           processed++
           continue
         }
@@ -128,60 +143,125 @@ async function runImportInBackground(
         const finalPrice = Math.round((basePrice + (basePrice * margin / 100)) * 100)
 
         const productName = productData.name || 'Imported Product'
-        const handle = productName.toLowerCase()
+        
+        // Generate unique handle with provider prefix
+        const providerPrefix = provider === 'kinguin' ? 'kinguin-' : 'cws-'
+        const handle = (providerPrefix + productName.toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
+          .replace(/^-|-$/g, ''))
           .substring(0, 100)
 
-        // Check if exists
+        // Thumbnail handling (provider-specific)
+        const thumbnailUrl = provider === 'kinguin'
+          ? (productData.image || externalProduct.image || 'https://placehold.co/600x400/1a1d24/ff6b35?text=No+Image')
+          : `https://api.codeswholesale.com/v1/products/${productData.productId}/image?format=MEDIUM`
+
+        // Check if exists - UPDATE instead of skip
         const existingProducts = await productModule.listProducts({ handle })
+        let productToUse
+        
         if (existingProducts && existingProducts.length > 0) {
-          processed++
-          continue
+          // UPDATE existing product
+          const existingProduct = existingProducts[0]
+          if (processed < 3) {
+            logger.info(`🔄 Updating ${productName} (handle: ${handle})`)
+          }
+          
+          await productModule.updateProducts(existingProduct.id, {
+            title: productName.substring(0, 255),
+            thumbnail: thumbnailUrl,
+            images: [{ url: thumbnailUrl }],
+            metadata: {
+              provider: provider,
+              provider_product_id: productData.productId,
+              platform: productData.platform || 'PC',
+              region: productData.region || 'GLOBAL',
+              original_price: basePrice,
+              margin_applied: margin,
+              imported_at: new Date().toISOString(),
+            },
+          })
+          
+          productToUse = existingProduct
+        } else {
+          // CREATE new product
+          if (importedProducts.length === 0) {
+            logger.info(`✨ Attempting first import: ${productName}`)
+            logger.info(`  Handle: ${handle}`)
+            logger.info(`  Thumbnail: ${thumbnailUrl}`)
+            logger.info(`  Base Price: $${basePrice}`)
+            logger.info(`  Final Price: $${(finalPrice / 100).toFixed(2)}`)
+          }
+          
+          productToUse = await productModule.createProducts({
+            title: productName.substring(0, 255),
+            handle,
+            status: 'published',
+            description: productData.description || `${productName} - Digital game key delivered instantly`,
+            thumbnail: thumbnailUrl,
+            images: [{ url: thumbnailUrl }],
+            metadata: {
+              provider,
+              provider_product_id: productData.productId,
+              platform: productData.platform || 'PC',
+              region: productData.region || 'GLOBAL',
+              original_price: basePrice,
+              margin_applied: margin,
+              imported_at: new Date().toISOString(),
+            },
+          })
         }
 
-        const thumbnailUrl = `https://api.codeswholesale.com/v1/products/${productData.productId}/image?format=MEDIUM`
-
-        // Create product
-        const createdProduct = await productModule.createProducts({
-          title: productName.substring(0, 255),
-          handle,
-          status: 'published',
-          description: productData.description || `${productName} - Digital game key delivered instantly`,
-          thumbnail: thumbnailUrl,
-          images: [{ url: thumbnailUrl }],
-          metadata: {
-            provider,
-            provider_product_id: productData.productId,
-            platform: productData.platform || 'PC',
-            region: productData.region || 'GLOBAL',
-            original_price: basePrice,
-            margin_applied: margin,
-            imported_at: new Date().toISOString(),
-          },
-        })
-
-        // Create variant with multi-currency pricing
-        if (createdProduct?.id) {
+        // Create/Update variant with multi-currency pricing
+        if (productToUse?.id) {
+          const variantSku = `${provider.toUpperCase()}-${productData.productId}`.substring(0, 100)
           const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPrice, currencyRates)
-          const priceSet = await pricingModule.createPriceSets({ prices: multiCurrencyPrices })
-          const variants = await productModule.createProductVariants([{
-            product_id: createdProduct.id,
-            title: 'Standard Edition',
-            sku: `${provider.toUpperCase()}-${productData.productId}`.substring(0, 100),
-            manage_inventory: false,
-          }])
+          
+          // Check if variant with this SKU already exists
+          const existingVariants = await productModule.listProductVariants({ sku: variantSku })
+          
+          let variant
+          
+          if (existingVariants && existingVariants.length > 0) {
+            // UPDATE existing variant's price
+            variant = existingVariants[0]
+            
+            // Create new price set and update the link
+            const priceSet = await pricingModule.createPriceSets({ prices: multiCurrencyPrices })
+            
+            // Update the price link
+            await remoteLink.dismiss({
+              [Modules.PRODUCT]: { variant_id: variant.id },
+              [Modules.PRICING]: {},
+            })
+            
+            await remoteLink.create({
+              [Modules.PRODUCT]: { variant_id: variant.id },
+              [Modules.PRICING]: { price_set_id: priceSet.id },
+            })
+          } else {
+            // CREATE new variant
+            const priceSet = await pricingModule.createPriceSets({ prices: multiCurrencyPrices })
+            const variants = await productModule.createProductVariants([{
+              product_id: productToUse.id,
+              title: 'Standard Edition',
+              sku: variantSku,
+              manage_inventory: false,
+            }])
 
-          await remoteLink.create({
-            [Modules.PRODUCT]: { variant_id: variants[0].id },
-            [Modules.PRICING]: { price_set_id: priceSet.id },
-          })
+            variant = variants[0]
+
+            await remoteLink.create({
+              [Modules.PRODUCT]: { variant_id: variant.id },
+              [Modules.PRICING]: { price_set_id: priceSet.id },
+            })
+          }
 
           // Link to sales channel
           if (defaultChannel) {
             try {
               await remoteLink.create({
-                [Modules.PRODUCT]: { product_id: createdProduct.id },
+                [Modules.PRODUCT]: { product_id: productToUse.id },
                 [Modules.SALES_CHANNEL]: { sales_channel_id: defaultChannel.id },
               })
             } catch (linkError) {
@@ -189,7 +269,7 @@ async function runImportInBackground(
             }
           }
 
-          importedProducts.push(createdProduct)
+          importedProducts.push(productToUse)
         }
 
         processed++
@@ -201,13 +281,19 @@ async function runImportInBackground(
           logger.info(`📊 Progress: ${processed}/${availableProducts.length} (${progress}%)`)
         }
 
+        // Extra delay every 50 items to prevent rate limiting
+        if (processed % 50 === 0) {
+          logger.info(`⏸️ Brief pause to respect API rate limits...`)
+          await new Promise(resolve => setTimeout(resolve, 5000)) // 5 second pause
+        }
+
       } catch (error: any) {
         logger.error(`Failed to import ${externalProduct.name}:`, error.message)
         processed++
       }
 
-      // Small delay
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Delay to prevent rate limiting (200ms - reduced since we removed getFullProductInfo)
+      await new Promise(resolve => setTimeout(resolve, 200))
     }
 
     // Complete job

@@ -96,10 +96,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           continue
         }
 
-        // Try to fetch full product details (description + images) from v3 API
-        // Note: Many products don't have v3 data, so we'll use basic info as fallback
-        const fullProduct = await providerService.getFullProductInfo(externalProduct.productId)
-        const productData = fullProduct || externalProduct
+        // Use basic info from list to reduce API calls and avoid rate limiting
+        const productData = externalProduct
 
         // Calculate price with margin - use externalProduct.price (always available from list)
         const basePrice = parseFloat(externalProduct.price) || parseFloat(productData.price) || 0
@@ -113,83 +111,136 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         const marginAmount = basePrice * (margin / 100)
         const finalPrice = Math.round((basePrice + marginAmount) * 100) // Convert to cents
 
-        // Create product handle
+        // Create product handle with provider prefix
         const productName = productData.name || 'Imported Product'
-        const handle = productName.toLowerCase()
+        const providerPrefix = provider === 'kinguin' ? 'kinguin-' : 'cws-'
+        const handle = (providerPrefix + productName.toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
+          .replace(/^-|-$/g, ''))
           .substring(0, 100) // Limit handle length
 
-        // Check if product already exists
-        const existingProducts = await productModule.listProducts({ handle })
-        if (existingProducts && existingProducts.length > 0) {
-          logger.info(`⏭️ Skipping ${productName} - already exists`)
-          continue
-        }
-
-        // Always use MEDIUM format for thumbnail (best quality for product cards)
-        const thumbnailUrl = `https://api.codeswholesale.com/v1/products/${productData.productId}/image?format=MEDIUM`
+        // Thumbnail handling (provider-specific)
+        const thumbnailUrl = provider === 'kinguin'
+          ? (productData.image || externalProduct.image || 'https://placehold.co/600x400/1a1d24/ff6b35?text=No+Image')
+          : `https://api.codeswholesale.com/v1/products/${productData.productId}/image?format=MEDIUM`
         
         // Only use ONE image - no duplicates (frontend will handle zoom)
         const productImages = [{ url: thumbnailUrl }]
         
-        // Create product (WITHOUT variant - will add separately)
-        const createdProduct = await productModule.createProducts({
-          title: productName.substring(0, 255),
-          handle: handle,
-          status: 'published',
-          description: productData.description || `${productName} - Digital game key delivered instantly`,
-          thumbnail: thumbnailUrl, // Always MEDIUM
-          images: productImages,
-          metadata: {
-            provider: provider,
-            provider_product_id: productData.productId,
-            platform: productData.platform || 'PC',
-            region: productData.region || 'GLOBAL',
-            original_price: basePrice,
-            margin_applied: margin,
-            imported_at: new Date().toISOString(),
-            languages: productData.languages || [],
-            badges: productData.badges || [],
-          },
-        })
+        // Check if product already exists - UPDATE instead of skip
+        const existingProducts = await productModule.listProducts({ handle })
+        let productToUse
+        
+        if (existingProducts && existingProducts.length > 0) {
+          // UPDATE existing product
+          const existingProduct = existingProducts[0]
+          logger.info(`🔄 Updating ${productName}`)
+          
+          await productModule.updateProducts(existingProduct.id, {
+            title: productName.substring(0, 255),
+            thumbnail: thumbnailUrl,
+            images: productImages,
+            metadata: {
+              provider: provider,
+              provider_product_id: productData.productId,
+              platform: productData.platform || 'PC',
+              region: productData.region || 'GLOBAL',
+              original_price: basePrice,
+              margin_applied: margin_percentage || 15,
+              imported_at: new Date().toISOString(),
+            },
+          })
+          
+          productToUse = existingProduct
+        } else {
+          // CREATE new product
+          logger.info(`✨ Creating ${productName}`)
+          
+          productToUse = await productModule.createProducts({
+            title: productName.substring(0, 255),
+            handle: handle,
+            status: 'published',
+            description: productData.description || `${productName} - Digital game key delivered instantly`,
+            thumbnail: thumbnailUrl, // Always MEDIUM
+            images: productImages,
+            metadata: {
+              provider: provider,
+              provider_product_id: productData.productId,
+              platform: productData.platform || 'PC',
+              region: productData.region || 'GLOBAL',
+              original_price: basePrice,
+              margin_applied: margin,
+              imported_at: new Date().toISOString(),
+              languages: productData.languages || [],
+              badges: productData.badges || [],
+            },
+          })
+        }
 
-        // Create variant with proper pricing (MULTI-CURRENCY)
-        if (createdProduct && createdProduct.id) {
+        // Create/Update variant with proper pricing (MULTI-CURRENCY)
+        if (productToUse && productToUse.id) {
           // Calculate prices for all currencies using settings
           const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPrice, currencyRates)
 
-          // Step 1: Create price set with multi-currency pricing
-          const priceSet = await pricingModule.createPriceSets({
-            prices: multiCurrencyPrices,
-          })
+          // Check if variant with this SKU already exists
+          const variantSku = `${provider.toUpperCase()}-${productData.productId}`.substring(0, 100)
+          const existingVariants = await productModule.listProductVariants({ sku: variantSku })
+          
+          let variant
+          
+          if (existingVariants && existingVariants.length > 0) {
+            // UPDATE existing variant's price
+            variant = existingVariants[0]
+            
+            // Create new price set and update the link
+            const priceSet = await pricingModule.createPriceSets({
+              prices: multiCurrencyPrices,
+            })
+            
+            // Update the price link
+            await remoteLink.dismiss({
+              [Modules.PRODUCT]: { variant_id: variant.id },
+              [Modules.PRICING]: {},
+            })
+            
+            await remoteLink.create({
+              [Modules.PRODUCT]: { variant_id: variant.id },
+              [Modules.PRICING]: { price_set_id: priceSet.id },
+            })
+          } else {
+            // CREATE new variant
+            // Step 1: Create price set with multi-currency pricing
+            const priceSet = await pricingModule.createPriceSets({
+              prices: multiCurrencyPrices,
+            })
 
-          // Step 2: Create variant
-          const variants = await productModule.createProductVariants([{
-            product_id: createdProduct.id,
-            title: 'Standard Edition',
-            sku: `${provider.toUpperCase()}-${productData.productId}`.substring(0, 100),
-            manage_inventory: false,
-          }])
+            // Step 2: Create variant
+            const variants = await productModule.createProductVariants([{
+              product_id: productToUse.id,
+              title: 'Standard Edition',
+              sku: variantSku,
+              manage_inventory: false,
+            }])
 
-          const variant = variants[0]
+            variant = variants[0]
 
-          // Step 3: Link variant to price set
-          await remoteLink.create({
-            [Modules.PRODUCT]: {
-              variant_id: variant.id,
-            },
-            [Modules.PRICING]: {
-              price_set_id: priceSet.id,
-            },
-          })
+            // Step 3: Link variant to price set
+            await remoteLink.create({
+              [Modules.PRODUCT]: {
+                variant_id: variant.id,
+              },
+              [Modules.PRICING]: {
+                price_set_id: priceSet.id,
+              },
+            })
+          }
 
           // Auto-link to Default Sales Channel
           if (defaultChannel) {
             try {
               await remoteLink.create({
                 [Modules.PRODUCT]: {
-                  product_id: createdProduct.id,
+                  product_id: productToUse.id,
                 },
                 [Modules.SALES_CHANNEL]: {
                   sales_channel_id: defaultChannel.id,
@@ -206,15 +257,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             }
           }
 
-          importedProducts.push(createdProduct)
+          importedProducts.push(productToUse)
           logger.info(`✅ Imported: ${productName} - $${(finalPrice / 100).toFixed(2)} (base: $${basePrice.toFixed(2)} + ${margin}%)`)
         }
+        // Extra delay every 50 items
+        if (totalAttempted % 50 === 0) {
+          logger.info(`⏸️ Brief pause to respect API rate limits...`)
+          await new Promise(resolve => setTimeout(resolve, 5000))
+        }
+
       } catch (error: any) {
         logger.error(`❌ Failed to import ${externalProduct.name}:`, error.message)
       }
 
-      // Small delay to prevent rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Delay to prevent rate limiting (300ms)
+      await new Promise(resolve => setTimeout(resolve, 300))
     }
 
     logger.info(`🎉 Bulk import completed: ${importedProducts.length}/${totalAttempted} products imported`)
