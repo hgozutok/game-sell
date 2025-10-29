@@ -189,24 +189,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           let variant
           
           if (existingVariants && existingVariants.length > 0) {
-            // UPDATE existing variant's price
+            // Variant already exists - skip price update (complex operation)
             variant = existingVariants[0]
-            
-            // Create new price set and update the link
-            const priceSet = await pricingModule.createPriceSets({
-              prices: multiCurrencyPrices,
-            })
-            
-            // Update the price link
-            await remoteLink.dismiss({
-              [Modules.PRODUCT]: { variant_id: variant.id },
-              [Modules.PRICING]: {},
-            })
-            
-            await remoteLink.create({
-              [Modules.PRODUCT]: { variant_id: variant.id },
-              [Modules.PRICING]: { price_set_id: priceSet.id },
-            })
+            logger.info(`ℹ️ Variant exists for ${productName}, product metadata updated`)
           } else {
             // CREATE new variant
             // Step 1: Create price set with multi-currency pricing
@@ -225,27 +210,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             variant = variants[0]
 
             // Step 3: Link variant to price set
-            await remoteLink.create({
+            await remoteLink.create([{
               [Modules.PRODUCT]: {
                 variant_id: variant.id,
               },
               [Modules.PRICING]: {
                 price_set_id: priceSet.id,
               },
-            })
+            }])
           }
 
           // Auto-link to Default Sales Channel
           if (defaultChannel) {
             try {
-              await remoteLink.create({
+              await remoteLink.create([{
                 [Modules.PRODUCT]: {
                   product_id: productToUse.id,
                 },
                 [Modules.SALES_CHANNEL]: {
                   sales_channel_id: defaultChannel.id,
                 },
-              })
+              }])
               logger.info(`🔗 Linked ${productName} to Default Sales Channel`)
             } catch (linkError: any) {
               // Ignore "already exists" errors

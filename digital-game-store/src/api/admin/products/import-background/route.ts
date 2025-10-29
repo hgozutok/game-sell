@@ -223,22 +223,11 @@ async function runImportInBackground(
           let variant
           
           if (existingVariants && existingVariants.length > 0) {
-            // UPDATE existing variant's price
+            // Variant already exists - skip price update (complex operation)
             variant = existingVariants[0]
-            
-            // Create new price set and update the link
-            const priceSet = await pricingModule.createPriceSets({ prices: multiCurrencyPrices })
-            
-            // Update the price link
-            await remoteLink.dismiss({
-              [Modules.PRODUCT]: { variant_id: variant.id },
-              [Modules.PRICING]: {},
-            })
-            
-            await remoteLink.create({
-              [Modules.PRODUCT]: { variant_id: variant.id },
-              [Modules.PRICING]: { price_set_id: priceSet.id },
-            })
+            if (importedProducts.length < 3) {
+              logger.info(`ℹ️ Variant exists for ${productName}, product metadata updated`)
+            }
           } else {
             // CREATE new variant
             const priceSet = await pricingModule.createPriceSets({ prices: multiCurrencyPrices })
@@ -251,19 +240,19 @@ async function runImportInBackground(
 
             variant = variants[0]
 
-            await remoteLink.create({
+            await remoteLink.create([{
               [Modules.PRODUCT]: { variant_id: variant.id },
               [Modules.PRICING]: { price_set_id: priceSet.id },
-            })
+            }])
           }
 
           // Link to sales channel
           if (defaultChannel) {
             try {
-              await remoteLink.create({
+              await remoteLink.create([{
                 [Modules.PRODUCT]: { product_id: productToUse.id },
                 [Modules.SALES_CHANNEL]: { sales_channel_id: defaultChannel.id },
-              })
+              }])
             } catch (linkError) {
               // Ignore link errors
             }
