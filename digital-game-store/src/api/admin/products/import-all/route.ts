@@ -7,19 +7,25 @@ export const AUTHENTICATE = false // Disable auth for development
 // Helper: Get or create collection by name
 async function getOrCreateCollection(productModule: any, name: string, logger: any) {
   try {
+    logger.info(`🔍 Looking for collection: ${name}`)
     const existing = await productModule.listProductCollections({ title: name })
+    logger.info(`   Found ${existing?.length || 0} existing collections`)
+    
     if (existing && existing.length > 0) {
+      logger.info(`   ✅ Using existing collection: ${name} (ID: ${existing[0].id})`)
       return existing[0]
     }
 
+    logger.info(`   🆕 Creating new collection: ${name}`)
     const collection = await productModule.createProductCollections({
       title: name,
       handle: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     })
-    logger.info(`✨ Created collection: ${name}`)
+    logger.info(`   ✨ Created collection: ${name} (ID: ${collection.id})`)
     return collection
   } catch (error: any) {
-    logger.warn(`⚠️ Collection error for "${name}":`, error.message)
+    logger.error(`   ❌ Collection error for "${name}":`, error.message)
+    logger.error(`   Stack:`, error.stack)
     return null
   }
 }
@@ -27,16 +33,22 @@ async function getOrCreateCollection(productModule: any, name: string, logger: a
 // Helper: Get or create tag by value
 async function getOrCreateTag(productModule: any, value: string, logger: any) {
   try {
+    logger.info(`🔍 Looking for tag: ${value}`)
     const existing = await productModule.listProductTags({ value })
+    logger.info(`   Found ${existing?.length || 0} existing tags`)
+    
     if (existing && existing.length > 0) {
+      logger.info(`   ✅ Using existing tag: ${value} (ID: ${existing[0].id})`)
       return existing[0]
     }
 
+    logger.info(`   🆕 Creating new tag: ${value}`)
     const tag = await productModule.createProductTags({ value })
-    logger.info(`🏷️ Created tag: ${value}`)
+    logger.info(`   ✨ Created tag: ${value} (ID: ${tag.id})`)
     return tag
   } catch (error: any) {
-    logger.warn(`⚠️ Tag error for "${value}":`, error.message)
+    logger.error(`   ❌ Tag error for "${value}":`, error.message)
+    logger.error(`   Stack:`, error.stack)
     return null
   }
 }
@@ -164,19 +176,73 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         // Only use ONE image - no duplicates (frontend will handle zoom)
         const productImages = [{ url: thumbnailUrl }]
         
+        // Prepare collections and tags (for both UPDATE and CREATE)
+        const collections = []
+        const tags = []
+        
+        // Debug: Log productData fields for first product
+        if (totalAttempted === 1) {
+          logger.info(`🔍 Product data fields:`, {
+            hasGenres: !!productData.genres,
+            genres: productData.genres,
+            hasTags: !!productData.tags,
+            tags: productData.tags,
+            hasPlatform: !!productData.platform,
+            platform: productData.platform,
+          })
+        }
+        
+        // Add genre as collection (Kinguin)
+        if (productData.genres && Array.isArray(productData.genres) && productData.genres.length > 0) {
+          if (totalAttempted === 1) logger.info(`📚 Adding ${productData.genres.length} genres as collections`)
+          for (const genre of productData.genres) {
+            const collection = await getOrCreateCollection(productModule, genre, logger)
+            if (collection) collections.push(collection.id)
+          }
+        }
+        
+        // Add platform as collection
+        if (productData.platform) {
+          if (totalAttempted === 1) logger.info(`🎮 Adding platform as collection: ${productData.platform}`)
+          const platformCollection = await getOrCreateCollection(productModule, productData.platform, logger)
+          if (platformCollection) collections.push(platformCollection.id)
+        }
+        
+        // Add provider as tag
+        if (totalAttempted === 1) logger.info(`🏷️ Adding provider tag: ${provider}`)
+        const providerTag = await getOrCreateTag(productModule, provider, logger)
+        if (providerTag) tags.push(providerTag.id)
+        
+        // Add custom tags (Kinguin)
+        if (productData.tags && Array.isArray(productData.tags) && productData.tags.length > 0) {
+          if (totalAttempted === 1) logger.info(`🏷️ Adding ${productData.tags.length} custom tags`)
+          for (const tagValue of productData.tags) {
+            const tag = await getOrCreateTag(productModule, tagValue, logger)
+            if (tag) tags.push(tag.id)
+          }
+        }
+        
+        if (totalAttempted === 1) {
+          logger.info(`✅ Prepared ${collections.length} collections and ${tags.length} tags for ${productName}`)
+        }
+        
         // Check if product already exists - UPDATE instead of skip
         const existingProducts = await productModule.listProducts({ handle })
         let productToUse
         
         if (existingProducts && existingProducts.length > 0) {
-          // UPDATE existing product
+          // UPDATE existing product (with collections and tags)
           const existingProduct = existingProducts[0]
-          logger.info(`🔄 Updating ${productName}`)
+          if (totalAttempted <= 3) {
+            logger.info(`🔄 Updating ${productName}`)
+          }
           
           await productModule.updateProducts(existingProduct.id, {
             title: productName.substring(0, 255),
             thumbnail: thumbnailUrl,
             images: productImages,
+            collection_ids: collections.length > 0 ? collections : undefined,
+            tag_ids: tags.length > 0 ? tags : undefined,
             metadata: {
               provider: provider,
               provider_product_id: productData.productId,
@@ -185,42 +251,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               original_price: basePrice,
               margin_applied: margin_percentage || 15,
               imported_at: new Date().toISOString(),
+              genres: productData.genres || [],
+              tags: productData.tags || [],
+              developers: productData.developers || [],
+              publishers: productData.publishers || [],
             },
           })
           
           productToUse = existingProduct
         } else {
           // CREATE new product
-          logger.info(`✨ Creating ${productName}`)
-          
-          // Prepare collections and tags
-          const collections = []
-          const tags = []
-          
-          // Add genre as collection (Kinguin)
-          if (productData.genres && Array.isArray(productData.genres)) {
-            for (const genre of productData.genres) {
-              const collection = await getOrCreateCollection(productModule, genre, logger)
-              if (collection) collections.push(collection.id)
-            }
-          }
-          
-          // Add platform as collection
-          if (productData.platform) {
-            const platformCollection = await getOrCreateCollection(productModule, productData.platform, logger)
-            if (platformCollection) collections.push(platformCollection.id)
-          }
-          
-          // Add provider as tag
-          const providerTag = await getOrCreateTag(productModule, provider, logger)
-          if (providerTag) tags.push(providerTag.id)
-          
-          // Add custom tags (Kinguin)
-          if (productData.tags && Array.isArray(productData.tags)) {
-            for (const tagValue of productData.tags) {
-              const tag = await getOrCreateTag(productModule, tagValue, logger)
-              if (tag) tags.push(tag.id)
-            }
+          if (totalAttempted <= 3) {
+            logger.info(`✨ Creating ${productName}`)
           }
           
           productToUse = await productModule.createProducts({

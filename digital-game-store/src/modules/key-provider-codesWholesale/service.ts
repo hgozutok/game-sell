@@ -19,6 +19,10 @@ interface CodesWholesaleProduct {
   badges?: Array<{ id: number; name: string; slug: string }>
   description?: string
   detailedImages?: string[]
+  genres?: string[]
+  tags?: string[]
+  developers?: string[]
+  publishers?: string[]
 }
 
 class CodesWholesaleService extends MedusaService({}) {
@@ -133,13 +137,24 @@ class CodesWholesaleService extends MedusaService({}) {
 
       const product = response.data
 
+      const productId = product.productId || product.identifier
+      const imageUrl = `https://api.codeswholesale.com/v1/products/${productId}/image?format=MEDIUM`
+      
       return {
-        productId: product.productId || product.identifier,
+        productId: productId,
         name: product.name,
         quantity: product.quantity || 0,
         price: product.prices?.[0]?.value || 0, // First price tier value
         platform: product.platform || 'PC',
         region: product.regions?.[0] || product.regionDescription || 'GLOBAL',
+        images: [{ format: 'MEDIUM', image: imageUrl }],
+        detailedImages: [imageUrl],
+        languages: product.languages || [],
+        badges: product.badges || [],
+        genres: product.genres || [],
+        tags: product.tags || [],
+        developers: product.developers || [],
+        publishers: product.publishers || [],
       }
     } catch (error: any) {
       console.error('CWS getProductInfo error:', error.response?.data || error.message)
@@ -176,12 +191,20 @@ class CodesWholesaleService extends MedusaService({}) {
           name: product.name,
           quantity: product.quantity || 0,
           price: product.prices?.[0]?.value || 0,
+          platform: product.platform || 'PC',
+          region: product.regions?.[0] || product.regionDescription || 'GLOBAL',
           // Include image for search results
           images: [{
             format: 'MEDIUM',
             image: imageUrl
           }],
           detailedImages: [imageUrl],
+          languages: product.languages || [],
+          badges: product.badges || [],
+          genres: product.genres || [],
+          tags: product.tags || [],
+          developers: product.developers || [],
+          publishers: product.publishers || [],
         }
       })
     } catch (error: any) {
@@ -256,6 +279,10 @@ class CodesWholesaleService extends MedusaService({}) {
           ],
           languages: product.languages || [],
           badges: product.badges || [],
+          genres: product.genres || [],
+          tags: product.tags || [],
+          developers: product.developers || [],
+          publishers: product.publishers || [],
         }
       })
     } catch (error: any) {

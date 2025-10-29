@@ -6,11 +6,12 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import ProductCard from '@/components/products/ProductCard'
 
-interface Category {
+interface Collection {
   id: string
-  name: string
+  title: string
   handle: string
-  description?: string
+  created_at: string
+  updated_at: string
 }
 
 interface Product {
@@ -40,7 +41,7 @@ export default function CategoryPage() {
   const searchParams = useSearchParams()
   const slug = params.slug as string
 
-  const [category, setCategory] = useState<Category | null>(null)
+  const [collection, setCollection] = useState<Collection | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState('featured')
@@ -49,31 +50,29 @@ export default function CategoryPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch category info
-        const categoryResponse = await api.get('/store/product-categories', {
-          params: {
-            handle: slug,
-          },
-        })
+        // First, get all collections to find the one with matching handle
+        const collectionsResponse = await api.get('/store/collections')
+        const collections = collectionsResponse.data.collections || []
+        
+        // Find collection by handle
+        const foundCollection = collections.find((col: Collection) => col.handle === slug)
+        
+        if (foundCollection) {
+          setCollection(foundCollection)
+          
+          // Fetch products in this collection
+          const productsResponse = await api.get(`/store/collections/${foundCollection.id}/products`, {
+            params: {
+              limit: 50,
+            },
+          })
 
-        if (categoryResponse.data.product_categories && categoryResponse.data.product_categories.length > 0) {
-          setCategory(categoryResponse.data.product_categories[0])
-        }
-
-        // Fetch products in this category
-        const productsResponse = await api.get('/store/products', {
-          params: {
-            category_id: categoryResponse.data.product_categories?.[0]?.id,
-            limit: 50,
-            fields: '*variants,*variants.prices',
-          },
-        })
-
-        if (productsResponse.data.products) {
-          setProducts(productsResponse.data.products)
+          if (productsResponse.data.products) {
+            setProducts(productsResponse.data.products)
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch category data:', error)
+        console.error('Failed to fetch collection data:', error)
       } finally {
         setLoading(false)
       }
@@ -127,7 +126,7 @@ export default function CategoryPage() {
               Categories
             </Link>
             <span className="text-gray-600">/</span>
-            <span className="text-white font-semibold">{category?.name || slug}</span>
+            <span className="text-white font-semibold">{collection?.title || slug}</span>
           </div>
         </div>
       </div>
@@ -137,9 +136,9 @@ export default function CategoryPage() {
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-6xl font-black text-white mb-4">
-              {category?.name || slug.toUpperCase()}
+              {collection?.title || slug.toUpperCase()}
             </h1>
-            {category?.description && <p className="text-xl text-gray-400">{category.description}</p>}
+            <p className="text-xl text-gray-400">Explore {collection?.title || slug} games</p>
             <div className="mt-6">
               <span className="text-[#ff6b35] font-bold text-lg">
                 {products.length} {products.length === 1 ? 'Game' : 'Games'} Available

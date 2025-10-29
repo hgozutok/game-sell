@@ -15,6 +15,12 @@ interface KinguinProduct {
   platform?: string
   region?: string
   image?: string | null
+  genres?: string[]
+  tags?: string[]
+  developers?: string[]
+  publishers?: string[]
+  description?: string
+  languages?: string[]
 }
 
 class KinguinService extends MedusaService({}) {
@@ -87,6 +93,12 @@ class KinguinService extends MedusaService({}) {
         platform: product.platform || 'Steam',
         region: product.regionalLimitations || product.regionId || 'GLOBAL',
         image: product.images?.cover?.url || product.images?.screenshots?.[0]?.url || null,
+        genres: product.genres || [],
+        tags: product.tags || [],
+        developers: product.developers || [],
+        publishers: product.publishers || [],
+        description: product.description || '',
+        languages: product.languages || [],
       }
     } catch (error: any) {
       console.error('Kinguin getProductInfo error:', error.response?.data || error.message)
@@ -115,6 +127,12 @@ class KinguinService extends MedusaService({}) {
         platform: product.platform || 'Steam',
         region: product.regionalLimitations || product.regionId || 'GLOBAL',
         image: product.images?.cover?.url || product.images?.screenshots?.[0]?.url || null,
+        genres: product.genres || [],
+        tags: product.tags || [],
+        developers: product.developers || [],
+        publishers: product.publishers || [],
+        description: product.description || '',
+        languages: product.languages || [],
       }))
     } catch (error: any) {
       console.error('Kinguin searchProducts error:', error.response?.data || error.message)
@@ -149,6 +167,12 @@ class KinguinService extends MedusaService({}) {
         platform: product.platform || 'Steam',
         region: product.regionalLimitations || product.regionId || 'GLOBAL',
         image: product.images?.cover?.url || product.images?.screenshots?.[0]?.url || null,
+        genres: product.genres || [],
+        tags: product.tags || [],
+        developers: product.developers || [],
+        publishers: product.publishers || [],
+        description: product.description || '',
+        languages: product.languages || [],
       }))
     } catch (error: any) {
       console.error('Kinguin listAllProducts error:', error.response?.data || error.message)
