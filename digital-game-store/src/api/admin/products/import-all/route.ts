@@ -1,5 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
+import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -33,6 +34,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const pricingModule = req.scope.resolve(Modules.PRICING) as any
     const salesChannelModule = req.scope.resolve(Modules.SALES_CHANNEL) as any
     const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK) as any
+    const storeSettings = req.scope.resolve('storeSettings') as any
+    
+    // Get currency rates from settings
+    const currencyRates = await getCurrencyRates(storeSettings)
+    logger.info(`💱 Using currency rates:`, currencyRates)
     
     // Find default sales channel
     let defaultChannel = null
@@ -148,15 +154,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           },
         })
 
-        // Create variant with proper pricing
+        // Create variant with proper pricing (MULTI-CURRENCY)
         if (createdProduct && createdProduct.id) {
-          // Step 1: Create price set with pricing module
+          // Calculate prices for all currencies using settings
+          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPrice, currencyRates)
+
+          // Step 1: Create price set with multi-currency pricing
           const priceSet = await pricingModule.createPriceSets({
-            prices: [{
-              amount: finalPrice,
-              currency_code: 'usd',
-              rules: {},
-            }],
+            prices: multiCurrencyPrices,
           })
 
           // Step 2: Create variant

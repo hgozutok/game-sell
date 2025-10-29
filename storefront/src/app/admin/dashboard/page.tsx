@@ -40,9 +40,9 @@ const adminSections = [
     title: 'Para Birimleri',
     icon: '💱',
     description: 'Döviz kurları ve ayarlar',
-    href: '/admin/dashboard/currencies',
+    href: '/admin/dashboard/currency-rates',
     color: 'from-yellow-600 to-amber-600',
-    features: ['Multi-Currency', 'Kur Ayarları', 'Varsayılan Para']
+    features: ['Canlı Kur', 'Manuel Güncelleme', 'Multi-Currency']
   },
   {
     title: 'Ürün Senkronizasyonu',

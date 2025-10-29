@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useCurrencyStore } from '@/store/currencyStore'
 
 interface ProductCardProps {
   product: {
@@ -28,9 +29,15 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const price = product.variants?.[0]?.calculated_price || product.variants?.[0]?.prices?.[0]
-  const amount = (price && 'calculated_amount' in price ? price.calculated_amount : (price as any)?.amount) || 0
-  const currency = price?.currency_code || 'USD'
+  const { selectedCurrency } = useCurrencyStore()
+  
+  // Find price for selected currency
+  const variantPrices = product.variants?.[0]?.prices || []
+  const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+  const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
+  
+  const price = currencyPrice || defaultPrice
+  const amount = price?.amount || 0
   
   // Use handle/slug for SEO-friendly URLs, fallback to ID
   const productUrl = product.handle || product.id
@@ -92,13 +99,10 @@ export default function ProductCard({ product }: ProductCardProps) {
               {amount ? (
                 <>
                   <div className="text-2xl font-black text-white">
-                    {new Intl.NumberFormat('en-US', {
-                      style: 'currency',
-                      currency: currency,
-                    }).format(amount / 100)}
+                    {selectedCurrency.symbol}{(amount / 100).toFixed(2)}
                   </div>
                   <div className="text-xs text-gray-600 line-through">
-                    ${(amount / 100 * 1.4).toFixed(2)}
+                    {selectedCurrency.symbol}{(amount / 100 * 1.4).toFixed(2)}
                   </div>
                 </>
               ) : (

@@ -22,6 +22,9 @@ export default function ProductImportPage() {
   const [result, setResult] = useState<any>(null)
   const [searchResults, setSearchResults] = useState<ProviderProduct[]>([])
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
+  const [jobId, setJobId] = useState<string | null>(null)
+  const [jobProgress, setJobProgress] = useState<number>(0)
+  const [jobStatus, setJobStatus] = useState<string>('')
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
@@ -56,32 +59,68 @@ export default function ProductImportPage() {
     )
   }
 
+  // Poll job status
+  const pollJob = async (jobId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await adminApi.get(`/admin/jobs/${jobId}`)
+        const job = response.data.job
+
+        setJobProgress(job.progress || 0)
+        setJobStatus(`${job.processed_items || 0}/${job.total_items || 0} ürün işlendi`)
+
+        if (job.status === 'completed') {
+          clearInterval(pollInterval)
+          setLoading(false)
+          setJobId(null)
+          setResult({
+            success: true,
+            message: `✅ ${job.result?.imported_count || 0} ürün başarıyla içe aktarıldı!`,
+            details: `${job.result?.total_attempted || 0} ürün denendi.`
+          })
+        } else if (job.status === 'failed') {
+          clearInterval(pollInterval)
+          setLoading(false)
+          setJobId(null)
+          setResult({
+            success: false,
+            message: `❌ İçe aktarma başarısız: ${job.error}`
+          })
+        }
+      } catch (error) {
+        console.error('Job polling error:', error)
+      }
+    }, 2000) // Poll every 2 seconds
+  }
+
   const handleImportAll = async () => {
-    if (!confirm(`⚠️ ${provider.toUpperCase()} provider'dan TÜM STOKLU ÜRÜNLERİ içe aktarmak istediğinize emin misiniz? Bu işlem uzun sürebilir.`)) {
+    if (!confirm(`⚠️ ${provider.toUpperCase()} provider'dan TÜM STOKLU ÜRÜNLERİ arka planda içe aktarmak istediğinize emin misiniz?`)) {
       return
     }
 
     setLoading(true)
     setResult(null)
+    setJobProgress(0)
+    setJobStatus('Başlatılıyor...')
 
     try {
-      const response = await adminApi.post('/admin/products/import-all', {
+      const response = await adminApi.post('/admin/products/import-background', {
         provider,
         margin_percentage: margin,
       })
 
-      setResult({
-        success: true,
-        message: `✅ ${response.data.imported_count || 0} ürün başarıyla içe aktarıldı!`,
-        details: `${response.data.total_attempted || 0} ürün denendi, ${response.data.imported_count || 0} tanesi başarılı.`
-      })
+      const newJobId = response.data.job_id
+      setJobId(newJobId)
+      setJobStatus('İmport başlatıldı, arka planda çalışıyor...')
+
+      // Start polling
+      pollJob(newJobId)
     } catch (error: any) {
+      setLoading(false)
       setResult({
         success: false,
-        message: error.response?.data?.message || error.message || 'Toplu içe aktarma başarısız oldu'
+        message: error.response?.data?.message || error.message || 'Toplu içe aktarma başlatılamadı'
       })
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -168,6 +207,32 @@ export default function ProductImportPage() {
             </button>
           </div>
         </div>
+
+        {/* Progress Bar */}
+        {loading && jobId && (
+          <div className="gaming-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-white">🔄 Arka Planda İçe Aktarılıyor...</h3>
+              <span className="text-[#ff6b35] font-bold">{jobProgress}%</span>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] h-4 transition-all duration-500 flex items-center justify-center text-xs font-bold text-white"
+                style={{ width: `${jobProgress}%` }}
+              >
+                {jobProgress > 10 && `${jobProgress}%`}
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-400">{jobStatus}</p>
+            
+            <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-sm text-gray-400">
+              💡 Sayfayı kapatabilirsiniz, import arka planda devam edecek
+            </div>
+          </div>
+        )}
 
         {result && (
           <div className={`${result.success ? 'bg-green-500/10 border-green-500 text-green-500' : 'bg-red-500/10 border-red-500 text-red-500'} border px-4 py-3 rounded-lg mb-6`}>

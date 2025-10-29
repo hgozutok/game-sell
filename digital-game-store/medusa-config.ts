@@ -47,5 +47,8 @@ export default defineConfig({
     keyInventory: {
       resolve: "./src/modules/key-inventory",
     },
+    backgroundJobs: {
+      resolve: "./src/modules/background-jobs",
+    },
   },
 })

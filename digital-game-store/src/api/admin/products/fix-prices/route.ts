@@ -1,5 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
+import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -10,9 +11,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const productModule = req.scope.resolve(Modules.PRODUCT) as any
     const pricingModule = req.scope.resolve(Modules.PRICING) as any
+    const storeSettings = req.scope.resolve('storeSettings') as any
     const logger = req.scope.resolve('logger') as any
 
     logger.info('💰 Fixing prices for products...')
+
+    // Get currency rates from settings
+    const currencyRates = await getCurrencyRates(storeSettings)
+    logger.info(`💱 Using currency rates:`, currencyRates)
 
     // Get all products
     const products = await productModule.listProducts({}, { take: 1000 })
@@ -39,15 +45,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
           // Calculate price with margin
           const margin = parseFloat(product.metadata?.margin_applied || '15')
-          const finalPrice = Math.round(basePrice * (1 + margin / 100) * 100) // cents
+          const finalPriceUSD = Math.round(basePrice * (1 + margin / 100) * 100) // cents
 
-          // Create price set
+          // Calculate prices for all currencies using settings
+          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPriceUSD, currencyRates)
+
+          // Create price set with multi-currency support
           const priceSet = await pricingModule.createPriceSets({
-            prices: [{
-              amount: finalPrice,
-              currency_code: 'usd',
-              rules: {},
-            }],
+            prices: multiCurrencyPrices,
           })
 
           // Link variant to price set
@@ -61,7 +66,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           })
 
           fixedCount++
-          logger.info(`✅ Fixed price for: ${product.title} - $${(finalPrice / 100).toFixed(2)}`)
+          logger.info(`✅ Fixed price for: ${product.title} - $${(finalPriceUSD / 100).toFixed(2)} (+ EUR, GBP, TRY)`)
         }
       } catch (error: any) {
         logger.error(`❌ Failed to fix ${product.title}:`, error.message)

@@ -33,7 +33,10 @@ adminApi.interceptors.request.use(
 adminApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Don't auto-logout for settings endpoints (they may not require auth in dev)
+    const isSettingsEndpoint = error.config?.url?.includes('/settings')
+    
+    if (error.response?.status === 401 && !isSettingsEndpoint) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_token')
         localStorage.removeItem('admin_authenticated')

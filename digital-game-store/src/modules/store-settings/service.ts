@@ -30,13 +30,8 @@ class StoreSettingsService extends MedusaService({
     const existing = await this.getSetting(key)
 
     if (existing) {
-      return await this.updateStoreSettings({
-        selector: { id: existing.id },
-        data: {
-          value,
-          ...options,
-        }
-      })
+      // Delete existing and create new (simpler than update)
+      await this.deleteStoreSettings(existing.id)
     }
 
     return await this.createStoreSettings({

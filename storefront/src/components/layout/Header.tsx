@@ -4,19 +4,27 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
+import { useCurrencyStore } from '@/store/currencyStore'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Header() {
   const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isCurrencyOpen, setIsCurrencyOpen] = useState(false)
   const [cartItemCount, setCartItemCount] = useState(0)
   const getTotalItems = useCartStore((state) => state.getTotalItems)
   const { customer, logout } = useAuth()
+  const { selectedCurrency, currencies, setSelectedCurrency, loadCurrencyRates } = useCurrencyStore()
   
   // Prevent hydration mismatch by only reading cart count on client side
   useEffect(() => {
     setCartItemCount(getTotalItems())
   }, [getTotalItems])
+  
+  // Load currency rates from backend on mount
+  useEffect(() => {
+    loadCurrencyRates()
+  }, [])
   
   // Subscribe to cart changes
   useEffect(() => {
@@ -77,6 +85,48 @@ export default function Header() {
                 className="bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg w-64 focus:border-[#ff6b35] focus:outline-none"
               />
             </div>
+
+            {/* Currency Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setIsCurrencyOpen(!isCurrencyOpen)}
+                className="px-3 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition font-medium flex items-center gap-2"
+              >
+                <span className="text-lg">{selectedCurrency.symbol}</span>
+                <span className="text-sm">{selectedCurrency.code.toUpperCase()}</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {isCurrencyOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-[#1a1d24] border border-gray-700 rounded-lg shadow-xl z-50">
+                  {currencies.map((currency) => (
+                    <button
+                      key={currency.code}
+                      onClick={() => {
+                        setSelectedCurrency(currency)
+                        setIsCurrencyOpen(false)
+                      }}
+                      className={`w-full text-left px-4 py-2 hover:bg-[#ff6b35] hover:text-white transition flex items-center justify-between ${
+                        selectedCurrency.code === currency.code ? 'bg-[#ff6b35]/20 text-[#ff6b35]' : 'text-gray-300'
+                      } ${currency.code === currencies[0].code ? 'rounded-t-lg' : ''} ${
+                        currency.code === currencies[currencies.length - 1].code ? 'rounded-b-lg' : ''
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-lg">{currency.symbol}</span>
+                        <span className="font-medium">{currency.code.toUpperCase()}</span>
+                      </span>
+                      {selectedCurrency.code === currency.code && (
+                        <span className="text-green-500">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <Link href="/cart" className="relative text-gray-300 hover:text-[#ff6b35] transition">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />

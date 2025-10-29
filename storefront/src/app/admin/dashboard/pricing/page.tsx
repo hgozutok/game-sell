@@ -25,11 +25,13 @@ export default function PricingPage() {
   }, [])
 
   const fetchRules = async () => {
+    setLoading(true)
     try {
       const response = await adminApi.get('/admin/pricing-rules')
       setRules(response.data.pricing_rules || [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch pricing rules:', error)
+      // Set empty array on error to allow page to render
       setRules([])
     } finally {
       setLoading(false)
@@ -40,7 +42,13 @@ export default function PricingPage() {
     e.preventDefault()
     
     try {
-      await adminApi.post('/admin/pricing-rules', newRule)
+      await adminApi.post('/admin/pricing-rules', {
+        category_name: newRule.category,
+        provider: 'all',
+        margin_percentage: newRule.margin_percentage,
+        min_price: newRule.min_price,
+        max_price: newRule.max_price,
+      })
       fetchRules()
       setNewRule({ category: '', margin_percentage: 15 })
       alert('✅ Kural eklendi!')

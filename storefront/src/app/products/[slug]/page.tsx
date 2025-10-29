@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useCartStore } from '@/store/cartStore'
+import { useCurrencyStore } from '@/store/currencyStore'
 import toast, { Toaster } from 'react-hot-toast'
 
 interface Product {
@@ -87,9 +88,11 @@ export default function ProductDetailPage() {
     if (!product) return
 
     const variant = product.variants[selectedVariant]
-    const price = variant.calculated_price || variant.prices?.[0]
-    const amount = (price && 'calculated_amount' in price ? price.calculated_amount : price?.amount) || 0
-    const currency = price?.currency_code || 'USD'
+    const variantPrices = variant.prices || []
+    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+    const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
+    const price = currencyPrice || defaultPrice
+    const amount = price?.amount || 0
 
     addItem({
       id: `${product.id}-${variant.id}`,
@@ -99,7 +102,7 @@ export default function ProductDetailPage() {
       handle: product.handle,
       thumbnail: product.thumbnail || '',
       price: amount,
-      currency: currency,
+      currency: selectedCurrency.code,
       metadata: product.metadata,
     })
 
@@ -134,10 +137,15 @@ export default function ProductDetailPage() {
     )
   }
 
+  const { selectedCurrency } = useCurrencyStore()
+  
   const variant = product.variants[selectedVariant]
-  const price = variant.calculated_price || variant.prices?.[0]
-  const amount = (price && 'calculated_amount' in price ? price.calculated_amount : price?.amount) || 0
-  const currency = price?.currency_code || 'USD'
+  const variantPrices = variant.prices || []
+  const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+  const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
+  
+  const price = currencyPrice || defaultPrice
+  const amount = price?.amount || 0
   const images = product.images && product.images.length > 0 ? product.images : [{ url: product.thumbnail || '', id: '0' }]
 
   return (
@@ -254,18 +262,15 @@ export default function ProductDetailPage() {
                 <div>
                   <div className="text-sm text-gray-500 mb-1">PRICE</div>
                   <div className="text-4xl font-black text-white">
-                    {new Intl.NumberFormat('en-US', {
-                      style: 'currency',
-                      currency: currency,
-                    }).format(amount / 100)}
+                    {selectedCurrency.symbol}{(amount / 100).toFixed(2)}
                   </div>
                   <div className="text-sm text-gray-600 line-through">
-                    ${((amount / 100) * 1.4).toFixed(2)}
+                    {selectedCurrency.symbol}{((amount / 100) * 1.4).toFixed(2)}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-green-500 font-bold text-xl mb-1">-30%</div>
-                  <div className="text-xs text-gray-500">You Save: ${((amount / 100) * 0.4).toFixed(2)}</div>
+                  <div className="text-xs text-gray-500">You Save: {selectedCurrency.symbol}{((amount / 100) * 0.4).toFixed(2)}</div>
                 </div>
               </div>
 

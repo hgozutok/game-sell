@@ -3,20 +3,18 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
+import { useCurrencyStore } from "@/store/currencyStore"
 
 export default function CartPage() {
   const router = useRouter()
   const { items, removeItem, updateQuantity, getTotalPrice } = useCartStore()
+  const { selectedCurrency } = useCurrencyStore()
   
   const isEmpty = items.length === 0
   const totalPrice = getTotalPrice()
-  const currency = items[0]?.currency || "USD"
 
-  const formatPrice = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.toUpperCase(),
-    }).format(amount / 100)
+  const formatPrice = (amount: number) => {
+    return `${selectedCurrency.symbol}${(amount / 100).toFixed(2)}`
   }
 
   const handleCheckout = () => {
@@ -148,10 +146,10 @@ export default function CartPage() {
                       {/* Price */}
                       <div className="text-right">
                         <div className="text-2xl font-bold text-[#ff6b35]">
-                          {formatPrice(item.price * item.quantity, item.currency)}
+                          {formatPrice(item.price * item.quantity)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {formatPrice(item.price, item.currency)} each
+                          {formatPrice(item.price)} each
                         </div>
                       </div>
                     </div>
@@ -169,7 +167,7 @@ export default function CartPage() {
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-400">Subtotal</span>
-                  <span className="text-white font-semibold">{formatPrice(totalPrice, currency)}</span>
+                  <span className="text-white font-semibold">{formatPrice(totalPrice)}</span>
                 </div>
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-400">Tax</span>
@@ -178,7 +176,7 @@ export default function CartPage() {
                 <div className="border-t border-gray-800 pt-4">
                   <div className="flex justify-between text-2xl font-bold">
                     <span className="text-white">Total</span>
-                    <span className="text-[#ff6b35]">{formatPrice(totalPrice, currency)}</span>
+                    <span className="text-[#ff6b35]">{formatPrice(totalPrice)}</span>
                   </div>
                 </div>
               </div>

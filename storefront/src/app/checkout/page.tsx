@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cartStore'
+import { useCurrencyStore } from '@/store/currencyStore'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -29,6 +30,7 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, getTotalPrice, clearCart } = useCartStore()
+  const { selectedCurrency } = useCurrencyStore()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'info' | 'payment'>('info')
 
@@ -83,10 +85,10 @@ export default function CheckoutPage() {
       }
 
       console.log('Creating order with data:', orderData)
-      const response = await api.post('/store/carts', orderData)
+      const response = await api.post('/store/orders/create', orderData)
 
-      if (response.data.cart || response.data.order) {
-        const orderId = response.data.order?.id || response.data.cart?.id || 'test-order'
+      if (response.data.order) {
+        const orderId = response.data.order.id
         
         // Clear cart
         clearCart()
@@ -352,7 +354,7 @@ export default function CheckoutPage() {
 
               {/* Submit Button */}
               <button type="submit" disabled={loading} className="w-full btn-primary text-lg py-4">
-                {loading ? 'PROCESSING...' : `PLACE ORDER - $${(finalTotal / 100).toFixed(2)}`}
+                {loading ? 'PROCESSING...' : `PLACE ORDER - ${selectedCurrency.symbol}${(finalTotal / 100).toFixed(2)}`}
               </button>
 
               <p className="text-center text-sm text-gray-500">
@@ -387,7 +389,7 @@ export default function CheckoutPage() {
                       <div className="text-white font-semibold text-sm truncate">{item.title}</div>
                       <div className="text-gray-400 text-xs">Qty: {item.quantity}</div>
                       <div className="text-[#ff6b35] font-bold text-sm">
-                        ${((item.price * item.quantity) / 100).toFixed(2)}
+                        {selectedCurrency.symbol}{((item.price * item.quantity) / 100).toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -397,15 +399,15 @@ export default function CheckoutPage() {
               <div className="border-t border-gray-700 pt-4 space-y-2">
                 <div className="flex justify-between text-gray-400">
                   <span>Subtotal:</span>
-                  <span>${(totalPrice / 100).toFixed(2)}</span>
+                  <span>{selectedCurrency.symbol}{(totalPrice / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
                   <span>VAT (20%):</span>
-                  <span>${(tax / 100).toFixed(2)}</span>
+                  <span>{selectedCurrency.symbol}{(tax / 100).toFixed(2)}</span>
                 </div>
                 <div className="border-t border-gray-700 pt-2 flex justify-between text-white font-bold text-xl">
                   <span>Total:</span>
-                  <span>${(finalTotal / 100).toFixed(2)}</span>
+                  <span>{selectedCurrency.symbol}{(finalTotal / 100).toFixed(2)}</span>
                 </div>
               </div>
 
