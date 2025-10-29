@@ -4,6 +4,43 @@ import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../util
 
 export const AUTHENTICATE = false // Disable auth for development
 
+// Helper: Get or create collection by name
+async function getOrCreateCollection(productModule: any, name: string, logger: any) {
+  try {
+    const existing = await productModule.listProductCollections({ title: name })
+    if (existing && existing.length > 0) {
+      return existing[0]
+    }
+
+    const collection = await productModule.createProductCollections({
+      title: name,
+      handle: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    })
+    logger.info(`✨ Created collection: ${name}`)
+    return collection
+  } catch (error: any) {
+    logger.warn(`⚠️ Collection error for "${name}":`, error.message)
+    return null
+  }
+}
+
+// Helper: Get or create tag by value
+async function getOrCreateTag(productModule: any, value: string, logger: any) {
+  try {
+    const existing = await productModule.listProductTags({ value })
+    if (existing && existing.length > 0) {
+      return existing[0]
+    }
+
+    const tag = await productModule.createProductTags({ value })
+    logger.info(`🏷️ Created tag: ${value}`)
+    return tag
+  } catch (error: any) {
+    logger.warn(`⚠️ Tag error for "${value}":`, error.message)
+    return null
+  }
+}
+
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { provider, product_ids, search_query, margin_percentage, category_id } = req.body as any
 
@@ -120,12 +157,44 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           // CREATE new product
           logger.info(`✨ Creating ${productName}`)
           
+          // Prepare collections and tags
+          const collections = []
+          const tags = []
+          
+          // Add genre as collection (Kinguin)
+          if (externalProduct.genres && Array.isArray(externalProduct.genres)) {
+            for (const genre of externalProduct.genres) {
+              const collection = await getOrCreateCollection(productModule, genre, logger)
+              if (collection) collections.push(collection.id)
+            }
+          }
+          
+          // Add platform as collection
+          if (externalProduct.platform) {
+            const platformCollection = await getOrCreateCollection(productModule, externalProduct.platform, logger)
+            if (platformCollection) collections.push(platformCollection.id)
+          }
+          
+          // Add provider as tag
+          const providerTag = await getOrCreateTag(productModule, provider, logger)
+          if (providerTag) tags.push(providerTag.id)
+          
+          // Add custom tags (Kinguin)
+          if (externalProduct.tags && Array.isArray(externalProduct.tags)) {
+            for (const tagValue of externalProduct.tags) {
+              const tag = await getOrCreateTag(productModule, tagValue, logger)
+              if (tag) tags.push(tag.id)
+            }
+          }
+          
           productToUse = await productModule.createProducts({
             title: productName.substring(0, 255),
             handle: handle,
             status: 'published',
             thumbnail: thumbnailUrl, // Always MEDIUM
             images: productImages,
+            collection_ids: collections.length > 0 ? collections : undefined,
+            tag_ids: tags.length > 0 ? tags : undefined,
             metadata: {
               provider: provider,
               provider_product_id: externalProduct.productId,
@@ -135,6 +204,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               margin_applied: margin_percentage || 15,
               languages: externalProduct.languages || [],
               badges: externalProduct.badges || [],
+              genres: externalProduct.genres || [],
+              tags: externalProduct.tags || [],
+              developers: externalProduct.developers || [],
+              publishers: externalProduct.publishers || [],
             },
           })
         }

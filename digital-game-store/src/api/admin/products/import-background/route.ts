@@ -4,6 +4,45 @@ import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../util
 
 export const AUTHENTICATE = false // Disable auth for development
 
+// Helper: Get or create collection by name
+async function getOrCreateCollection(productModule: any, name: string, logger: any) {
+  try {
+    const existing = await productModule.listProductCollections({ title: name })
+    if (existing && existing.length > 0) {
+      return existing[0]
+    }
+
+    // Create new collection
+    const collection = await productModule.createProductCollections({
+      title: name,
+      handle: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    })
+    logger.info(`✨ Created collection: ${name}`)
+    return collection
+  } catch (error: any) {
+    logger.warn(`⚠️ Collection error for "${name}":`, error.message)
+    return null
+  }
+}
+
+// Helper: Get or create tag by value
+async function getOrCreateTag(productModule: any, value: string, logger: any) {
+  try {
+    const existing = await productModule.listProductTags({ value })
+    if (existing && existing.length > 0) {
+      return existing[0]
+    }
+
+    // Create new tag
+    const tag = await productModule.createProductTags({ value })
+    logger.info(`🏷️ Created tag: ${value}`)
+    return tag
+  } catch (error: any) {
+    logger.warn(`⚠️ Tag error for "${value}":`, error.message)
+    return null
+  }
+}
+
 /**
  * Start background import job
  * Returns immediately with job ID, import continues in background
@@ -193,6 +232,36 @@ async function runImportInBackground(
             logger.info(`  Final Price: $${(finalPrice / 100).toFixed(2)}`)
           }
           
+          // Prepare collections and tags
+          const collections = []
+          const tags = []
+          
+          // Add genre as collection (Kinguin)
+          if (productData.genres && Array.isArray(productData.genres)) {
+            for (const genre of productData.genres) {
+              const collection = await getOrCreateCollection(productModule, genre, logger)
+              if (collection) collections.push(collection.id)
+            }
+          }
+          
+          // Add platform as collection
+          if (productData.platform) {
+            const platformCollection = await getOrCreateCollection(productModule, productData.platform, logger)
+            if (platformCollection) collections.push(platformCollection.id)
+          }
+          
+          // Add provider as tag
+          const providerTag = await getOrCreateTag(productModule, provider, logger)
+          if (providerTag) tags.push(providerTag.id)
+          
+          // Add custom tags (Kinguin)
+          if (productData.tags && Array.isArray(productData.tags)) {
+            for (const tagValue of productData.tags) {
+              const tag = await getOrCreateTag(productModule, tagValue, logger)
+              if (tag) tags.push(tag.id)
+            }
+          }
+          
           productToUse = await productModule.createProducts({
             title: productName.substring(0, 255),
             handle,
@@ -200,6 +269,8 @@ async function runImportInBackground(
             description: productData.description || `${productName} - Digital game key delivered instantly`,
             thumbnail: thumbnailUrl,
             images: [{ url: thumbnailUrl }],
+            collection_ids: collections.length > 0 ? collections : undefined,
+            tag_ids: tags.length > 0 ? tags : undefined,
             metadata: {
               provider,
               provider_product_id: productData.productId,
@@ -208,6 +279,10 @@ async function runImportInBackground(
               original_price: basePrice,
               margin_applied: margin,
               imported_at: new Date().toISOString(),
+              genres: productData.genres || [],
+              tags: productData.tags || [],
+              developers: productData.developers || [],
+              publishers: productData.publishers || [],
             },
           })
         }

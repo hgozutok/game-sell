@@ -86,6 +86,20 @@ export default function ProductDetailPage() {
     fetchProduct()
   }, [slug])
 
+  // Update price when currency or variant changes
+  useEffect(() => {
+    if (!product) return
+    
+    const currentVariant = product.variants?.[selectedVariant]
+    if (!currentVariant) return
+    
+    const variantPrices = currentVariant.prices || []
+    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+    const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
+    const price = currencyPrice || defaultPrice
+    setAmount(price?.amount || 0)
+  }, [selectedCurrency.code, product, selectedVariant])
+
   const handleAddToCart = () => {
     if (!product) return
 
@@ -136,18 +150,6 @@ export default function ProductDetailPage() {
 
   const variant = product.variants[selectedVariant]
   const images = product.images && product.images.length > 0 ? product.images : [{ url: product.thumbnail || '', id: '0' }]
-
-  // Update price when currency or variant changes
-  useEffect(() => {
-    if (!product) return
-    
-    const currentVariant = product.variants[selectedVariant]
-    const variantPrices = currentVariant?.prices || []
-    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
-    const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
-    const price = currencyPrice || defaultPrice
-    setAmount(price?.amount || 0)
-  }, [selectedCurrency.code, product, selectedVariant])
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
