@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { adminApi } from '@/lib/admin-api'
 
 const adminSections = [
   {
@@ -61,6 +62,26 @@ export default function AdminDashboard() {
     totalCustomers: 1,
     revenue: 0
   })
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
+
+  const handleSyncCollections = async () => {
+    setSyncLoading(true)
+    setSyncResult(null)
+    try {
+      const res = await adminApi.post('/admin/products/sync-collections')
+      const processed = res.data?.processed ?? 0
+      const updated = res.data?.updated ?? 0
+      setSyncResult(`Processed ${processed}, updated ${updated}`)
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to sync'
+      setSyncResult(`Error: ${msg}`)
+      // eslint-disable-next-line no-console
+      console.error('Sync collections error:', err?.response?.data || err?.message)
+    } finally {
+      setSyncLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
@@ -168,7 +189,25 @@ export default function AdminDashboard() {
                 <div className="text-xs text-gray-400">Tüm ürünler</div>
               </div>
             </Link>
+            <button
+              onClick={handleSyncCollections}
+              disabled={syncLoading}
+              className="flex items-center gap-3 p-4 bg-[#1a1d24] rounded-lg border border-gray-700 hover:border-[#ff6b35] transition group disabled:opacity-60"
+            >
+              <span className="text-2xl">📚</span>
+              <div className="text-left">
+                <div className="font-bold text-white">Sync Collections</div>
+                <div className="text-xs text-gray-400">
+                  {syncLoading ? 'Running…' : 'Ürünleri koleksiyonlarla eşle'}
+                </div>
+              </div>
+            </button>
           </div>
+          {syncResult && (
+            <div className="mt-4 text-sm text-gray-300">
+              {syncResult}
+            </div>
+          )}
         </div>
       </div>
     </div>
