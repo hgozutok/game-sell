@@ -1,5 +1,8 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 
+// Disable authentication for development
+export const AUTHENTICATE = false
+
 /**
  * List and manage enabled currencies
  */

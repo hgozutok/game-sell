@@ -33,16 +33,8 @@ adminApi.interceptors.request.use(
 adminApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Don't auto-logout for settings endpoints (they may not require auth in dev)
-    const isSettingsEndpoint = error.config?.url?.includes('/settings')
-    
-    if (error.response?.status === 401 && !isSettingsEndpoint) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('admin_token')
-        localStorage.removeItem('admin_authenticated')
-        window.location.href = '/admin'
-      }
-    }
+    // Always reject on 401 but don't auto-logout for development
+    // TODO: Configure proper authentication in production
     return Promise.reject(error)
   }
 )

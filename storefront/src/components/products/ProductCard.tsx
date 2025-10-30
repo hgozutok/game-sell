@@ -57,7 +57,6 @@ export default function ProductCard({ product }: ProductCardProps) {
               fill
               className="object-cover group-hover:scale-110 transition-transform duration-500"
               unoptimized
-              onError={(e) => console.error('Image load error:', product.thumbnail)}
             />
           ) : (
             <div className="flex items-center justify-center h-full">

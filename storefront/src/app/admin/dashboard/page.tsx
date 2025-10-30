@@ -6,6 +6,30 @@ import { adminApi } from '@/lib/admin-api'
 
 const adminSections = [
   {
+    title: 'Ürün Yönetimi',
+    icon: '📦',
+    description: 'Ürünleri görüntüle, düzenle, filtrele',
+    href: '/admin/dashboard/products',
+    color: 'from-orange-600 to-red-600',
+    features: ['Ürün Listesi', 'Filtreleme', 'Sayfalama']
+  },
+  {
+    title: 'Anahtar Yönetimi',
+    icon: '🔑',
+    description: 'Dijital anahtarları yönet',
+    href: '/admin/dashboard/keys',
+    color: 'from-yellow-600 to-amber-600',
+    features: ['Anahtar Listesi', 'Durum Yönetimi', 'İptal']
+  },
+  {
+    title: 'Ödeme Sistemleri',
+    icon: '💳',
+    description: 'Ödeme yöntemlerini yapılandır',
+    href: '/admin/dashboard/payments',
+    color: 'from-green-600 to-emerald-600',
+    features: ['Stripe', 'PayPal', 'Kripto']
+  },
+  {
     title: 'Mağaza Ayarları',
     icon: '⚙️',
     description: 'Site başlığı, logo, renkler',
@@ -23,10 +47,10 @@ const adminSections = [
   },
   {
     title: 'Ürün İçe Aktarma',
-    icon: '📦',
+    icon: '📥',
     description: 'CWS/Kinguin ürün getir',
     href: '/admin/dashboard/products/import',
-    color: 'from-orange-600 to-red-600',
+    color: 'from-pink-600 to-rose-600',
     features: ['API Entegrasyon', 'Toplu İçe Aktar', 'Fiyat Marjı']
   },
   {
@@ -34,7 +58,7 @@ const adminSections = [
     icon: '💰',
     description: 'Kategori bazlı marj ayarları',
     href: '/admin/dashboard/pricing',
-    color: 'from-green-600 to-emerald-600',
+    color: 'from-cyan-600 to-blue-600',
     features: ['Kar Marjı', 'Kategori Bazlı', 'Otomatik Güncelleme']
   },
   {
@@ -42,7 +66,7 @@ const adminSections = [
     icon: '💱',
     description: 'Döviz kurları ve ayarlar',
     href: '/admin/dashboard/currency-rates',
-    color: 'from-yellow-600 to-amber-600',
+    color: 'from-teal-600 to-green-600',
     features: ['Canlı Kur', 'Manuel Güncelleme', 'Multi-Currency']
   },
   {

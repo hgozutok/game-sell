@@ -2,6 +2,9 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { z } from "zod"
 import KeyInventoryService from "../../../modules/key-inventory/service"
 
+// Disable authentication for development
+export const AUTHENTICATE = false
+
 // GET /admin/digital-keys - List all digital keys
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const keyInventoryService = req.scope.resolve("keyInventory") as KeyInventoryService

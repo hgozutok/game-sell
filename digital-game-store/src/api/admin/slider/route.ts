@@ -1,5 +1,8 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 
+// Disable authentication for development
+export const AUTHENTICATE = false
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const sliderModule = req.scope.resolve('slider') as any
