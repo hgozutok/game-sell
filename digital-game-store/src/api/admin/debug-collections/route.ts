@@ -15,10 +15,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // Get all collections
     const collections = await productModule.listProductCollections({})
     
-    // Get all products (try to get with relations)
-    const products = await productModule.listProducts({}, {
-      relations: ['*']
-    })
+    // Get all products (without relations to avoid MikroORM issues)
+    const products = await productModule.listProducts({})
     
     // Check if there are any remote links at all
     let totalLinks = 0
@@ -37,9 +35,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     let sampleProduct = null
     if (products && products.length > 0) {
       try {
-        sampleProduct = await productModule.retrieveProduct(products[0].id, {
-          relations: ['*'],
-        })
+        sampleProduct = await productModule.retrieveProduct(products[0].id)
       } catch (e) {
         sampleProduct = products[0]
       }

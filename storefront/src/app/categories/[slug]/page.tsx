@@ -82,7 +82,9 @@ export default function CategoryPage() {
   }, [slug])
 
   // Filter and sort products
+  // Note: Price and stock filtering should be done by backend API
   const filteredProducts = products.filter((product) => {
+    // Filter by platform
     if (filterPlatform === 'all') return true
     return product.metadata?.platform?.toLowerCase() === filterPlatform.toLowerCase()
   })

@@ -21,11 +21,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     filters.status = status
   }
 
-  const keys = await keyInventoryService.listDigitalKeys({
-    filters,
-    skip: Number(offset),
-    take: Number(limit),
-  })
+  const keys = await keyInventoryService.listDigitalKeys(
+    { filters },
+    { skip: Number(offset), take: Number(limit) }
+  )
 
   const count = keys.length
 

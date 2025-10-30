@@ -12,6 +12,8 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false)
   const [cartItemCount, setCartItemCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const getTotalItems = useCartStore((state) => state.getTotalItems)
   const { customer, logout } = useAuth()
   const { selectedCurrency, currencies, setSelectedCurrency, loadCurrencyRates } = useCurrencyStore()
@@ -33,6 +35,24 @@ export default function Header() {
     })
     return unsubscribe
   }, [])
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 500) // 500ms debounce
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Navigate to search results when debounced query changes
+  useEffect(() => {
+    if (debouncedSearch.length >= 2) {
+      router.push(`/search?q=${encodeURIComponent(debouncedSearch)}`)
+    } else if (debouncedSearch.length === 0 && window.location.pathname === '/search') {
+      router.push('/products')
+    }
+  }, [debouncedSearch, router])
 
   const handleLogout = async () => {
     await logout()
@@ -82,8 +102,18 @@ export default function Header() {
               <input 
                 type="search" 
                 placeholder="Search games..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg w-64 focus:border-[#ff6b35] focus:outline-none"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             {/* Currency Selector */}

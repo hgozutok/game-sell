@@ -29,11 +29,29 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(50)
   const [totalPages, setTotalPages] = useState(1)
-  const [filters, setFilters] = useState({
-    hideZeroPrice: true,
-    hideZeroStock: true,
+  
+  // Load settings from localStorage
+  const [limit, setLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_products_limit')
+      return saved ? Number(saved) : 50
+    }
+    return 50
+  })
+  
+  const [filters, setFilters] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_products_filters')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch {
+          return { hideZeroPrice: true, hideZeroStock: true }
+        }
+      }
+    }
+    return { hideZeroPrice: true, hideZeroStock: true }
   })
 
   const fetchProducts = async () => {
@@ -60,6 +78,19 @@ export default function ProductsPage() {
       setLoading(false)
     }
   }
+
+  // Save settings to localStorage when they change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('admin_products_limit', String(limit))
+    }
+  }, [limit])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('admin_products_filters', JSON.stringify(filters))
+    }
+  }, [filters])
 
   useEffect(() => {
     fetchProducts()
@@ -166,9 +197,31 @@ export default function ProductsPage() {
               Tekrar Dene
             </button>
           </div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4">📦</div>
+            <h3 className="text-2xl font-bold text-white mb-2">Ürün bulunamadı</h3>
+            <p className="text-gray-400 mb-6">
+              Filtre ayarlarınızı kontrol edin veya ürün ekleyin
+            </p>
+            <button
+              onClick={() => {
+                setFilters({ hideZeroPrice: false, hideZeroStock: false })
+                setPage(1)
+              }}
+              className="btn-primary"
+            >
+              Filtreleri Sıfırla
+            </button>
+          </div>
         ) : (
           <>
             <div className="gaming-card p-6 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-black text-white">
+                  Ürünler ({products.length} gösteriliyor)
+                </h2>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>

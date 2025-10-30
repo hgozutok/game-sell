@@ -10,17 +10,33 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   try {
     const productModule = req.scope.resolve(Modules.PRODUCT) as any
     const keyInventoryService = req.scope.resolve('keyInventory') as KeyInventoryService
-    const { skip = 0, take = 50, hideZeroPrice = 'false', hideZeroStock = 'false' } = req.query
+    const { skip = 0, take = 50, hideZeroPrice = 'false', hideZeroStock = 'false', collection_id } = req.query
 
-    console.log('Fetching products with pagination:', { skip, take, hideZeroPrice, hideZeroStock })
+    console.log('Fetching products with pagination:', { skip, take, hideZeroPrice, hideZeroStock, collection_id })
 
-    // Get all products without pagination for now to get count
-    const allProducts = await productModule.listProducts({}, {
-      relations: ['*'],
-    })
+    // Get all products (without relations to avoid MikroORM issues)
+    const allProducts = await productModule.listProducts({})
+
+    console.log(`[Admin Products] Total products fetched: ${allProducts.length}`)
+    if (allProducts.length > 0) {
+      console.log(`[Admin Products] Sample product has variants: ${allProducts[0].variants ? 'yes' : 'no'}`)
+      if (allProducts[0].variants && allProducts[0].variants.length > 0) {
+        console.log(`[Admin Products] First variant has prices: ${allProducts[0].variants[0].prices ? 'yes' : 'no'}`)
+      }
+    }
 
     // Apply filters
     let filteredProducts = allProducts
+
+    // Filter by collection
+    if (collection_id) {
+      filteredProducts = filteredProducts.filter((product: any) => {
+        if (product.collection_id === collection_id) return true
+        if (product.collection_ids && Array.isArray(product.collection_ids) && product.collection_ids.includes(collection_id)) return true
+        return false
+      })
+      console.log(`[Admin Products] Collection filter: ${allProducts.length} -> ${filteredProducts.length} products`)
+    }
 
     // Filter by price
     if (hideZeroPrice === 'true') {

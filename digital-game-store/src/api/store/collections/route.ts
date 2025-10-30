@@ -1,6 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from "@medusajs/framework/utils"
 
+// Disable authentication for development
+export const AUTHENTICATE = false
+
 // GET /store/collections - List all collections
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
