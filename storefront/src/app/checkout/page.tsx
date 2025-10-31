@@ -33,6 +33,8 @@ export default function CheckoutPage() {
   const { selectedCurrency } = useCurrencyStore()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'info' | 'payment'>('info')
+  const [availableMethods, setAvailableMethods] = useState<Array<{id: string, name: string}>>([])
+  const [methodsLoaded, setMethodsLoaded] = useState(false)
 
   const {
     register,
@@ -42,11 +44,36 @@ export default function CheckoutPage() {
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      paymentMethod: 'paypal',
+      paymentMethod: 'bank-transfer',
     },
   })
 
   const paymentMethod = watch('paymentMethod')
+
+  // Load available payment methods from backend
+  useEffect(() => {
+    const loadPaymentMethods = async () => {
+      try {
+        const response = await api.get('/store/payment-methods')
+        const methods = response.data.methods || []
+        setAvailableMethods(methods)
+        
+        // Set first method as default if available
+        if (methods.length > 0) {
+          const firstMethod = methods[0].id.replace('_', '-')
+          // Update form default
+        }
+      } catch (err) {
+        console.error('Failed to load payment methods:', err)
+        // Fallback to bank transfer
+        setAvailableMethods([{ id: 'bank-transfer', name: 'Bank Transfer' }])
+      } finally {
+        setMethodsLoaded(true)
+      }
+    }
+
+    loadPaymentMethods()
+  }, [])
 
   useEffect(() => {
     if (items.length === 0) {
@@ -289,49 +316,53 @@ export default function CheckoutPage() {
               <div className="gaming-card p-8">
                 <h2 className="text-2xl font-black text-white mb-6">💳 PAYMENT METHOD</h2>
 
-                <div className="space-y-3">
-                  <label className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition">
-                    <input
-                      type="radio"
-                      value="paypal"
-                      {...register('paymentMethod')}
-                      className="w-5 h-5 text-[#ff6b35]"
-                    />
-                    <div className="flex-1">
-                      <div className="font-bold text-white">PayPal</div>
-                      <div className="text-sm text-gray-400">Pay with your PayPal account</div>
-                    </div>
-                    <span className="text-2xl">🅿️</span>
-                  </label>
+                {!methodsLoaded ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#ff6b35]"></div>
+                  </div>
+                ) : availableMethods.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400">Aktif ödeme yöntemi bulunamadı.</p>
+                    <p className="text-sm text-gray-500 mt-2">Lütfen admin panelden ödeme sistemlerini yapılandırın.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {availableMethods.map((method) => {
+                      const methodId = method.id.replace('_', '-')
+                      const icons: Record<string, string> = {
+                        paypal: '🅿️',
+                        mollie: '🇪🇺',
+                        'bank-transfer': '🏦',
+                        bank_transfer: '🏦',
+                      }
+                      const descriptions: Record<string, string> = {
+                        paypal: 'Pay with your PayPal account',
+                        mollie: 'iDEAL, Bancontact, and more',
+                        'bank-transfer': 'Manual bank transfer - requires approval',
+                        bank_transfer: 'Manual bank transfer - requires approval',
+                      }
 
-                  <label className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition">
-                    <input
-                      type="radio"
-                      value="mollie"
-                      {...register('paymentMethod')}
-                      className="w-5 h-5 text-[#ff6b35]"
-                    />
-                    <div className="flex-1">
-                      <div className="font-bold text-white">Mollie</div>
-                      <div className="text-sm text-gray-400">iDEAL, Bancontact, and more</div>
-                    </div>
-                    <span className="text-2xl">🇪🇺</span>
-                  </label>
-
-                  <label className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition">
-                    <input
-                      type="radio"
-                      value="bank-transfer"
-                      {...register('paymentMethod')}
-                      className="w-5 h-5 text-[#ff6b35]"
-                    />
-                    <div className="flex-1">
-                      <div className="font-bold text-white">Bank Transfer (UK)</div>
-                      <div className="text-sm text-gray-400">Manual bank transfer - requires approval</div>
-                    </div>
-                    <span className="text-2xl">🏦</span>
-                  </label>
-                </div>
+                      return (
+                        <label
+                          key={method.id}
+                          className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition"
+                        >
+                          <input
+                            type="radio"
+                            value={methodId}
+                            {...register('paymentMethod')}
+                            className="w-5 h-5 text-[#ff6b35]"
+                          />
+                          <div className="flex-1">
+                            <div className="font-bold text-white">{method.name}</div>
+                            <div className="text-sm text-gray-400">{descriptions[method.id]}</div>
+                          </div>
+                          <span className="text-2xl">{icons[method.id] || '💳'}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
 
                 {errors.paymentMethod && <p className="text-red-500 text-sm mt-2">{errors.paymentMethod.message}</p>}
               </div>

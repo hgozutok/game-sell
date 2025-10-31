@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { adminApi } from '@/lib/admin-api'
 
 interface PaymentSystem {
   id: string
@@ -10,47 +11,129 @@ interface PaymentSystem {
   description: string
   icon: string
   features: string[]
+  config: Record<string, string>
 }
 
-const paymentSystems: PaymentSystem[] = [
-  {
-    id: 'stripe',
-    name: 'Stripe',
-    status: 'inactive',
-    description: 'Kredi kartı ile ödeme al',
-    icon: '💳',
-    features: ['Kredi Kartı', 'Apple Pay', 'Google Pay', 'Visa', 'Mastercard'],
-  },
+const defaultPaymentSystems: Omit<PaymentSystem, 'status' | 'config'>[] = [
   {
     id: 'paypal',
     name: 'PayPal',
-    status: 'inactive',
     description: 'PayPal ile ödeme al',
     icon: '🌐',
     features: ['PayPal Hesabı', 'Güvenli Ödeme'],
   },
   {
-    id: 'crypto',
-    name: 'Kripto Para',
-    status: 'inactive',
-    description: 'Kripto para ile ödeme al',
-    icon: '₿',
-    features: ['Bitcoin', 'Ethereum', 'USDT'],
+    id: 'mollie',
+    name: 'Mollie',
+    description: 'iDEAL, Bancontact ve daha fazlası',
+    icon: '🇪🇺',
+    features: ['iDEAL', 'Bancontact', 'SEPA', 'Kredi Kartı'],
+  },
+  {
+    id: 'bank_transfer',
+    name: 'Banka Havalesi',
+    description: 'Manuel banka havalesi',
+    icon: '🏦',
+    features: ['UK Banka Havalesi', 'Manuel Onay'],
   },
 ]
 
 export default function PaymentsPage() {
-  const [systems, setSystems] = useState<PaymentSystem[]>(paymentSystems)
+  const [systems, setSystems] = useState<PaymentSystem[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedSystem, setSelectedSystem] = useState<PaymentSystem | null>(null)
+  const [configValues, setConfigValues] = useState<Record<string, string>>({})
 
-  const toggleSystem = (systemId: string) => {
-    setSystems(prev =>
-      prev.map(sys =>
-        sys.id === systemId
-          ? { ...sys, status: sys.status === 'active' ? 'inactive' : 'active' }
-          : sys
+  // Load payment settings from backend
+  useEffect(() => {
+    loadPaymentSettings()
+  }, [])
+
+  const loadPaymentSettings = async () => {
+    try {
+      const response = await adminApi.get('/admin/payment-settings')
+      const backendSettings = response.data.settings || {}
+
+      const updatedSystems = defaultPaymentSystems.map(sys => ({
+        ...sys,
+        status: backendSettings[sys.id]?.active ? 'active' as const : 'inactive' as const,
+        config: backendSettings[sys.id]?.config || {},
+      }))
+
+      setSystems(updatedSystems)
+    } catch (err) {
+      console.error('Failed to load payment settings:', err)
+      // Use defaults if backend fails
+      const defaultSystems = defaultPaymentSystems.map(sys => ({
+        ...sys,
+        status: sys.id === 'bank_transfer' ? 'active' as const : 'inactive' as const,
+        config: {},
+      }))
+      setSystems(defaultSystems)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleSystem = async (systemId: string) => {
+    const system = systems.find(s => s.id === systemId)
+    if (!system) return
+
+    const newStatus = system.status === 'active' ? 'inactive' : 'active'
+
+    try {
+      await adminApi.post('/admin/payment-settings', {
+        provider: systemId,
+        active: newStatus === 'active',
+        config: system.config,
+      })
+
+      setSystems(prev =>
+        prev.map(sys =>
+          sys.id === systemId
+            ? { ...sys, status: newStatus }
+            : sys
+        )
       )
-    )
+
+      alert(`✅ ${system.name} ${newStatus === 'active' ? 'aktif edildi' : 'devre dışı bırakıldı'}!`)
+    } catch (err) {
+      console.error('Failed to toggle system:', err)
+      alert('❌ Ayarlar kaydedilemedi!')
+    }
+  }
+
+  const openConfiguration = (system: PaymentSystem) => {
+    setSelectedSystem(system)
+    setConfigValues(system.config || {})
+  }
+
+  const saveConfiguration = async () => {
+    if (!selectedSystem) return
+
+    try {
+      await adminApi.post('/admin/payment-settings', {
+        provider: selectedSystem.id,
+        active: selectedSystem.status === 'active',
+        config: configValues,
+      })
+
+      // Update local state
+      setSystems(prev =>
+        prev.map(sys =>
+          sys.id === selectedSystem.id
+            ? { ...sys, config: configValues }
+            : sys
+        )
+      )
+
+      alert('✅ Yapılandırma kaydedildi!')
+      setSelectedSystem(null)
+      setConfigValues({})
+    } catch (err) {
+      console.error('Failed to save configuration:', err)
+      alert('❌ Yapılandırma kaydedilemedi!')
+    }
   }
 
   return (
@@ -91,8 +174,13 @@ export default function PaymentsPage() {
         </div>
 
         {/* Payment Systems List */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {systems.map((system) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#ff6b35]"></div>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {systems.map((system) => (
             <div
               key={system.id}
               className={`gaming-card p-6 relative ${
@@ -123,7 +211,7 @@ export default function PaymentsPage() {
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedSystem(system)}
+                  onClick={() => openConfiguration(system)}
                   className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition"
                 >
                   Yapılandır
@@ -140,8 +228,9 @@ export default function PaymentsPage() {
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Configuration Modal */}
         {selectedSystem && (
@@ -160,79 +249,73 @@ export default function PaymentsPage() {
               </div>
 
               <div className="space-y-4">
-                {selectedSystem.id === 'stripe' && (
-                  <>
-                    <div>
-                      <label className="text-gray-400 text-sm mb-2 block">Stripe Public Key</label>
-                      <input
-                        type="text"
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-                        placeholder="pk_test_..."
-                      />
-                    </div>
-                    <div>
-                      <label className="text-gray-400 text-sm mb-2 block">Stripe Secret Key</label>
-                      <input
-                        type="password"
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-                        placeholder="sk_test_..."
-                      />
-                    </div>
-                  </>
-                )}
-
                 {selectedSystem.id === 'paypal' && (
                   <>
                     <div>
                       <label className="text-gray-400 text-sm mb-2 block">PayPal Client ID</label>
                       <input
                         type="text"
+                        value={configValues.client_id || selectedSystem.config.client_id || ''}
+                        onChange={(e) => setConfigValues(prev => ({ ...prev, client_id: e.target.value }))}
                         className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-                        placeholder="Client ID"
+                        placeholder="PayPal Client ID"
                       />
                     </div>
                     <div>
                       <label className="text-gray-400 text-sm mb-2 block">PayPal Secret</label>
                       <input
                         type="password"
+                        value={configValues.client_secret || selectedSystem.config.client_secret || ''}
+                        onChange={(e) => setConfigValues(prev => ({ ...prev, client_secret: e.target.value }))}
                         className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-                        placeholder="Secret"
+                        placeholder="PayPal Secret"
                       />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="paypal_sandbox"
+                        checked={configValues.sandbox === 'true' || selectedSystem.config.sandbox === 'true'}
+                        onChange={(e) => setConfigValues(prev => ({ ...prev, sandbox: e.target.checked ? 'true' : 'false' }))}
+                        className="w-4 h-4 rounded"
+                      />
+                      <label htmlFor="paypal_sandbox" className="text-white text-sm">
+                        Sandbox Mode (Test)
+                      </label>
                     </div>
                   </>
                 )}
 
-                {selectedSystem.id === 'crypto' && (
+                {selectedSystem.id === 'mollie' && (
                   <>
                     <div>
-                      <label className="text-gray-400 text-sm mb-2 block">Cüzdan Adresi</label>
+                      <label className="text-gray-400 text-sm mb-2 block">Mollie API Key</label>
                       <input
-                        type="text"
+                        type="password"
+                        value={configValues.api_key || selectedSystem.config.api_key || ''}
+                        onChange={(e) => setConfigValues(prev => ({ ...prev, api_key: e.target.value }))}
                         className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-                        placeholder="1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+                        placeholder="test_xxx veya live_xxx"
                       />
                     </div>
-                    <div className="flex gap-2">
-                      <label className="flex items-center gap-2 text-white">
-                        <input type="checkbox" className="w-4 h-4 rounded" />
-                        Bitcoin
-                      </label>
-                      <label className="flex items-center gap-2 text-white">
-                        <input type="checkbox" className="w-4 h-4 rounded" />
-                        Ethereum
-                      </label>
-                    </div>
+                    <p className="text-xs text-gray-500">
+                      Mollie Dashboard → Developers → API keys
+                    </p>
                   </>
+                )}
+
+                {selectedSystem.id === 'bank_transfer' && (
+                  <div className="text-gray-400 text-sm">
+                    <p className="mb-2">Banka havalesi için yapılandırma gerekmez.</p>
+                    <p>Müşteriler sipariş sonrası banka bilgilerini alır ve manuel havale yapar.</p>
+                  </div>
                 )}
 
                 <button
-                  onClick={() => {
-                    alert('Yapılandırma kaydedildi!')
-                    setSelectedSystem(null)
-                  }}
+                  onClick={saveConfiguration}
                   className="w-full px-4 py-3 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white rounded-lg font-bold hover:shadow-lg transition"
                 >
-                  Kaydet
+                  💾 Yapılandırmayı Kaydet
                 </button>
               </div>
             </div>

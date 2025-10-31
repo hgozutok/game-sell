@@ -91,9 +91,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       sales_channel_id: defaultChannel.id,
       shipping_address: shipping_address,
       billing_address: billing_address,
+      metadata: {
+        payment_method: payment_method || 'paypal',
+        payment_status: 'pending',
+      },
     })
 
-    logger.info(`✅ Created cart: ${cart.id}`)
+    logger.info(`✅ Created cart: ${cart.id} with payment method: ${payment_method}`)
 
     // Complete cart (create order)
     const order = await cartModule.completeCarts(cart.id)

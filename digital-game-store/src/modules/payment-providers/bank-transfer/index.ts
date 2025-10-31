@@ -1,13 +1,12 @@
 import { ModuleProvider, Modules } from '@medusajs/framework/utils'
 import { AbstractPaymentProvider } from "@medusajs/framework/utils"
-import { PaymentProviderError, PaymentProviderSessionResponse } from "@medusajs/framework/types"
 
 class BankTransferProviderService extends AbstractPaymentProvider {
   static identifier = "bank-transfer"
 
-  async initiatePayment(context: any): Promise<PaymentProviderSessionResponse> {
-    const { amount, currency_code, customer, context: paymentContext } = context
-
+  async initiatePayment(input: any): Promise<any> {
+    const { amount, currency_code } = input.context || input
+    
     // Generate unique payment reference
     const reference = `BANK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
 
@@ -31,93 +30,78 @@ class BankTransferProviderService extends AbstractPaymentProvider {
     }
   }
 
-  async authorizePayment(
-    paymentSessionData: Record<string, unknown>,
-    context: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async authorizePayment(input: any): Promise<any> {
     // Bank transfers need manual verification
     return {
       data: {
-        ...paymentSessionData,
+        ...input.data,
         status: "pending_verification",
       },
+      status: "pending",
     }
   }
 
-  async cancelPayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async cancelPayment(input: any): Promise<any> {
     return {
       data: {
-        ...paymentSessionData,
+        ...input.data,
         status: "canceled",
       },
     }
   }
 
-  async capturePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async capturePayment(input: any): Promise<any> {
     // Admin confirms payment received
     return {
       data: {
-        ...paymentSessionData,
+        ...input.data,
         status: "captured",
         captured_at: new Date().toISOString(),
       },
     }
   }
 
-  async deletePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async deletePayment(input: any): Promise<any> {
     return {
       data: {
-        ...paymentSessionData,
+        ...input.data,
         status: "deleted",
       },
     }
   }
 
-  async getPaymentStatus(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<string> {
-    return (paymentSessionData.status as string) || "pending"
+  async getPaymentStatus(input: any): Promise<any> {
+    return {
+      status: input.data?.status || "pending",
+    }
   }
 
-  async refundPayment(
-    paymentSessionData: Record<string, unknown>,
-    refundAmount: number
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async refundPayment(input: any): Promise<any> {
     return {
       data: {
-        ...paymentSessionData,
-        refunded_amount: refundAmount,
+        ...input.data,
+        refunded_amount: input.amount,
         status: "refunded",
         refunded_at: new Date().toISOString(),
       },
     }
   }
 
-  async retrievePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async retrievePayment(input: any): Promise<any> {
     return {
-      data: paymentSessionData,
+      data: input.data,
     }
   }
 
-  async updatePayment(
-    context: any
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async updatePayment(input: any): Promise<any> {
     return {
-      data: context.data,
+      data: input.data,
     }
   }
 
-  async getWebhookActionAndData(data: any) {
+  async getWebhookActionAndData(input: any): Promise<any> {
     return {
-      action: "not_supported",
+      action: "not_supported" as any,
       data: {},
     }
   }
@@ -128,4 +112,3 @@ export { BankTransferProviderService }
 export default ModuleProvider(Modules.PAYMENT, {
   services: [BankTransferProviderService],
 })
-
