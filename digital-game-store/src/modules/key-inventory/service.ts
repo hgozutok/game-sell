@@ -14,7 +14,7 @@ class KeyInventoryService extends MedusaService({
       queryOptions.variant_id = variantId
     }
 
-    const keys = await this.listDigitalKeys({ filters: queryOptions }, { take: 1 })
+    const keys = await this.listDigitalKeys(queryOptions, { take: 1 })
     
     return keys.length > 0 ? keys[0] : null
   }
@@ -52,11 +52,11 @@ class KeyInventoryService extends MedusaService({
   }
 
   async getKeysByOrder(orderId: string): Promise<any[]> {
-    return await this.listDigitalKeys({ filters: { order_id: orderId } })
+    return await this.listDigitalKeys({ order_id: orderId })
   }
 
   async getKeysByCustomer(customerId: string): Promise<any[]> {
-    return await this.listDigitalKeys({ filters: { customer_id: customerId } })
+    return await this.listDigitalKeys({ customer_id: customerId })
   }
 
   async getInventoryCount(productId: string, variantId?: string): Promise<number> {
@@ -69,7 +69,7 @@ class KeyInventoryService extends MedusaService({
       queryOptions.variant_id = variantId
     }
 
-    const keys = await this.listDigitalKeys({ filters: queryOptions })
+    const keys = await this.listDigitalKeys(queryOptions)
     return keys.length
   }
 

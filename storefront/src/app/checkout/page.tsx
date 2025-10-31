@@ -20,7 +20,7 @@ const checkoutSchema = z.object({
   city: z.string().min(2, 'City is required'),
   postalCode: z.string().min(3, 'Postal code is required'),
   country: z.string().min(2, 'Country is required'),
-  paymentMethod: z.enum(['stripe', 'paypal', 'mollie', 'bank_transfer'], {
+  paymentMethod: z.enum(['paypal', 'mollie', 'bank-transfer'], {
     required_error: 'Please select a payment method',
   }),
 })
@@ -42,7 +42,7 @@ export default function CheckoutPage() {
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      paymentMethod: 'stripe',
+      paymentMethod: 'paypal',
     },
   })
 
@@ -293,22 +293,6 @@ export default function CheckoutPage() {
                   <label className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition">
                     <input
                       type="radio"
-                      value="stripe"
-                      {...register('paymentMethod')}
-                      className="w-5 h-5 text-[#ff6b35]"
-                    />
-                    <div className="flex-1">
-                      <div className="font-bold text-white">Credit/Debit Card</div>
-                      <div className="text-sm text-gray-400">Visa, MasterCard, American Express</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-2xl">💳</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition">
-                    <input
-                      type="radio"
                       value="paypal"
                       {...register('paymentMethod')}
                       className="w-5 h-5 text-[#ff6b35]"
@@ -337,7 +321,7 @@ export default function CheckoutPage() {
                   <label className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition">
                     <input
                       type="radio"
-                      value="bank_transfer"
+                      value="bank-transfer"
                       {...register('paymentMethod')}
                       className="w-5 h-5 text-[#ff6b35]"
                     />

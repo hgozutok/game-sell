@@ -1,3 +1,4 @@
+import { ModuleProvider, Modules } from '@medusajs/framework/utils'
 import { AbstractPaymentProvider } from "@medusajs/framework/utils"
 import { PaymentProviderError, PaymentProviderSessionResponse } from "@medusajs/framework/types"
 
@@ -122,5 +123,9 @@ class BankTransferProviderService extends AbstractPaymentProvider {
   }
 }
 
-export default BankTransferProviderService
+export { BankTransferProviderService }
+
+export default ModuleProvider(Modules.PAYMENT, {
+  services: [BankTransferProviderService],
+})
 

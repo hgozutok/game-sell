@@ -50,5 +50,26 @@ export default defineConfig({
     backgroundJobs: {
       resolve: "./src/modules/background-jobs",
     },
+    userPreferences: {
+      resolve: "./src/modules/user-preferences",
+    },
+    paypalPayment: {
+      resolve: "./src/modules/payment-providers/paypal",
+      options: {
+        api_key: process.env.PAYPAL_CLIENT_ID,
+        api_secret: process.env.PAYPAL_CLIENT_SECRET,
+        sandbox: process.env.PAYPAL_SANDBOX === "true",
+      },
+    },
+    molliePayment: {
+      resolve: "./src/modules/payment-providers/mollie",
+      options: {
+        api_key: process.env.MOLLIE_API_KEY,
+      },
+    },
+    bankTransferPayment: {
+      resolve: "./src/modules/payment-providers/bank-transfer",
+      options: {},
+    },
   },
 })

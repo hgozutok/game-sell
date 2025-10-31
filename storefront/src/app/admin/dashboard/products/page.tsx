@@ -27,12 +27,12 @@ interface Product {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [settingsLoaded, setSettingsLoaded] = useState(true)
   
-  // Load settings from localStorage
-  const [limit, setLimit] = useState(() => {
+  // Load saved settings from localStorage
+  const [savedLimit, setSavedLimit] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('admin_products_limit')
       return saved ? Number(saved) : 50
@@ -40,7 +40,7 @@ export default function ProductsPage() {
     return 50
   })
   
-  const [filters, setFilters] = useState(() => {
+  const [savedFilters, setSavedFilters] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('admin_products_filters')
       if (saved) {
@@ -54,47 +54,53 @@ export default function ProductsPage() {
     return { hideZeroPrice: true, hideZeroStock: true }
   })
 
+  // Temporary settings (before saving)
+  const [limit, setLimit] = useState(savedLimit)
+  const [filters, setFilters] = useState(savedFilters)
+
   const fetchProducts = async () => {
     setLoading(true)
-    setError(null)
     try {
       const response = await adminApi.get('/admin/products', {
         params: {
-          skip: (page - 1) * limit,
-          take: limit,
+          skip: (page - 1) * savedLimit,
+          take: savedLimit,
           fields: '*variants,*variants.prices,collection_id,metadata',
-          hideZeroPrice: filters.hideZeroPrice ? 'true' : 'false',
-          hideZeroStock: filters.hideZeroStock ? 'true' : 'false',
+          hideZeroPrice: savedFilters.hideZeroPrice ? 'true' : 'false',
+          hideZeroStock: savedFilters.hideZeroStock ? 'true' : 'false',
         }
       })
 
       setProducts(response.data.products || [])
       const count = response.data.count || 0
-      setTotalPages(Math.ceil(count / limit))
+      setTotalPages(Math.ceil(count / savedLimit))
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to load products')
       console.error('Products fetch error:', err)
+      // Show empty list on error
+      setProducts([])
+      setTotalPages(1)
     } finally {
       setLoading(false)
     }
   }
 
-  // Save settings to localStorage when they change
-  useEffect(() => {
+  const saveSettings = () => {
+    // Save to localStorage
     if (typeof window !== 'undefined') {
       localStorage.setItem('admin_products_limit', String(limit))
-    }
-  }, [limit])
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
       localStorage.setItem('admin_products_filters', JSON.stringify(filters))
     }
-  }, [filters])
+    
+    setSavedLimit(limit)
+    setSavedFilters(filters)
+    setPage(1) // Reset to first page
+  }
 
   useEffect(() => {
-    fetchProducts()
-  }, [page, limit, filters.hideZeroPrice, filters.hideZeroStock])
+    if (settingsLoaded) {
+      fetchProducts()
+    }
+  }, [page, savedLimit, savedFilters.hideZeroPrice, savedFilters.hideZeroStock, settingsLoaded])
 
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
@@ -135,7 +141,7 @@ export default function ProductsPage() {
         {/* Filters */}
         <div className="gaming-card p-6 mb-6">
           <h2 className="text-xl font-black text-white mb-4">Filtreler</h2>
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="flex flex-wrap items-center gap-6 mb-6">
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -167,10 +173,7 @@ export default function ProductsPage() {
               <select
                 id="limit"
                 value={limit}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value))
-                  setPage(1)
-                }}
+                onChange={(e) => setLimit(Number(e.target.value))}
                 className="bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg"
               >
                 <option value={25}>25</option>
@@ -179,23 +182,18 @@ export default function ProductsPage() {
               </select>
             </div>
           </div>
+          <button
+            onClick={saveSettings}
+            className="btn-primary px-6 py-2"
+          >
+            💾 Ayarları Kaydet
+          </button>
         </div>
 
         {/* Products Table */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#ff6b35]"></div>
-          </div>
-        ) : error ? (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">❌</div>
-            <h3 className="text-2xl font-bold text-white mb-2">{error}</h3>
-            <button
-              onClick={fetchProducts}
-              className="btn-primary mt-4"
-            >
-              Tekrar Dene
-            </button>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-20">
@@ -331,4 +329,5 @@ export default function ProductsPage() {
     </div>
   )
 }
+
 
