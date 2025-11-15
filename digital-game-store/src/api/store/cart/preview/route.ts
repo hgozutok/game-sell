@@ -57,14 +57,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         continue
       }
 
-      const variants = await productModule.listProductVariants({ id: variantId })
+      const variants = await productModule.listProductVariants(
+        { id: variantId },
+        { relations: ['prices'] }
+      )
       const variant = variants?.[0]
 
       if (!variant) {
         continue
       }
 
-      const unitPrice = getVariantPriceInCurrency(variant, displayCurrency, currencyRates)
+      let unitPrice = getVariantPriceInCurrency(variant, displayCurrency, currencyRates) || 0
+      if (unitPrice <= 0 && item.price) {
+        unitPrice = item.price
+      }
       const lineSubtotal = unitPrice * quantity
       subtotal += lineSubtotal
 

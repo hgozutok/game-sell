@@ -9,9 +9,26 @@ export const AUTHENTICATE = false
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   try {
     const productModule = req.scope.resolve(Modules.PRODUCT) as any
-    const { skip = 0, take = 50, hideZeroPrice = 'false', hideZeroStock = 'false', collection_id } = req.query
+    const {
+      skip,
+      take,
+      offset,
+      limit,
+      hideZeroPrice = 'false',
+      hideZeroStock = 'false',
+      collection_id,
+    } = req.query as any
 
-    console.log('Fetching products with pagination:', { skip, take, hideZeroPrice, hideZeroStock, collection_id })
+    const skipParam = skip ?? offset ?? 0
+    const takeParam = take ?? limit ?? 50
+
+    console.log('Fetching products with pagination:', {
+      skip: skipParam,
+      take: takeParam,
+      hideZeroPrice,
+      hideZeroStock,
+      collection_id,
+    })
 
     // Get all products (without relations to avoid MikroORM issues)
     const allProducts = await productModule.listProducts({})
@@ -68,8 +85,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     const count = filteredProducts.length
     
     // Apply pagination manually
-    const skipNum = Number(skip)
-    const takeNum = Number(take)
+    const skipNum = Number(skipParam)
+    const takeNum = Number(takeParam)
     const products = filteredProducts.slice(skipNum, skipNum + takeNum)
 
     console.log(`Returning ${products.length} products out of ${count} total (after filters)`)

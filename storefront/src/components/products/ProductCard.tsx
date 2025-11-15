@@ -28,6 +28,8 @@ interface ProductCardProps {
     metadata?: {
       platform?: string
       region?: string
+      provider?: string
+      provider_image?: string
     }
     display_price?: {
       amount: number
@@ -45,6 +47,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [amount, setAmount] = useState(0)
   const [currencyCode, setCurrencyCode] = useState(selectedCurrency.code)
   const [addingToCart, setAddingToCart] = useState(false)
+  const providerImage = product.metadata?.provider === 'kinguin' ? product.metadata?.provider_image : undefined
   
   // Use handle/slug for SEO-friendly URLs, fallback to ID
   const productUrl = product.handle || product.id
@@ -75,9 +78,27 @@ export default function ProductCard({ product }: ProductCardProps) {
       (p: any) => p.currency_code === selectedCurrency.code.toLowerCase()
     )
     const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
-    const price = currencyPrice || defaultPrice
-    setAmount(price?.amount || 0)
-    setCurrencyCode(price?.currency_code || selectedCurrency.code)
+
+    if (currencyPrice) {
+      setAmount(currencyPrice.amount)
+      setCurrencyCode(currencyPrice.currency_code || selectedCurrency.code)
+      return
+    }
+
+    if (defaultPrice) {
+      const converted = convertAmount(
+        defaultPrice.amount,
+        defaultPrice.currency_code || 'usd',
+        selectedCurrency.code,
+        rates
+      )
+      setAmount(converted)
+      setCurrencyCode(selectedCurrency.code)
+      return
+    }
+
+    setAmount(0)
+    setCurrencyCode(selectedCurrency.code)
   }, [selectedCurrency.code, product.variants, product.display_price, currencies])
 
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -113,10 +134,10 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="gaming-card h-full flex flex-col">
         {/* Image Container */}
         <div className="relative h-64 bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden flex-shrink-0">
-          {product.thumbnail ? (
+          {providerImage || product.thumbnail ? (
             <Image
-              src={product.thumbnail}
-              alt={product.title}
+              src={providerImage || product.thumbnail || ''}
+              alt={product.title || 'Product thumbnail'}
               fill
               className="object-cover group-hover:scale-110 transition-transform duration-500"
               unoptimized

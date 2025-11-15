@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
+import { normalizeKinguinRegion } from '../../../../utils/kinguin'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -126,6 +127,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     for (const externalProduct of products) {
       try {
         const productName = externalProduct.name || 'Imported Product'
+        const rawRegion =
+          externalProduct.region ||
+          externalProduct.regionDescription ||
+          externalProduct.regionId ||
+          externalProduct.region_id ||
+          externalProduct.regions?.[0] ||
+          'GLOBAL'
+        const normalizedRegion =
+          provider === 'kinguin' ? normalizeKinguinRegion(rawRegion) : rawRegion || 'GLOBAL'
 
         // Calculate price with margin
         const basePrice = externalProduct.price || 0
@@ -225,7 +235,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               provider: provider,
               provider_product_id: externalProduct.productId,
               platform: externalProduct.platform || 'PC',
-              region: externalProduct.region || 'GLOBAL',
+              region: normalizedRegion || 'GLOBAL',
+              provider_region_code: provider === 'kinguin' ? String(rawRegion) : undefined,
+              provider_image: provider === 'kinguin' ? thumbnailUrl : undefined,
               original_price: basePrice,
               provider_currency: providerCurrency,
               margin_applied: margin_percentage || 15,
@@ -234,6 +246,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               tags: externalProduct.tags || [],
               developers: externalProduct.developers || [],
               publishers: externalProduct.publishers || [],
+              languages: externalProduct.languages || [],
+              badges: externalProduct.badges || [],
             },
           })
           
@@ -254,7 +268,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               provider: provider,
               provider_product_id: externalProduct.productId,
               platform: externalProduct.platform || 'PC',
-              region: externalProduct.region || 'GLOBAL',
+              region: normalizedRegion || 'GLOBAL',
+              provider_region_code: provider === 'kinguin' ? String(rawRegion) : undefined,
+              provider_image: provider === 'kinguin' ? thumbnailUrl : undefined,
               original_price: basePrice,
               provider_currency: providerCurrency,
               margin_applied: margin_percentage || 15,

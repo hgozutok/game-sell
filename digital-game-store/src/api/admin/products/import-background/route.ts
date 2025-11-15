@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
+import { normalizeKinguinRegion } from '../../../../utils/kinguin'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -198,6 +199,16 @@ async function runImportInBackground(
         }
 
         const productName = productData.name || 'Imported Product'
+        const rawRegion =
+          productData.region ||
+          productData.regionalLimitations ||
+          productData.regionId ||
+          productData.region_id ||
+          productData.regions?.[0] ||
+          'GLOBAL'
+        const normalizedRegion =
+          provider === 'kinguin' ? normalizeKinguinRegion(rawRegion) : rawRegion || 'GLOBAL'
+
         const margin = margin_percentage !== undefined ? margin_percentage : 15
         const providerPriceWithMargin = basePrice + (basePrice * margin / 100)
         const providerPriceWithMarginMinor = Math.round(providerPriceWithMargin * 100)
@@ -298,7 +309,9 @@ async function runImportInBackground(
               provider: provider,
               provider_product_id: productData.productId,
               platform: productData.platform || 'PC',
-              region: productData.region || 'GLOBAL',
+              region: normalizedRegion || 'GLOBAL',
+              provider_region_code: provider === 'kinguin' ? String(rawRegion) : undefined,
+              provider_image: provider === 'kinguin' ? thumbnailUrl : undefined,
               original_price: basePrice,
               provider_currency: providerCurrency,
               margin_applied: margin,
@@ -307,6 +320,8 @@ async function runImportInBackground(
               tags: productData.tags || [],
               developers: productData.developers || [],
               publishers: productData.publishers || [],
+              languages: productData.languages || [],
+              badges: productData.badges || [],
             },
           })
           
@@ -334,7 +349,9 @@ async function runImportInBackground(
               provider,
               provider_product_id: productData.productId,
               platform: productData.platform || 'PC',
-              region: productData.region || 'GLOBAL',
+              region: normalizedRegion || 'GLOBAL',
+              provider_region_code: provider === 'kinguin' ? String(rawRegion) : undefined,
+              provider_image: provider === 'kinguin' ? thumbnailUrl : undefined,
               original_price: basePrice,
               provider_currency: providerCurrency,
               margin_applied: margin,
@@ -343,6 +360,8 @@ async function runImportInBackground(
               tags: productData.tags || [],
               developers: productData.developers || [],
               publishers: productData.publishers || [],
+              languages: productData.languages || [],
+              badges: productData.badges || [],
             },
           })
         }

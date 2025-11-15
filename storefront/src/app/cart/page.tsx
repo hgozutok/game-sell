@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
 import { useCurrencyStore } from "@/store/currencyStore"
 import { api } from "@/lib/api"
-import { formatMoney, getCurrencySymbol } from "@/utils/currency"
+import { formatMoney, getCurrencySymbol, convertAmount } from "@/utils/currency"
 
 export default function CartPage() {
   const router = useRouter()
-  const { items, removeItem, updateQuantity, getTotalPrice } = useCartStore()
-  const { selectedCurrency } = useCurrencyStore()
+  const { items, removeItem, updateQuantity } = useCartStore()
+  const { selectedCurrency, currencies } = useCurrencyStore()
   const [selectedCountry, setSelectedCountry] = useState('us')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewTotals, setPreviewTotals] = useState<{
@@ -21,9 +21,9 @@ export default function CartPage() {
     tax_rate: number
     currency_code: string
   }>({
-    subtotal: getTotalPrice(),
+    subtotal: 0,
     tax_total: 0,
-    total: getTotalPrice(),
+    total: 0,
     tax_rate: 0,
     currency_code: selectedCurrency.code,
   })
@@ -35,14 +35,45 @@ export default function CartPage() {
     { code: 'tr', label: 'Turkey' },
     { code: 'eu', label: 'European Union' },
   ]
+
+  const COUNTRY_TAX_RATES: Record<string, number> = {
+    us: 8,
+    ca: 13,
+    gb: 20,
+    uk: 20,
+    de: 19,
+    fr: 20,
+    es: 21,
+    it: 22,
+    nl: 21,
+    be: 21,
+    se: 25,
+    no: 25,
+    dk: 25,
+    tr: 18,
+    eu: 21,
+  }
   
   const isEmpty = items.length === 0
-  const totalPrice = getTotalPrice()
 
   const currencyCodeForDisplay = previewTotals.currency_code || selectedCurrency.code
 
+  const convertForCurrency = (amount: number, fromCurrency: string | undefined, targetCurrency: string) => {
+    if (!fromCurrency || !targetCurrency || fromCurrency.toLowerCase() === targetCurrency.toLowerCase()) {
+      return amount
+    }
+    return convertAmount(amount, fromCurrency, targetCurrency, currencies || [])
+  }
+
   const formatPrice = (amount: number, currencyCode?: string) => {
     return formatMoney(amount, currencyCode || currencyCodeForDisplay)
+  }
+
+  const computeLocalSubtotal = (targetCurrency: string) => {
+    return items.reduce((sum, item) => {
+      const itemTotal = item.price * item.quantity
+      return sum + convertForCurrency(itemTotal, item.currency, targetCurrency)
+    }, 0)
   }
 
   useEffect(() => {
@@ -68,19 +99,33 @@ export default function CartPage() {
           country_code: selectedCountry,
         })
 
+        const responseCurrency = response.data.currency_code || selectedCurrency.code
+        const fallbackSubtotal = computeLocalSubtotal(responseCurrency)
+        const shouldFallback = response.data.subtotal === 0 && items.length > 0
+        const effectiveSubtotal = shouldFallback ? fallbackSubtotal : response.data.subtotal
+        const fallbackTaxRate =
+          response.data.tax_rate !== undefined
+            ? response.data.tax_rate
+            : COUNTRY_TAX_RATES[selectedCountry] ?? 0
+        const effectiveTaxRate = shouldFallback ? fallbackTaxRate : response.data.tax_rate
+        const fallbackTaxTotal = Math.round(effectiveSubtotal * (fallbackTaxRate / 100))
+        const effectiveTaxTotal = shouldFallback ? fallbackTaxTotal : response.data.tax_total
+        const effectiveTotal = shouldFallback ? effectiveSubtotal + effectiveTaxTotal : response.data.total
+
         setPreviewTotals({
-          subtotal: response.data.subtotal,
-          tax_total: response.data.tax_total,
-          total: response.data.total,
-          tax_rate: response.data.tax_rate,
-          currency_code: response.data.currency_code || selectedCurrency.code,
+          subtotal: effectiveSubtotal,
+          tax_total: effectiveTaxTotal,
+          total: effectiveTotal,
+          tax_rate: effectiveTaxRate,
+          currency_code: responseCurrency,
         })
       } catch (error) {
         console.error('Cart preview error:', error)
+        const fallbackSubtotal = computeLocalSubtotal(selectedCurrency.code)
         setPreviewTotals({
-          subtotal: totalPrice,
+          subtotal: fallbackSubtotal,
           tax_total: 0,
-          total: totalPrice,
+          total: fallbackSubtotal,
           tax_rate: 0,
           currency_code: selectedCurrency.code,
         })
@@ -90,7 +135,7 @@ export default function CartPage() {
     }
 
     fetchPreview()
-  }, [items, selectedCountry, selectedCurrency.code, totalPrice])
+  }, [items, selectedCountry, selectedCurrency.code, currencies])
 
   const handleCheckout = () => {
     router.push('/checkout')
@@ -221,10 +266,16 @@ export default function CartPage() {
                       {/* Price */}
                       <div className="text-right">
                       <div className="text-2xl font-bold text-[#ff6b35]">
-                        {formatPrice(item.price * item.quantity, item.currency)}
+                        {formatPrice(
+                          convertForCurrency(item.price * item.quantity, item.currency, currencyCodeForDisplay),
+                          currencyCodeForDisplay
+                        )}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {formatPrice(item.price, item.currency)} each
+                        {formatPrice(
+                          convertForCurrency(item.price, item.currency, currencyCodeForDisplay),
+                          currencyCodeForDisplay
+                        )} each
                       </div>
                       </div>
                     </div>
