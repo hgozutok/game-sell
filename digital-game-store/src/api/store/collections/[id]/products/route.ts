@@ -1,5 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
+import { getCurrencyRates } from '../../../../../utils/currency'
+import { buildDisplayPrice } from '../../../../../utils/pricing'
 
 // Disable authentication for development
 export const AUTHENTICATE = false
@@ -10,6 +12,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const productModuleService = req.scope.resolve(Modules.PRODUCT) as any
     const { id } = req.params
     const { hideZeroPrice = 'false', hideZeroStock = 'false', limit = 50 } = req.query
+    const storeSettings = req.scope.resolve('storeSettings') as any
+    const currencyRates = await getCurrencyRates(storeSettings)
+    const defaultCurrency = await storeSettings.getSettingValue('currencies.default', 'usd')
+    const displayCurrency = await storeSettings.getSettingValue('store.display_currency', defaultCurrency)
+    const taxRateSetting = await storeSettings.getSettingValue('tax.rate', 20)
+    const taxRate = typeof taxRateSetting === 'number' ? taxRateSetting : parseFloat(taxRateSetting) || 0
 
     console.log(`[Collection Products] Fetching products for collection: ${id}`)
     console.log(`[Collection Products] Filters: hideZeroPrice=${hideZeroPrice}, hideZeroStock=${hideZeroStock}`)
@@ -60,9 +68,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     console.log(`[Collection Products] Returning ${products.length} products`)
 
+    const productsWithPricing = (products || []).map((product: any) => ({
+      ...product,
+      display_price: buildDisplayPrice(product, displayCurrency, currencyRates, taxRate),
+    }))
+
     return res.json({
-      products: products || [],
-      count: products?.length || 0,
+      products: productsWithPricing,
+      count: productsWithPricing.length,
+      currency: displayCurrency,
+      tax_rate: taxRate,
     })
   } catch (error: any) {
     console.error('[Collection Products] Error:', error.message)

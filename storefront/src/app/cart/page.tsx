@@ -1,21 +1,96 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
 import { useCurrencyStore } from "@/store/currencyStore"
+import { api } from "@/lib/api"
+import { formatMoney, getCurrencySymbol } from "@/utils/currency"
 
 export default function CartPage() {
   const router = useRouter()
   const { items, removeItem, updateQuantity, getTotalPrice } = useCartStore()
   const { selectedCurrency } = useCurrencyStore()
+  const [selectedCountry, setSelectedCountry] = useState('us')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewTotals, setPreviewTotals] = useState<{
+    subtotal: number
+    tax_total: number
+    total: number
+    tax_rate: number
+    currency_code: string
+  }>({
+    subtotal: getTotalPrice(),
+    tax_total: 0,
+    total: getTotalPrice(),
+    tax_rate: 0,
+    currency_code: selectedCurrency.code,
+  })
+  const countries = [
+    { code: 'us', label: 'United States' },
+    { code: 'gb', label: 'United Kingdom' },
+    { code: 'de', label: 'Germany' },
+    { code: 'fr', label: 'France' },
+    { code: 'tr', label: 'Turkey' },
+    { code: 'eu', label: 'European Union' },
+  ]
   
   const isEmpty = items.length === 0
   const totalPrice = getTotalPrice()
 
-  const formatPrice = (amount: number) => {
-    return `${selectedCurrency.symbol}${(amount / 100).toFixed(2)}`
+  const currencyCodeForDisplay = previewTotals.currency_code || selectedCurrency.code
+
+  const formatPrice = (amount: number, currencyCode?: string) => {
+    return formatMoney(amount, currencyCode || currencyCodeForDisplay)
   }
+
+  useEffect(() => {
+    if (!items.length) {
+      setPreviewTotals({
+        subtotal: 0,
+        tax_total: 0,
+        total: 0,
+        tax_rate: 0,
+        currency_code: selectedCurrency.code,
+      })
+      return
+    }
+
+    const fetchPreview = async () => {
+      try {
+        setPreviewLoading(true)
+        const response = await api.post('/store/cart/preview', {
+          items: items.map((item) => ({
+            variant_id: item.variantId,
+            quantity: item.quantity,
+          })),
+          country_code: selectedCountry,
+        })
+
+        setPreviewTotals({
+          subtotal: response.data.subtotal,
+          tax_total: response.data.tax_total,
+          total: response.data.total,
+          tax_rate: response.data.tax_rate,
+          currency_code: response.data.currency_code || selectedCurrency.code,
+        })
+      } catch (error) {
+        console.error('Cart preview error:', error)
+        setPreviewTotals({
+          subtotal: totalPrice,
+          tax_total: 0,
+          total: totalPrice,
+          tax_rate: 0,
+          currency_code: selectedCurrency.code,
+        })
+      } finally {
+        setPreviewLoading(false)
+      }
+    }
+
+    fetchPreview()
+  }, [items, selectedCountry, selectedCurrency.code, totalPrice])
 
   const handleCheckout = () => {
     router.push('/checkout')
@@ -145,12 +220,12 @@ export default function CartPage() {
 
                       {/* Price */}
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-[#ff6b35]">
-                          {formatPrice(item.price * item.quantity)}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {formatPrice(item.price)} each
-                        </div>
+                      <div className="text-2xl font-bold text-[#ff6b35]">
+                        {formatPrice(item.price * item.quantity, item.currency)}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {formatPrice(item.price, item.currency)} each
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -165,19 +240,48 @@ export default function CartPage() {
               <h2 className="text-2xl font-bold text-white mb-6">Order Summary</h2>
               
               <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">Select Country for Tax Calculation</label>
+                  <select
+                    value={selectedCountry}
+                    onChange={(e) => setSelectedCountry(e.target.value)}
+                    className="w-full px-4 py-2 bg-[#1a1d24] border border-gray-700 rounded-lg text-white focus:border-[#ff6b35] focus:outline-none"
+                  >
+                    {countries.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {country.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Tax rate adjusts automatically based on your country selection.
+                  </p>
+                </div>
+
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-400">Subtotal</span>
-                  <span className="text-white font-semibold">{formatPrice(totalPrice)}</span>
+                  <span className="text-white font-semibold">
+                    {previewLoading ? 'Calculating...' : formatPrice(previewTotals.subtotal)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-400">Tax</span>
-                  <span className="text-white font-semibold">$0.00</span>
+                  <span className="text-white font-semibold">
+                    {previewLoading ? 'Calculating...' : formatPrice(previewTotals.tax_total)}
+                  </span>
                 </div>
                 <div className="border-t border-gray-800 pt-4">
                   <div className="flex justify-between text-2xl font-bold">
                     <span className="text-white">Total</span>
-                    <span className="text-[#ff6b35]">{formatPrice(totalPrice)}</span>
+                    <span className="text-[#ff6b35]">
+                      {previewLoading ? 'Calculating...' : formatPrice(previewTotals.total)}
+                    </span>
                   </div>
+                  {!previewLoading && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Tax rate applied: {previewTotals.tax_rate.toFixed(2)}%
+                    </p>
+                  )}
                 </div>
               </div>
 

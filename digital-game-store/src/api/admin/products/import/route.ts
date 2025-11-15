@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
-import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../utils/currency'
+import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -82,6 +82,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // Get currency rates from settings
     const currencyRates = await getCurrencyRates(storeSettings)
     logger.info(`💱 Using currency rates:`, currencyRates)
+
+    const providerCurrencyKey = provider === 'kinguin'
+      ? 'provider.currency.kinguin'
+      : 'provider.currency.codeswholesale'
+    const providerCurrency = await storeSettings.getSettingValue(
+      providerCurrencyKey,
+      provider === 'kinguin' ? 'eur' : 'usd'
+    )
     
     // Find default sales channel
     let defaultChannel = null
@@ -117,15 +125,29 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // Import each product
     for (const externalProduct of products) {
       try {
+        const productName = externalProduct.name || 'Imported Product'
+
         // Calculate price with margin
         const basePrice = externalProduct.price || 0
-        // Calculate final price with margin (in cents)
+        // Calculate final price with margin, respecting provider currency
         const margin = margin_percentage !== undefined ? margin_percentage : 15
         const marginAmount = basePrice * (margin / 100)
-        const finalPrice = Math.round((basePrice + marginAmount) * 100) // Convert to cents
+        const providerPriceWithMargin = basePrice + marginAmount
+        const providerPriceWithMarginInMinor = Math.round(providerPriceWithMargin * 100)
+
+        let finalPriceUsd = providerPriceWithMarginInMinor
+        try {
+          finalPriceUsd = convertCurrencyAmount(
+            providerPriceWithMarginInMinor,
+            providerCurrency,
+            'usd',
+            currencyRates
+          )
+        } catch (conversionError: any) {
+          logger.warn(`⚠️ Failed to convert ${providerCurrency.toUpperCase()} price to USD for ${productName}:`, conversionError.message)
+        }
 
         // Create product handle with provider prefix
-        const productName = externalProduct.name || 'Imported Product'
         const providerPrefix = provider === 'kinguin' ? 'kinguin-' : 'cws-'
         const handle = (providerPrefix + productName.toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
@@ -205,6 +227,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               platform: externalProduct.platform || 'PC',
               region: externalProduct.region || 'GLOBAL',
               original_price: basePrice,
+              provider_currency: providerCurrency,
               margin_applied: margin_percentage || 15,
               imported_at: new Date().toISOString(),
               genres: externalProduct.genres || [],
@@ -233,6 +256,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               platform: externalProduct.platform || 'PC',
               region: externalProduct.region || 'GLOBAL',
               original_price: basePrice,
+              provider_currency: providerCurrency,
               margin_applied: margin_percentage || 15,
               languages: externalProduct.languages || [],
               badges: externalProduct.badges || [],
@@ -247,7 +271,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         // Create/Update variant with proper pricing (MULTI-CURRENCY)
         if (productToUse && productToUse.id) {
           // Calculate prices for all currencies using settings
-          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPrice, currencyRates)
+          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPriceUsd, currencyRates)
 
           // Check if variant with this SKU already exists
           const variantSku = `${provider.toUpperCase()}-${externalProduct.productId}`.substring(0, 100)

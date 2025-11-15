@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useCartStore } from '@/store/cartStore'
 import { useCurrencyStore } from '@/store/currencyStore'
+import { convertAmount, getCurrencySymbol } from '@/utils/currency'
 import toast, { Toaster } from 'react-hot-toast'
 
 interface Product {
@@ -50,6 +51,7 @@ export default function ProductDetailPage() {
   const [selectedVariant, setSelectedVariant] = useState(0)
   const [selectedImage, setSelectedImage] = useState(0)
   const [amount, setAmount] = useState(0)
+  const currencies = useCurrencyStore((state) => state.currencies)
   const addItem = useCartStore((state) => state.addItem)
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
 
@@ -90,6 +92,17 @@ export default function ProductDetailPage() {
   useEffect(() => {
     if (!product) return
     
+    if (product.display_price?.amount) {
+      const converted = convertAmount(
+        product.display_price.amount,
+        product.display_price.currency_code || selectedCurrency.code,
+        selectedCurrency.code,
+        currencies
+      )
+      setAmount(converted)
+      return
+    }
+    
     const currentVariant = product.variants?.[selectedVariant]
     if (!currentVariant) return
     
@@ -98,7 +111,7 @@ export default function ProductDetailPage() {
     const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
     const price = currencyPrice || defaultPrice
     setAmount(price?.amount || 0)
-  }, [selectedCurrency.code, product, selectedVariant])
+  }, [selectedCurrency.code, product, selectedVariant, currencies])
 
   const handleAddToCart = () => {
     if (!product) return
@@ -265,10 +278,12 @@ export default function ProductDetailPage() {
                 <div>
                   <div className="text-sm text-gray-500 mb-1">PRICE</div>
                   <div className="text-4xl font-black text-white">
-                    {selectedCurrency.symbol}{(amount / 100).toFixed(2)}
+                    {getCurrencySymbol(selectedCurrency.code)}
+                    {(amount / 100).toFixed(2)}
                   </div>
                   <div className="text-sm text-gray-600 line-through">
-                    {selectedCurrency.symbol}{((amount / 100) * 1.4).toFixed(2)}
+                    {getCurrencySymbol(selectedCurrency.code)}
+                    {((amount / 100) * 1.4).toFixed(2)}
                   </div>
                 </div>
                 <div className="text-right">

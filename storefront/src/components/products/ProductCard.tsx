@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { useCartStore } from '@/store/cartStore'
+import { getCurrencySymbol, convertAmount } from '@/utils/currency'
 
 interface ProductCardProps {
   product: {
@@ -28,13 +29,21 @@ interface ProductCardProps {
       platform?: string
       region?: string
     }
+    display_price?: {
+      amount: number
+      amount_with_tax?: number
+      currency_code: string
+      tax_rate?: number
+    }
   }
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
+  const currencies = useCurrencyStore((state) => state.currencies)
   const addItem = useCartStore((state) => state.addItem)
   const [amount, setAmount] = useState(0)
+  const [currencyCode, setCurrencyCode] = useState(selectedCurrency.code)
   const [addingToCart, setAddingToCart] = useState(false)
   
   // Use handle/slug for SEO-friendly URLs, fallback to ID
@@ -46,12 +55,30 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Update price when currency changes
   useEffect(() => {
+    const rates = currencies || []
+
+    if (product.display_price?.amount) {
+      const baseCode = product.display_price.currency_code || selectedCurrency.code
+      const convertedAmount = convertAmount(
+        product.display_price.amount,
+        baseCode,
+        selectedCurrency.code,
+        rates
+      )
+      setAmount(convertedAmount)
+      setCurrencyCode(selectedCurrency.code)
+      return
+    }
+
     const variantPrices = product.variants?.[0]?.prices || []
-    const currencyPrice = variantPrices.find((p: any) => p.currency_code === selectedCurrency.code.toLowerCase())
+    const currencyPrice = variantPrices.find(
+      (p: any) => p.currency_code === selectedCurrency.code.toLowerCase()
+    )
     const defaultPrice = variantPrices.find((p: any) => p.currency_code === 'usd')
     const price = currencyPrice || defaultPrice
     setAmount(price?.amount || 0)
-  }, [selectedCurrency.code, product.variants])
+    setCurrencyCode(price?.currency_code || selectedCurrency.code)
+  }, [selectedCurrency.code, product.variants, product.display_price, currencies])
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -72,7 +99,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       handle: product.handle || product.id,
       thumbnail: product.thumbnail || '',
       price: amount,
-      currency: selectedCurrency.code,
+      currency: currencyCode,
       metadata: product.metadata,
     })
     
@@ -140,10 +167,12 @@ export default function ProductCard({ product }: ProductCardProps) {
               {amount ? (
                 <>
                   <div className="text-2xl font-black text-white leading-none">
-                    {selectedCurrency.symbol}{(amount / 100).toFixed(2)}
+                    {getCurrencySymbol(currencyCode)}
+                    {(amount / 100).toFixed(2)}
                   </div>
                   <div className="text-xs text-gray-500 line-through mt-1">
-                    {selectedCurrency.symbol}{(amount / 100 * 1.4).toFixed(2)}
+                    {getCurrencySymbol(currencyCode)}
+                    {(amount / 100 * 1.4).toFixed(2)}
                   </div>
                 </>
               ) : (

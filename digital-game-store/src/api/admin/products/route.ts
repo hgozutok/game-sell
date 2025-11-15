@@ -9,7 +9,6 @@ export const AUTHENTICATE = false
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   try {
     const productModule = req.scope.resolve(Modules.PRODUCT) as any
-    const keyInventoryService = req.scope.resolve('keyInventory') as KeyInventoryService
     const { skip = 0, take = 50, hideZeroPrice = 'false', hideZeroStock = 'false', collection_id } = req.query
 
     console.log('Fetching products with pagination:', { skip, take, hideZeroPrice, hideZeroStock, collection_id })
@@ -46,18 +45,24 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       })
     }
 
-    // Filter by stock (digital keys)
+    // Filter by stock (digital keys) - optional, skip if service not available
     if (hideZeroStock === 'true') {
-      const productsWithStock = await Promise.all(
-        filteredProducts.map(async (product: any) => {
-          const stockCount = await keyInventoryService.getInventoryCount(product.id)
-          return { product, stockCount }
-        })
-      )
-      
-      filteredProducts = productsWithStock
-        .filter(({ stockCount }) => stockCount > 0)
-        .map(({ product }) => product)
+      try {
+        const keyInventoryService = req.scope.resolve('keyInventory') as KeyInventoryService
+        const productsWithStock = await Promise.all(
+          filteredProducts.map(async (product: any) => {
+            const stockCount = await keyInventoryService.getInventoryCount(product.id)
+            return { product, stockCount }
+          })
+        )
+        
+        filteredProducts = productsWithStock
+          .filter(({ stockCount }) => stockCount > 0)
+          .map(({ product }) => product)
+      } catch (keyError: any) {
+        console.warn(`[Admin Products] Key inventory check skipped:`, keyError.message)
+        // Continue without stock filtering if service not available
+      }
     }
 
     const count = filteredProducts.length

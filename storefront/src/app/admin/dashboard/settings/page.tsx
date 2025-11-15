@@ -14,6 +14,8 @@ export default function SettingsPage() {
     tax_rate: 0,
     enable_wishlist: true,
     enable_reviews: true,
+    kinguin_currency: 'EUR',
+    codeswholesale_currency: 'USD',
   })
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -27,15 +29,29 @@ export default function SettingsPage() {
         // Backend returns { store: {...}, currencies: {...}, theme: {...} }
         // We need to adapt it to our format
         if (response.data) {
-          setSettings({
+          setSettings((prev) => ({
+            ...prev,
             store_name: response.data.store?.name || 'Digital Game Store',
             store_description: response.data.store?.description || '',
             support_email: response.data.store?.support_email || 'support@digitalgamestore.com',
             currency: response.data.currencies?.default || 'USD',
-            tax_rate: response.data.store?.tax_rate || 0,
+            tax_rate: response.data.taxes?.rate || response.data.store?.tax_rate || 0,
             enable_wishlist: response.data.store?.enable_wishlist !== false,
             enable_reviews: response.data.store?.enable_reviews !== false,
-          })
+          }))
+        }
+
+        try {
+          const providerCurrencyRes = await adminApi.get('/admin/settings/provider-currency')
+          const providerData = providerCurrencyRes.data || {}
+
+          setSettings((prev) => ({
+            ...prev,
+            kinguin_currency: (providerData.kinguin_currency || 'eur').toUpperCase(),
+            codeswholesale_currency: (providerData.codeswholesale_currency || 'usd').toUpperCase(),
+          }))
+        } catch (providerError) {
+          console.warn('Failed to fetch provider currency settings:', providerError)
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error)
@@ -65,6 +81,11 @@ export default function SettingsPage() {
       for (const setting of settingsToSave) {
         await adminApi.post('/admin/settings', setting)
       }
+
+      await adminApi.post('/admin/settings/provider-currency', {
+        kinguin_currency: settings.kinguin_currency?.toLowerCase?.() || 'eur',
+        codeswholesale_currency: settings.codeswholesale_currency?.toLowerCase?.() || 'usd',
+      })
 
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -175,6 +196,49 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, tax_rate: parseFloat(e.target.value) })}
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Provider Currency Settings */}
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-4">Sağlayıcı Para Birimleri</h2>
+            <p className="text-gray-400 mb-6 text-sm">
+              Kinguin ve CodesWholesale entegrasyonlarından gelen fiyatların hangi para birimiyle işlendiğini seç.
+              Bu ayar import ve fiyat güncelleme işlemlerinde kullanılır.
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Kinguin Para Birimi
+                </label>
+                <select
+                  value={settings.kinguin_currency}
+                  onChange={(e) => setSettings({ ...settings, kinguin_currency: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                >
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="TRY">TRY - Turkish Lira</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  CodesWholesale Para Birimi
+                </label>
+                <select
+                  value={settings.codeswholesale_currency}
+                  onChange={(e) => setSettings({ ...settings, codeswholesale_currency: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                >
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="TRY">TRY - Turkish Lira</option>
+                </select>
               </div>
             </div>
           </div>

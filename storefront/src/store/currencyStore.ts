@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api } from '@/lib/api'
 
-interface Currency {
+export interface Currency {
   code: string
   symbol: string
   name: string
@@ -14,6 +14,7 @@ interface CurrencyState {
   currencies: Currency[]
   setSelectedCurrency: (currency: Currency) => void
   loadCurrencyRates: () => Promise<void>
+  getRate: (code: string) => number | undefined
 }
 
 const defaultCurrencies = [
@@ -31,21 +32,34 @@ export const useCurrencyStore = create<CurrencyState>()(
       setSelectedCurrency: (currency) => set({ selectedCurrency: currency }),
       loadCurrencyRates: async () => {
         try {
-          const response = await api.get('/store/settings/currency_rates')
-          if (response.data.value) {
-            const rates = JSON.parse(response.data.value) as Currency[]
-            set({ currencies: rates })
-            
-            // Update selected currency if it exists in new rates
-            const currentCode = get().selectedCurrency.code
-            const updatedCurrency = rates.find(r => r.code === currentCode)
-            if (updatedCurrency) {
-              set({ selectedCurrency: updatedCurrency })
-            }
+          const [ratesResponse, settingsResponse] = await Promise.all([
+            api.get('/store/settings/currency_rates'),
+            api.get('/store/settings'),
+          ])
+
+          const rates = ratesResponse.data.value
+            ? (JSON.parse(ratesResponse.data.value) as Currency[])
+            : defaultCurrencies
+
+          const displayCurrencyCode = settingsResponse.data?.currencies?.display?.toLowerCase()
+          set({ currencies: rates })
+
+          const matchedCurrency =
+            rates.find((rate) => rate.code === displayCurrencyCode) ||
+            rates.find((rate) => rate.code === get().selectedCurrency.code) ||
+            rates[0]
+
+          if (matchedCurrency) {
+            set({ selectedCurrency: matchedCurrency })
           }
         } catch (error) {
           console.log('Using default currency rates')
+          set({ currencies: defaultCurrencies, selectedCurrency: defaultCurrencies[0] })
         }
+      },
+      getRate: (code: string) => {
+        const { currencies } = get()
+        return currencies.find((currency) => currency.code === code.toLowerCase())?.rate
       },
     }),
     {

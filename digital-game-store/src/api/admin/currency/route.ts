@@ -11,10 +11,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const enabledCurrencies = await storeSettingsModule.getSettingValue('currencies.enabled', ['USD', 'EUR', 'GBP'])
   const defaultCurrency = await storeSettingsModule.getSettingValue('currencies.default', 'USD')
+  const displayCurrency = await storeSettingsModule.getSettingValue('store.display_currency', defaultCurrency)
 
   res.json({
     enabled_currencies: enabledCurrencies,
     default_currency: defaultCurrency,
+    display_currency: displayCurrency,
     available_currencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK'],
   })
 }
@@ -24,19 +26,26 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const storeSettingsModule = req.scope.resolve('storeSettings') as any
-  const { enabled_currencies, default_currency } = req.body as any
+  const { enabled_currencies, default_currency, display_currency } = req.body as any
 
   if (enabled_currencies && Array.isArray(enabled_currencies)) {
     await storeSettingsModule.setSetting('currencies.enabled', enabled_currencies, {
-      category: 'general',
+      category: 'currency',
       description: 'List of enabled currencies for the store',
     })
   }
 
   if (default_currency && typeof default_currency === 'string') {
     await storeSettingsModule.setSetting('currencies.default', default_currency, {
-      category: 'general',
+      category: 'currency',
       description: 'Default currency for the store',
+    })
+  }
+
+  if (display_currency && typeof display_currency === 'string') {
+    await storeSettingsModule.setSetting('store.display_currency', display_currency, {
+      category: 'currency',
+      description: 'Currency used for storefront price display',
     })
   }
 
@@ -44,5 +53,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     message: 'Currency settings updated successfully',
     enabled_currencies: enabled_currencies || (await storeSettingsModule.getSettingValue('currencies.enabled')),
     default_currency: default_currency || (await storeSettingsModule.getSettingValue('currencies.default')),
+    display_currency: display_currency || (await storeSettingsModule.getSettingValue('store.display_currency', default_currency)),
   })
 }

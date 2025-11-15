@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
-import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../utils/currency'
+import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -141,6 +141,13 @@ async function runImportInBackground(
 
     // Get currency rates and sales channel
     const currencyRates = await getCurrencyRates(storeSettings)
+    const providerCurrencyKey = provider === 'kinguin'
+      ? 'provider.currency.kinguin'
+      : 'provider.currency.codeswholesale'
+    const providerCurrency = await storeSettings.getSettingValue(
+      providerCurrencyKey,
+      provider === 'kinguin' ? 'eur' : 'usd'
+    )
     const salesChannels = await salesChannelModule.listSalesChannels({ name: 'Default Sales Channel' })
     const defaultChannel = salesChannels?.[0]
 
@@ -190,10 +197,23 @@ async function runImportInBackground(
           continue
         }
 
-        const margin = margin_percentage !== undefined ? margin_percentage : 15
-        const finalPrice = Math.round((basePrice + (basePrice * margin / 100)) * 100)
-
         const productName = productData.name || 'Imported Product'
+        const margin = margin_percentage !== undefined ? margin_percentage : 15
+        const providerPriceWithMargin = basePrice + (basePrice * margin / 100)
+        const providerPriceWithMarginMinor = Math.round(providerPriceWithMargin * 100)
+
+        let finalPriceUsd = providerPriceWithMarginMinor
+        try {
+          finalPriceUsd = convertCurrencyAmount(
+            providerPriceWithMarginMinor,
+            providerCurrency,
+            'usd',
+            currencyRates
+          )
+        } catch (conversionError: any) {
+          logger.warn(`⚠️ Currency conversion failed for ${productName}:`, conversionError.message)
+        }
+
         
         // Generate unique handle with provider prefix
         const providerPrefix = provider === 'kinguin' ? 'kinguin-' : 'cws-'
@@ -280,6 +300,7 @@ async function runImportInBackground(
               platform: productData.platform || 'PC',
               region: productData.region || 'GLOBAL',
               original_price: basePrice,
+              provider_currency: providerCurrency,
               margin_applied: margin,
               imported_at: new Date().toISOString(),
               genres: productData.genres || [],
@@ -297,7 +318,7 @@ async function runImportInBackground(
             logger.info(`  Handle: ${handle}`)
             logger.info(`  Thumbnail: ${thumbnailUrl}`)
             logger.info(`  Base Price: $${basePrice}`)
-            logger.info(`  Final Price: $${(finalPrice / 100).toFixed(2)}`)
+            logger.info(`  Final Price (USD): $${(finalPriceUsd / 100).toFixed(2)}`)
           }
           
           productToUse = await productModule.createProducts({
@@ -315,6 +336,7 @@ async function runImportInBackground(
               platform: productData.platform || 'PC',
               region: productData.region || 'GLOBAL',
               original_price: basePrice,
+              provider_currency: providerCurrency,
               margin_applied: margin,
               imported_at: new Date().toISOString(),
               genres: productData.genres || [],
@@ -328,7 +350,7 @@ async function runImportInBackground(
         // Create/Update variant with multi-currency pricing
         if (productToUse?.id) {
           const variantSku = `${provider.toUpperCase()}-${productData.productId}`.substring(0, 100)
-          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPrice, currencyRates)
+          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPriceUsd, currencyRates)
           
           // Check if variant with this SKU already exists
           const existingVariants = await productModule.listProductVariants({ sku: variantSku })

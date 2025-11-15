@@ -10,6 +10,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const themeSettings = await storeSettingsModule.getThemeSettings()
     const enabledCurrencies = await storeSettingsModule.getSettingValue('currencies.enabled', ['USD', 'EUR', 'GBP'])
     const defaultCurrency = await storeSettingsModule.getSettingValue('currencies.default', 'USD')
+    const displayCurrency = await storeSettingsModule.getSettingValue('store.display_currency', defaultCurrency)
+    const taxRate = await storeSettingsModule.getSettingValue('tax.rate', 20)
     const storeName = await storeSettingsModule.getSettingValue('store.name', 'Digital Game Store')
     const storeDescription = await storeSettingsModule.getSettingValue(
       'store.description',
@@ -21,10 +23,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       currencies: {
         enabled: enabledCurrencies,
         default: defaultCurrency,
+        display: displayCurrency,
       },
       store: {
         name: storeName,
         description: storeDescription,
+      },
+      taxes: {
+        rate: typeof taxRate === 'number' ? taxRate : parseFloat(taxRate) || 0,
       },
     })
   } catch (error: any) {
@@ -39,10 +45,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       currencies: {
         enabled: ['USD'],
         default: 'USD',
+        display: 'USD',
       },
       store: {
         name: 'Digital Game Store',
         description: 'Your trusted marketplace for digital game keys',
+      },
+      taxes: {
+        rate: 0,
       },
     })
   }

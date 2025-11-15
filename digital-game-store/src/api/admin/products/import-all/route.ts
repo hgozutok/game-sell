@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
-import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../utils/currency'
+import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -88,6 +88,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // Get currency rates from settings
     const currencyRates = await getCurrencyRates(storeSettings)
     logger.info(`💱 Using currency rates:`, currencyRates)
+
+    const providerCurrencyKey = provider === 'kinguin'
+      ? 'provider.currency.kinguin'
+      : 'provider.currency.codeswholesale'
+    const providerCurrency = await storeSettings.getSettingValue(
+      providerCurrencyKey,
+      provider === 'kinguin' ? 'eur' : 'usd'
+    )
     
     // Find default sales channel
     let defaultChannel = null
@@ -158,10 +166,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         
         const margin = margin_percentage !== undefined ? margin_percentage : 15
         const marginAmount = basePrice * (margin / 100)
-        const finalPrice = Math.round((basePrice + marginAmount) * 100) // Convert to cents
+        const providerPriceWithMargin = basePrice + marginAmount
+        const providerPriceWithMarginMinor = Math.round(providerPriceWithMargin * 100)
+
+        const productName = productData.name || 'Imported Product'
+
+        let finalPriceUsd = providerPriceWithMarginMinor
+        try {
+          finalPriceUsd = convertCurrencyAmount(
+            providerPriceWithMarginMinor,
+            providerCurrency,
+            'usd',
+            currencyRates
+          )
+        } catch (conversionError: any) {
+          logger.warn(`⚠️ Currency conversion failed for ${productName}:`, conversionError.message)
+        }
 
         // Create product handle with provider prefix
-        const productName = productData.name || 'Imported Product'
         const providerPrefix = provider === 'kinguin' ? 'kinguin-' : 'cws-'
         const handle = (providerPrefix + productName.toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
@@ -249,6 +271,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               platform: productData.platform || 'PC',
               region: productData.region || 'GLOBAL',
               original_price: basePrice,
+              provider_currency: providerCurrency,
               margin_applied: margin_percentage || 15,
               imported_at: new Date().toISOString(),
               genres: productData.genres || [],
@@ -280,6 +303,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               platform: productData.platform || 'PC',
               region: productData.region || 'GLOBAL',
               original_price: basePrice,
+              provider_currency: providerCurrency,
               margin_applied: margin,
               imported_at: new Date().toISOString(),
               languages: productData.languages || [],
@@ -295,7 +319,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         // Create/Update variant with proper pricing (MULTI-CURRENCY)
         if (productToUse && productToUse.id) {
           // Calculate prices for all currencies using settings
-          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPrice, currencyRates)
+          const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPriceUsd, currencyRates)
 
           // Check if variant with this SKU already exists
           const variantSku = `${provider.toUpperCase()}-${productData.productId}`.substring(0, 100)
@@ -358,7 +382,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           }
 
           importedProducts.push(productToUse)
-          logger.info(`✅ Imported: ${productName} - $${(finalPrice / 100).toFixed(2)} (base: $${basePrice.toFixed(2)} + ${margin}%)`)
+          logger.info(`✅ Imported: ${productName} - $${(finalPriceUsd / 100).toFixed(2)} (base: $${basePrice.toFixed(2)} + ${margin}%)`)
         }
         // Extra delay every 50 items
         if (totalAttempted % 50 === 0) {

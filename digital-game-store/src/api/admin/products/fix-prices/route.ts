@@ -1,6 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
-import { getCurrencyRates, calculateMultiCurrencyPrices } from '../../../../utils/currency'
+import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -43,9 +43,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             continue
           }
 
-          // Calculate price with margin
+          // Calculate price with margin using provider currency info
           const margin = parseFloat(product.metadata?.margin_applied || '15')
-          const finalPriceUSD = Math.round(basePrice * (1 + margin / 100) * 100) // cents
+          const providerCurrency = (product.metadata?.provider_currency || 'usd').toLowerCase()
+          const providerPriceWithMargin = basePrice * (1 + margin / 100)
+          const providerPriceMinor = Math.round(providerPriceWithMargin * 100)
+
+          let finalPriceUSD = providerPriceMinor
+          try {
+            finalPriceUSD = convertCurrencyAmount(providerPriceMinor, providerCurrency, 'usd', currencyRates)
+          } catch (conversionError: any) {
+            logger.warn(`⚠️ Currency conversion failed for ${product.title}:`, conversionError.message)
+          }
 
           // Calculate prices for all currencies using settings
           const multiCurrencyPrices = calculateMultiCurrencyPrices(finalPriceUSD, currencyRates)

@@ -1,10 +1,13 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
+import { getCurrencyRates } from '../../../../utils/currency'
+import { buildDisplayPrice } from '../../../../utils/pricing'
 
 /**
  * Search and filter products
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const productModuleService = req.scope.resolve('productModuleService') as any
+  const storeSettings = req.scope.resolve('storeSettings') as any
 
   const {
     q, // search query
@@ -21,6 +24,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   } = req.query
 
   try {
+    const currencyRates = await getCurrencyRates(storeSettings)
+    const defaultCurrency = await storeSettings.getSettingValue('currencies.default', 'usd')
+    const displayCurrency = await storeSettings.getSettingValue('store.display_currency', defaultCurrency)
+    const taxRateSetting = await storeSettings.getSettingValue('tax.rate', 20)
+    const taxRate = typeof taxRateSetting === 'number' ? taxRateSetting : parseFloat(taxRateSetting) || 0
+
     // Build filters
     const filters: any = {}
 
@@ -76,12 +85,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
 
+    const productsWithPricing = filteredProducts.map((product: any) => ({
+      ...product,
+      display_price: buildDisplayPrice(product, displayCurrency, currencyRates, taxRate),
+    }))
+
     res.json({
-      products: filteredProducts,
-      count: filteredProducts.length,
+      products: productsWithPricing,
+      count: productsWithPricing.length,
       total: count,
       limit: parseInt(limit as string),
       offset: parseInt(offset as string),
+      currency: displayCurrency,
+      tax_rate: taxRate,
     })
   } catch (error: any) {
     console.error('Product search error:', error)

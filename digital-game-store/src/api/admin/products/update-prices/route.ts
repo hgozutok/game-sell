@@ -1,5 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
+import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/currency'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -14,6 +15,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const providerModuleName = provider === 'codeswholesale' ? 'codesWholesale' : 'kinguin'
     const providerService = req.scope.resolve(providerModuleName) as any
     const logger = req.scope.resolve('logger') as any
+    const storeSettings = req.scope.resolve('storeSettings') as any
+
+    const currencyRates = await getCurrencyRates(storeSettings)
+    const providerCurrencyKey = provider === 'kinguin'
+      ? 'provider.currency.kinguin'
+      : 'provider.currency.codeswholesale'
+    const providerCurrency = await storeSettings.getSettingValue(
+      providerCurrencyKey,
+      provider === 'kinguin' ? 'eur' : 'usd'
+    )
 
     logger.info('💰 Updating prices from provider...')
 
@@ -44,7 +55,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         const basePrice = providerProduct.price
         const margin = margin_percentage
         const marginAmount = basePrice * (margin / 100)
-        const finalPrice = Math.round((basePrice + marginAmount) * 100) // Convert to cents
+        const providerPriceWithMargin = basePrice + marginAmount
+        const providerPriceMinor = Math.round(providerPriceWithMargin * 100)
+        let finalPrice = providerPriceMinor
+        try {
+          finalPrice = convertCurrencyAmount(providerPriceMinor, providerCurrency, 'usd', currencyRates)
+        } catch (conversionError: any) {
+          logger.warn(`⚠️ Currency conversion failed for ${product.title}:`, conversionError.message)
+        }
 
         // Get variants for this product
         const variants = await productModule.listProductVariants({ 
@@ -77,6 +95,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           metadata: {
             ...product.metadata,
             original_price: basePrice,
+            provider_currency: providerCurrency,
             last_price_update: new Date().toISOString(),
           },
         }])
