@@ -6,6 +6,14 @@ export const AUTHENTICATE = false
 // GET /store/payment-methods - Get active payment methods for checkout
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   try {
+    const originHeader = req.headers.origin
+    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+    }
     const storeSettings = req.scope.resolve('storeSettings') as StoreSettingsService
 
     // Get all payment-related settings
@@ -50,5 +58,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       methods: [{ id: 'bank_transfer', name: 'Bank Transfer' }],
     })
   }
+}
+
+export async function OPTIONS(req: MedusaRequest, res: MedusaResponse) {
+  const originHeader = req.headers.origin
+  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+  }
+  res.status(204).end()
 }
 

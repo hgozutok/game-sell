@@ -9,6 +9,15 @@ export const AUTHENTICATE = false // Disable auth for development
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
+    // CORS headers for storefront requests with credentials
+    const originHeader = req.headers.origin
+    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+    }
     const logger = req.scope.resolve('logger') as any
     const { items, email, billing_address, shipping_address, payment_method } = req.body as any
 
@@ -114,13 +123,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // Continue without customer for now
     }
 
-    // Create cart
+    // Create empty cart (we'll add items after to ensure proper enrichment)
     const cartPayload: any = {
       region_id: defaultRegion.id,
-      items: items.map((item: any) => ({
-        variant_id: item.variant_id,
-        quantity: item.quantity || 1,
-      })),
+      currency_code: (defaultRegion as any).currency_code || 'usd',
       customer_id: customer?.id,
       email: email,
       ...(defaultChannel?.id ? { sales_channel_id: defaultChannel.id } : {}),
@@ -136,8 +142,54 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     logger.info(`✅ Created cart: ${cart.id} with payment method: ${payment_method}`)
 
+    // Add items to cart using cart service to populate titles/prices correctly
+    const productModule = req.scope.resolve(Modules.PRODUCT) as any
+    // Enrich line items with titles upfront to satisfy validation
+    const enriched: Array<any> = []
+    for (const item of items) {
+      try {
+        const variant = await productModule.retrieveProductVariant(item.variant_id, {
+          relations: ['product'],
+        })
+        const title = variant?.title || variant?.product?.title || 'Item'
+        enriched.push({
+          variant_id: item.variant_id,
+          quantity: item.quantity || 1,
+          title,
+        })
+      } catch {
+        enriched.push({
+          variant_id: item.variant_id,
+          quantity: item.quantity || 1,
+          title: 'Item',
+        })
+      }
+    }
+
+    if (typeof cartModule.addLineItems === 'function') {
+      await cartModule.addLineItems(cart.id, enriched)
+    } else if (typeof cartModule.addLineItem === 'function') {
+      for (const li of enriched) {
+        await cartModule.addLineItem(cart.id, li)
+      }
+    } else {
+      return res.status(500).json({
+        message: 'Unable to add items to cart: addLineItems/addLineItem not available',
+      })
+    }
+
     // Complete cart (create order)
-    const order = await cartModule.completeCarts(cart.id)
+    const completeFn = typeof cartModule.completeCart === 'function'
+      ? cartModule.completeCart.bind(cartModule)
+      : cartModule.completeCarts?.bind(cartModule)
+
+    if (!completeFn) {
+      return res.status(500).json({
+        message: 'Cart completion is not available in this setup',
+      })
+    }
+
+    const order = await completeFn(cart.id)
 
     logger.info(`✅ Order created: ${order.id}`)
 
@@ -164,5 +216,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       details: error?.stack,
     })
   }
+}
+
+// Preflight for CORS
+export const OPTIONS = async (req: MedusaRequest, res: MedusaResponse) => {
+  const originHeader = req.headers.origin
+  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+  }
+  res.status(204).end()
 }
 

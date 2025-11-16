@@ -31,7 +31,7 @@ export default function AdminOrdersControlPage() {
   const loadOrders = async () => {
     setLoading(true)
     try {
-      const res = await adminApi.get('/admin/orders?limit=25')
+      const res = await adminApi.get('/admin/order-control?limit=25')
       setOrders(res.data?.orders || [])
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -76,7 +76,7 @@ export default function AdminOrdersControlPage() {
   const fulfillNow = async (orderId: string) => {
     setFulfillingId(orderId)
     try {
-      await adminApi.post(`/admin/orders/${orderId}/fulfill`)
+      await adminApi.post(`/admin/order-control/${orderId}/fulfill`)
       await loadOrders()
     } catch (e) {
       // eslint-disable-next-line no-console
