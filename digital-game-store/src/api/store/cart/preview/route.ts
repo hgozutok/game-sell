@@ -49,11 +49,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const defaultCurrency = await storeSettings.getSettingValue('currencies.default', 'usd')
     const displayCurrency = await storeSettings.getSettingValue('store.display_currency', defaultCurrency)
     const taxRateSetting = await storeSettings.getSettingValue('tax.rate', 20)
+    const countryRatesSetting = await storeSettings.getSettingValue('tax.country_rates', {})
     const defaultTaxRate = typeof taxRateSetting === 'number' ? taxRateSetting : parseFloat(taxRateSetting) || 0
     const normalizedCountry = typeof country_code === 'string' ? country_code.toLowerCase() : null
-    const countryTaxRate = normalizedCountry && COUNTRY_TAX_RATES[normalizedCountry] !== undefined
-      ? COUNTRY_TAX_RATES[normalizedCountry]
-      : defaultTaxRate
+    const mappedCountryRate =
+      normalizedCountry && countryRatesSetting && typeof countryRatesSetting === 'object'
+        ? countryRatesSetting[normalizedCountry]
+        : undefined
+    const countryTaxRate =
+      (typeof mappedCountryRate === 'number' ? mappedCountryRate : undefined) ??
+      (normalizedCountry && COUNTRY_TAX_RATES[normalizedCountry] !== undefined
+        ? COUNTRY_TAX_RATES[normalizedCountry]
+        : defaultTaxRate)
 
     const lineItems: any[] = []
     let subtotal = 0

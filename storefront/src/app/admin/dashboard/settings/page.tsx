@@ -19,6 +19,24 @@ export default function SettingsPage() {
   })
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [countryRates, setCountryRates] = useState<Record<string, number>>({})
+
+  const countryOptions = [
+    { code: 'US', label: 'United States' },
+    { code: 'GB', label: 'United Kingdom' },
+    { code: 'DE', label: 'Germany' },
+    { code: 'FR', label: 'France' },
+    { code: 'ES', label: 'Spain' },
+    { code: 'IT', label: 'Italy' },
+    { code: 'NL', label: 'Netherlands' },
+    { code: 'BE', label: 'Belgium' },
+    { code: 'SE', label: 'Sweden' },
+    { code: 'NO', label: 'Norway' },
+    { code: 'DK', label: 'Denmark' },
+    { code: 'TR', label: 'Turkey' },
+    { code: 'CA', label: 'Canada' },
+    { code: 'EU', label: 'European Union' },
+  ]
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -53,6 +71,15 @@ export default function SettingsPage() {
         } catch (providerError) {
           console.warn('Failed to fetch provider currency settings:', providerError)
         }
+
+        // Load per-country tax rates
+        try {
+          const taxRes = await adminApi.get('/admin/settings/tax/countries')
+          const map = taxRes.data?.country_tax_rates || {}
+          setCountryRates(map)
+        } catch (taxError) {
+          console.warn('Failed to fetch country tax rates:', taxError)
+        }
       } catch (error) {
         console.error('Failed to fetch settings:', error)
         // Continue with default settings if fetch fails
@@ -73,7 +100,6 @@ export default function SettingsPage() {
         { key: 'store.description', value: settings.store_description, category: 'store' },
         { key: 'store.support_email', value: settings.support_email, category: 'store' },
         { key: 'currencies.default', value: settings.currency, category: 'currencies' },
-        { key: 'store.tax_rate', value: settings.tax_rate, category: 'store' },
         { key: 'store.enable_wishlist', value: settings.enable_wishlist, category: 'store' },
         { key: 'store.enable_reviews', value: settings.enable_reviews, category: 'store' },
       ]
@@ -82,9 +108,17 @@ export default function SettingsPage() {
         await adminApi.post('/admin/settings', setting)
       }
 
+      // Save default tax rate through dedicated endpoint
+      await adminApi.post('/admin/settings/tax', { tax_rate: settings.tax_rate })
+
       await adminApi.post('/admin/settings/provider-currency', {
         kinguin_currency: settings.kinguin_currency?.toLowerCase?.() || 'eur',
         codeswholesale_currency: settings.codeswholesale_currency?.toLowerCase?.() || 'usd',
+      })
+
+      // Save per-country tax rates
+      await adminApi.post('/admin/settings/tax/countries', {
+        country_tax_rates: countryRates,
       })
 
       setSuccess(true)
@@ -197,6 +231,40 @@ export default function SettingsPage() {
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Country Tax Rates */}
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-4">Ülke Bazlı Vergi Oranları</h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Ülke seçildiğinde bu oranlar kullanılacaktır. Boş bırakılan ülkeler varsayılan vergi oranını kullanır.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              {countryOptions.map((c) => {
+                const codeLower = c.code.toLowerCase()
+                const value = countryRates?.[codeLower] ?? ''
+                return (
+                  <div key={c.code} className="flex items-center gap-3">
+                    <label className="w-40 text-sm font-medium text-gray-300">{c.label} ({c.code})</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="flex-1 px-3 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                      placeholder="e.g. 20"
+                      value={value}
+                      onChange={(e) => {
+                        const num = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0)
+                        setCountryRates((prev) => ({
+                          ...prev,
+                          [codeLower]: (num as any),
+                        }))
+                      }}
+                    />
+                    <span className="text-sm text-gray-400">%</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
