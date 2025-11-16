@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
 import { useCurrencyStore } from "@/store/currencyStore"
+import { useTaxSettingsStore } from "@/store/taxSettingsStore"
 import { api } from "@/lib/api"
 import { formatMoney, getCurrencySymbol, convertAmount } from "@/utils/currency"
 
@@ -12,6 +13,7 @@ export default function CartPage() {
   const router = useRouter()
   const { items, removeItem, updateQuantity } = useCartStore()
   const { selectedCurrency, currencies } = useCurrencyStore()
+  const { countryName: adminCountryName, vatRate: adminVatRate } = useTaxSettingsStore()
   const [selectedCountry, setSelectedCountry] = useState('us')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewTotals, setPreviewTotals] = useState<{
@@ -52,6 +54,15 @@ export default function CartPage() {
     dk: 25,
     tr: 18,
     eu: 21,
+  }
+
+  const labelByCode: Record<string, string> = {
+    us: 'United States',
+    gb: 'United Kingdom',
+    de: 'Germany',
+    fr: 'France',
+    tr: 'Turkey',
+    eu: 'European Union',
   }
   
   const isEmpty = items.length === 0
@@ -103,11 +114,23 @@ export default function CartPage() {
         const fallbackSubtotal = computeLocalSubtotal(responseCurrency)
         const shouldFallback = response.data.subtotal === 0 && items.length > 0
         const effectiveSubtotal = shouldFallback ? fallbackSubtotal : response.data.subtotal
+
+        // Determine tax rate:
+        // 1) If admin override is set and country label matches, use it
+        // 2) Else use server response
+        // 3) Else fallback to local static rates
+        const selectedLabel = labelByCode[selectedCountry]
+        const adminApplies =
+          adminCountryName &&
+          selectedLabel &&
+          adminCountryName.trim().toLowerCase() === selectedLabel.toLowerCase()
+
+        const serverTaxRate = response.data.tax_rate
         const fallbackTaxRate =
-          response.data.tax_rate !== undefined
-            ? response.data.tax_rate
-            : COUNTRY_TAX_RATES[selectedCountry] ?? 0
-        const effectiveTaxRate = shouldFallback ? fallbackTaxRate : response.data.tax_rate
+          (adminApplies ? adminVatRate : undefined) ??
+          (serverTaxRate !== undefined ? serverTaxRate : COUNTRY_TAX_RATES[selectedCountry] ?? 0)
+
+        const effectiveTaxRate = shouldFallback ? fallbackTaxRate : (adminApplies ? adminVatRate : serverTaxRate)
         const fallbackTaxTotal = Math.round(effectiveSubtotal * (fallbackTaxRate / 100))
         const effectiveTaxTotal = shouldFallback ? fallbackTaxTotal : response.data.tax_total
         const effectiveTotal = shouldFallback ? effectiveSubtotal + effectiveTaxTotal : response.data.total
@@ -124,9 +147,9 @@ export default function CartPage() {
         const fallbackSubtotal = computeLocalSubtotal(selectedCurrency.code)
         setPreviewTotals({
           subtotal: fallbackSubtotal,
-          tax_total: 0,
-          total: fallbackSubtotal,
-          tax_rate: 0,
+          tax_total: Math.round(fallbackSubtotal * (((adminCountryName && labelByCode[selectedCountry] && adminCountryName.trim().toLowerCase() === labelByCode[selectedCountry].toLowerCase()) ? adminVatRate : (COUNTRY_TAX_RATES[selectedCountry] ?? 0)) / 100)),
+          total: fallbackSubtotal + Math.round(fallbackSubtotal * (((adminCountryName && labelByCode[selectedCountry] && adminCountryName.trim().toLowerCase() === labelByCode[selectedCountry].toLowerCase()) ? adminVatRate : (COUNTRY_TAX_RATES[selectedCountry] ?? 0)) / 100)),
+          tax_rate: (adminCountryName && labelByCode[selectedCountry] && adminCountryName.trim().toLowerCase() === labelByCode[selectedCountry].toLowerCase()) ? adminVatRate : (COUNTRY_TAX_RATES[selectedCountry] ?? 0),
           currency_code: selectedCurrency.code,
         })
       } finally {
@@ -135,7 +158,7 @@ export default function CartPage() {
     }
 
     fetchPreview()
-  }, [items, selectedCountry, selectedCurrency.code, currencies])
+  }, [items, selectedCountry, selectedCurrency.code, currencies, adminCountryName, adminVatRate])
 
   const handleCheckout = () => {
     router.push('/checkout')

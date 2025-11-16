@@ -24,6 +24,13 @@ const COUNTRY_TAX_RATES: Record<string, number> = {
 export const AUTHENTICATE = false
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const originHeader = req.headers.origin
+  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+  }
+
   try {
     const { items, country_code } = req.body as any
 
@@ -57,17 +64,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         continue
       }
 
-      const variants = await productModule.listProductVariants(
-        { id: variantId },
-        { relations: ['prices'] }
-      )
+      const variants = await productModule.listProductVariants({ id: variantId })
       const variant = variants?.[0]
 
       if (!variant) {
         continue
       }
 
-      let unitPrice = getVariantPriceInCurrency(variant, displayCurrency, currencyRates) || 0
+      const variantPrices = await productModule.listProductVariantPrices({ variant_id: variantId })
+      const variantWithPrices = {
+        ...variant,
+        prices: variantPrices,
+      }
+
+      let unitPrice = getVariantPriceInCurrency(variantWithPrices, displayCurrency, currencyRates) || 0
       if (unitPrice <= 0 && item.price) {
         unitPrice = item.price
       }
