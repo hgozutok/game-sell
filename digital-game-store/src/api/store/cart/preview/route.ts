@@ -1,7 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
-import { getCurrencyRates } from '../../../../utils/currency'
-import { getVariantPriceInCurrency, calculateTaxAmount } from '../../../../utils/pricing'
+import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/currency'
+import { calculateTaxAmount } from '../../../../utils/pricing'
 
 const COUNTRY_TAX_RATES: Record<string, number> = {
   us: 8,
@@ -29,6 +29,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
   }
 
   try {
@@ -71,15 +73,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         continue
       }
 
-      const variantPrices = await productModule.listProductVariantPrices({ variant_id: variantId })
-      const variantWithPrices = {
-        ...variant,
-        prices: variantPrices,
-      }
-
-      let unitPrice = getVariantPriceInCurrency(variantWithPrices, displayCurrency, currencyRates) || 0
-      if (unitPrice <= 0 && item.price) {
-        unitPrice = item.price
+      // Determine unit price:
+      // - Prefer client-provided price (converted to display currency if needed)
+      // - Otherwise fallback to 0 (no price available)
+      let unitPrice = 0
+      if (typeof item.price === 'number' && item.price > 0) {
+        const fromCurrency = (item.currency || displayCurrency).toLowerCase()
+        const toCurrency = (displayCurrency || 'usd').toLowerCase()
+        unitPrice =
+          fromCurrency === toCurrency
+            ? item.price
+            : convertCurrencyAmount(item.price, fromCurrency, toCurrency, currencyRates)
       }
       const lineSubtotal = unitPrice * quantity
       subtotal += lineSubtotal

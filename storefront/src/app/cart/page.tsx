@@ -106,6 +106,9 @@ export default function CartPage() {
           items: items.map((item) => ({
             variant_id: item.variantId,
             quantity: item.quantity,
+            // send client-known price and currency in minor units
+            price: item.price,
+            currency: item.currency,
           })),
           country_code: selectedCountry,
         })
@@ -222,11 +225,11 @@ export default function CartPage() {
                   {/* Product Image */}
                   <div className="flex-shrink-0">
                     <img
-                      src={item.thumbnail || "/placeholder-game.jpg"}
+                      src={item.thumbnail || "/placeholder-game.svg"}
                       alt={item.title}
                       className="w-32 h-32 object-cover rounded-lg"
                       onError={(e) => {
-                        e.currentTarget.src = "/placeholder-game.jpg"
+                        e.currentTarget.src = "/placeholder-game.svg"
                       }}
                     />
                   </div>
