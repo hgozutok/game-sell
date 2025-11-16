@@ -52,15 +52,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const countryRatesSetting = await storeSettings.getSettingValue('tax.country_rates', {})
     const defaultTaxRate = typeof taxRateSetting === 'number' ? taxRateSetting : parseFloat(taxRateSetting) || 0
     const normalizedCountry = typeof country_code === 'string' ? country_code.toLowerCase() : null
-    const mappedCountryRate =
-      normalizedCountry && countryRatesSetting && typeof countryRatesSetting === 'object'
-        ? countryRatesSetting[normalizedCountry]
-        : undefined
-    const countryTaxRate =
-      (typeof mappedCountryRate === 'number' ? mappedCountryRate : undefined) ??
-      (normalizedCountry && COUNTRY_TAX_RATES[normalizedCountry] !== undefined
-        ? COUNTRY_TAX_RATES[normalizedCountry]
-        : defaultTaxRate)
+    // Apply admin-configured per-country tax rate when available; fallback to default tax rate
+    let countryTaxRate = defaultTaxRate
+    if (normalizedCountry && countryRatesSetting && typeof countryRatesSetting === 'object') {
+      const configured = countryRatesSetting[normalizedCountry]
+      if (typeof configured === 'number' && isFinite(configured)) {
+        countryTaxRate = configured
+      }
+    }
 
     // Allow client to request a specific currency for preview
     const requestedCurrency =

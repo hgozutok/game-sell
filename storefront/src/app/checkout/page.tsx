@@ -38,6 +38,7 @@ export default function CheckoutPage() {
   const [methodsLoaded, setMethodsLoaded] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState('us')
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [defaultTaxRate, setDefaultTaxRate] = useState<number>(20)
   const [previewTotals, setPreviewTotals] = useState<{
     subtotal: number
     tax_total: number
@@ -72,6 +73,22 @@ export default function CheckoutPage() {
       setSelectedCountry(formCountry.toLowerCase())
     }
   }, [formCountry])
+
+  // Load default tax rate from public settings for fallback cases
+  useEffect(() => {
+    const loadDefaultTax = async () => {
+      try {
+        const res = await api.get('/store/settings')
+        const rate = res.data?.taxes?.rate
+        if (typeof rate === 'number' && isFinite(rate)) {
+          setDefaultTaxRate(rate)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadDefaultTax()
+  }, [])
 
   // Load available payment methods from backend
   useEffect(() => {
@@ -167,9 +184,9 @@ export default function CheckoutPage() {
         const fallbackSubtotal = computeLocalSubtotal(selectedCurrency.code)
         setPreviewTotals({
           subtotal: fallbackSubtotal,
-          tax_total: Math.round(fallbackSubtotal * 0.2),
-          total: fallbackSubtotal + Math.round(fallbackSubtotal * 0.2),
-          tax_rate: 20,
+          tax_total: Math.round(fallbackSubtotal * (defaultTaxRate / 100)),
+          total: fallbackSubtotal + Math.round(fallbackSubtotal * (defaultTaxRate / 100)),
+          tax_rate: defaultTaxRate,
           currency_code: selectedCurrency.code,
         })
       } finally {
@@ -178,7 +195,7 @@ export default function CheckoutPage() {
     }
 
     fetchPreview()
-  }, [items, selectedCountry, selectedCurrency.code, currencies])
+  }, [items, selectedCountry, selectedCurrency.code, currencies, defaultTaxRate])
 
   const onSubmit = async (data: CheckoutFormData) => {
     setLoading(true)
