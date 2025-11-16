@@ -110,6 +110,7 @@ export default function CartPage() {
             price: item.price,
             currency: item.currency,
           })),
+          currency_code: selectedCurrency.code,
           country_code: selectedCountry,
         })
 

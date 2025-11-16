@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast, { Toaster } from 'react-hot-toast'
 import { api } from '@/lib/api'
+import { formatMoney, convertAmount } from '@/utils/currency'
 
 const checkoutSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -30,11 +31,26 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, getTotalPrice, clearCart } = useCartStore()
-  const { selectedCurrency } = useCurrencyStore()
+  const { selectedCurrency, currencies } = useCurrencyStore()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'info' | 'payment'>('info')
   const [availableMethods, setAvailableMethods] = useState<Array<{id: string, name: string}>>([])
   const [methodsLoaded, setMethodsLoaded] = useState(false)
+  const [selectedCountry, setSelectedCountry] = useState('us')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewTotals, setPreviewTotals] = useState<{
+    subtotal: number
+    tax_total: number
+    total: number
+    tax_rate: number
+    currency_code: string
+  }>({
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    tax_rate: 0,
+    currency_code: selectedCurrency.code,
+  })
 
   const {
     register,
@@ -49,6 +65,13 @@ export default function CheckoutPage() {
   })
 
   const paymentMethod = watch('paymentMethod')
+  const formCountry = watch('country')
+
+  useEffect(() => {
+    if (formCountry && typeof formCountry === 'string') {
+      setSelectedCountry(formCountry.toLowerCase())
+    }
+  }, [formCountry])
 
   // Load available payment methods from backend
   useEffect(() => {
@@ -80,6 +103,82 @@ export default function CheckoutPage() {
       router.push('/cart')
     }
   }, [items, router])
+
+  // Helpers for currency conversion in fallback mode
+  const convertForCurrency = (amount: number, fromCurrency: string | undefined, targetCurrency: string) => {
+    if (!fromCurrency || !targetCurrency || fromCurrency.toLowerCase() === targetCurrency.toLowerCase()) {
+      return amount
+    }
+    return convertAmount(amount, fromCurrency, targetCurrency, currencies || [])
+  }
+  const computeLocalSubtotal = (targetCurrency: string) => {
+    return items.reduce((sum, item) => {
+      const itemTotal = item.price * item.quantity
+      return sum + convertForCurrency(itemTotal, item.currency, targetCurrency)
+    }, 0)
+  }
+
+  // Fetch preview totals whenever items or country change
+  useEffect(() => {
+    if (!items.length) {
+      setPreviewTotals({
+        subtotal: 0,
+        tax_total: 0,
+        total: 0,
+        tax_rate: 0,
+        currency_code: selectedCurrency.code,
+      })
+      return
+    }
+
+    const fetchPreview = async () => {
+      try {
+        setPreviewLoading(true)
+        const response = await api.post('/store/cart/preview', {
+          items: items.map((item) => ({
+            variant_id: item.variantId,
+            quantity: item.quantity,
+            price: item.price,
+            currency: item.currency,
+          })),
+          currency_code: selectedCurrency.code,
+          country_code: selectedCountry,
+        })
+
+        const responseCurrency = response.data.currency_code || selectedCurrency.code
+        const fallbackSubtotal = computeLocalSubtotal(responseCurrency)
+        const shouldFallback = response.data.subtotal === 0 && items.length > 0
+        const effectiveSubtotal = shouldFallback ? fallbackSubtotal : response.data.subtotal
+
+        const effectiveTaxRate = response.data.tax_rate ?? 0
+        const fallbackTaxTotal = Math.round(effectiveSubtotal * (effectiveTaxRate / 100))
+        const effectiveTaxTotal = shouldFallback ? fallbackTaxTotal : response.data.tax_total
+        const effectiveTotal = shouldFallback ? effectiveSubtotal + effectiveTaxTotal : response.data.total
+
+        setPreviewTotals({
+          subtotal: effectiveSubtotal,
+          tax_total: effectiveTaxTotal,
+          total: effectiveTotal,
+          tax_rate: effectiveTaxRate,
+          currency_code: responseCurrency,
+        })
+      } catch (error) {
+        // Fallback to local calc (20%)
+        const fallbackSubtotal = computeLocalSubtotal(selectedCurrency.code)
+        setPreviewTotals({
+          subtotal: fallbackSubtotal,
+          tax_total: Math.round(fallbackSubtotal * 0.2),
+          total: fallbackSubtotal + Math.round(fallbackSubtotal * 0.2),
+          tax_rate: 20,
+          currency_code: selectedCurrency.code,
+        })
+      } finally {
+        setPreviewLoading(false)
+      }
+    }
+
+    fetchPreview()
+  }, [items, selectedCountry, selectedCurrency.code, currencies])
 
   const onSubmit = async (data: CheckoutFormData) => {
     setLoading(true)
@@ -151,8 +250,10 @@ export default function CheckoutPage() {
   }
 
   const totalPrice = getTotalPrice()
-  const tax = totalPrice * 0.2 // 20% VAT
-  const finalTotal = totalPrice + tax
+  const currencyForDisplay = previewTotals.currency_code || selectedCurrency.code
+  const formattedSubtotal = formatMoney(previewTotals.subtotal, currencyForDisplay)
+  const formattedTax = formatMoney(previewTotals.tax_total, currencyForDisplay)
+  const formattedTotal = formatMoney(previewTotals.total, currencyForDisplay)
 
   if (items.length === 0) {
     return null
@@ -369,7 +470,7 @@ export default function CheckoutPage() {
 
               {/* Submit Button */}
               <button type="submit" disabled={loading} className="w-full btn-primary text-lg py-4">
-                {loading ? 'PROCESSING...' : `PLACE ORDER - ${selectedCurrency.symbol}${(finalTotal / 100).toFixed(2)}`}
+                {loading ? 'PROCESSING...' : `PLACE ORDER - ${formattedTotal}`}
               </button>
 
               <p className="text-center text-sm text-gray-500">
@@ -414,15 +515,15 @@ export default function CheckoutPage() {
               <div className="border-t border-gray-700 pt-4 space-y-2">
                 <div className="flex justify-between text-gray-400">
                   <span>Subtotal:</span>
-                  <span>{selectedCurrency.symbol}{(totalPrice / 100).toFixed(2)}</span>
+                  <span>{previewLoading ? 'Calculating...' : formattedSubtotal}</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
-                  <span>VAT (20%):</span>
-                  <span>{selectedCurrency.symbol}{(tax / 100).toFixed(2)}</span>
+                  <span>VAT{previewTotals.tax_rate ? ` (${previewTotals.tax_rate.toFixed(2)}%)` : ''}:</span>
+                  <span>{previewLoading ? 'Calculating...' : formattedTax}</span>
                 </div>
                 <div className="border-t border-gray-700 pt-2 flex justify-between text-white font-bold text-xl">
                   <span>Total:</span>
-                  <span>{selectedCurrency.symbol}{(finalTotal / 100).toFixed(2)}</span>
+                  <span>{previewLoading ? 'Calculating...' : formattedTotal}</span>
                 </div>
               </div>
 

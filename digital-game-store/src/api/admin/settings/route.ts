@@ -4,6 +4,14 @@ export const AUTHENTICATE = false // Disable auth for development
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
+    const originHeader = req.headers.origin
+    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+    }
     const storeSettingsModule = req.scope.resolve('storeSettings') as any
     
     const { category } = req.query
@@ -27,6 +35,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
+    const originHeader = req.headers.origin
+    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+    }
     const storeSettingsModule = req.scope.resolve('storeSettings') as any
 
     const { key, value, category, description } = req.body as any
