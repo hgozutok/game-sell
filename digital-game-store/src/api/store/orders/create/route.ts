@@ -39,9 +39,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const regionModule = req.scope.resolve(Modules.REGION) as any
     const salesChannelModule = req.scope.resolve(Modules.SALES_CHANNEL) as any
 
-    // Get default region
-    const regions = await regionModule.listRegions()
-    const defaultRegion = regions?.[0]
+    // Get default region (auto-create one if none exist)
+    let regions = await regionModule.listRegions()
+    let defaultRegion = regions?.[0]
+
+    if (!defaultRegion) {
+      try {
+        defaultRegion = await regionModule.createRegions({
+          name: 'United States',
+          currency_code: 'usd',
+          countries: ['us'],
+          automatic_taxes: false,
+          metadata: {
+            currency_symbol: '$',
+          },
+        })
+        // refresh regions list for consistency
+        regions = await regionModule.listRegions()
+      } catch (createRegionErr: any) {
+        return res.status(500).json({
+          message: 'No region found and failed to create a default region',
+          error: createRegionErr.message,
+        })
+      }
+    }
 
     if (!defaultRegion) {
       return res.status(500).json({
@@ -49,14 +70,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
 
-    // Get default sales channel
-    const salesChannels = await salesChannelModule.listSalesChannels({ name: 'Default Sales Channel' })
-    const defaultChannel = salesChannels?.[0]
+    // Get default sales channel (optional - proceed if not found)
+    let defaultChannel = null as any
+    try {
+      const salesChannels = await salesChannelModule.listSalesChannels({ name: 'Default Sales Channel' })
+      defaultChannel = salesChannels?.[0] || null
+    } catch (scErr: any) {
+      // ignore, we'll proceed without a sales channel
+    }
 
     if (!defaultChannel) {
-      return res.status(500).json({
-        message: 'Default sales channel not found',
-      })
+      try {
+        defaultChannel = await salesChannelModule.createSalesChannels({
+          name: 'Default Sales Channel',
+          description: 'Auto-created default channel',
+          is_disabled: false,
+        })
+      } catch (createScErr: any) {
+        // proceed without a sales channel
+        defaultChannel = null
+      }
     }
 
     // Find or create customer
@@ -80,7 +113,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
 
     // Create cart
-    const cart = await cartModule.createCarts({
+    const cartPayload: any = {
       region_id: defaultRegion.id,
       items: items.map((item: any) => ({
         variant_id: item.variant_id,
@@ -88,14 +121,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })),
       customer_id: customer?.id,
       email: email,
-      sales_channel_id: defaultChannel.id,
+      ...(defaultChannel?.id ? { sales_channel_id: defaultChannel.id } : {}),
       shipping_address: shipping_address,
       billing_address: billing_address,
       metadata: {
         payment_method: payment_method || 'paypal',
         payment_status: 'pending',
       },
-    })
+    }
+
+    const cart = await cartModule.createCarts(cartPayload)
 
     logger.info(`✅ Created cart: ${cart.id} with payment method: ${payment_method}`)
 
@@ -116,12 +151,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   } catch (error: any) {
     const logger = req.scope.resolve('logger') as any
-    logger.error('❌ Order creation error:', error.message)
-    
+    logger.error(`❌ Order creation error: ${error?.message}`, {
+      stack: error?.stack,
+      cause: error?.cause,
+    })
+
     res.status(500).json({
       message: 'Failed to create order',
-      error: error.message,
-      details: error.stack,
+      error: error?.message,
+      details: error?.stack,
     })
   }
 }
