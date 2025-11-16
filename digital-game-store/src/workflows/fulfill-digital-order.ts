@@ -132,6 +132,8 @@ const sendKeyDeliveryEmailStep = createStep(
   async (input: { orderId: string; customerId: string; keys: any[] }, { container }) => {
     const notificationService = container.resolve("notification") as any
     const keyInventoryService = container.resolve("keyInventory") as KeyInventoryService
+    const orderModuleService = container.resolve("order") as any
+    const logger = container.resolve("logger") as any
 
     // Send email with keys
     await notificationService.send({
@@ -147,6 +149,38 @@ const sendKeyDeliveryEmailStep = createStep(
     // Mark keys as delivered
     for (const key of input.keys) {
       await keyInventoryService.markKeyAsDelivered(key.id)
+    }
+
+    // Try to mark order as fulfilled and tag metadata for traceability
+    try {
+      if (typeof orderModuleService?.updateOrder === "function") {
+        await orderModuleService.updateOrder(input.orderId, {
+          metadata: {
+            ...(await orderModuleService
+              .retrieveOrder(input.orderId)
+              .then((o: any) => o?.metadata || {})
+              .catch(() => ({}))),
+            digital_fulfilled: true,
+            digital_fulfilled_at: new Date().toISOString(),
+          },
+          // Some implementations may ignore this field; metadata will still persist
+          fulfillment_status: "fulfilled",
+        })
+      } else if (typeof orderModuleService?.updateOrders === "function") {
+        await orderModuleService.updateOrders([
+          {
+            id: input.orderId,
+            metadata: {
+              digital_fulfilled: true,
+              digital_fulfilled_at: new Date().toISOString(),
+            },
+          },
+        ])
+      } else {
+        logger?.warn?.("Order service does not support updateOrder/updateOrders; skipping status update.")
+      }
+    } catch (e: any) {
+      logger?.warn?.(`Failed to mark order ${input.orderId} fulfilled: ${e?.message}`)
     }
 
     return new StepResponse({ success: true })

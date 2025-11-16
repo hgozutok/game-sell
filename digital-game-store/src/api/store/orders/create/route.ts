@@ -56,6 +56,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         })
         // refresh regions list for consistency
         regions = await regionModule.listRegions()
+        // ensure defaultRegion points to a valid region object
+        defaultRegion = regions?.[0] || defaultRegion
       } catch (createRegionErr: any) {
         return res.status(500).json({
           message: 'No region found and failed to create a default region',

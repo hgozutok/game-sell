@@ -3,12 +3,29 @@ import { Modules } from "@medusajs/framework/utils"
 
 export default async function orderPlacedHandler({ event, container }: SubscriberArgs<any>) {
   const logger = container.resolve("logger")
+  const storeSettingsService = container.resolve("storeSettings") as any
   const orderModuleService = container.resolve(Modules.ORDER)
   const { fulfillDigitalOrderWorkflow } = await import("../workflows/fulfill-digital-order.js")
 
   const orderId = event.data.id
 
   try {
+    // Check auto-fulfillment setting (default: true)
+    let autoFulfillEnabled = true
+    try {
+      autoFulfillEnabled = await storeSettingsService.getSettingValue(
+        "orders.auto_fulfillment_enabled",
+        true
+      )
+    } catch (err: any) {
+      logger.warn(`Failed to read auto-fulfillment setting, defaulting to true: ${err?.message}`)
+    }
+
+    if (!autoFulfillEnabled) {
+      logger.info(`Auto-fulfillment disabled. Skipping fulfillment for order ${orderId}`)
+      return
+    }
+
     // Fetch order details
     const order = await orderModuleService.retrieveOrder(orderId, {
       relations: ["items", "items.variant", "items.product"],
