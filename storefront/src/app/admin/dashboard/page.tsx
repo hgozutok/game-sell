@@ -54,6 +54,14 @@ const adminSections = [
     features: ['Site Bilgileri', 'Tema Ayarları', 'SEO'],
   },
   {
+    title: 'E-posta Ayarları',
+    icon: '📧',
+    description: 'SMTP bağlantısı ve mail şablonları',
+    href: '/admin/dashboard/email',
+    color: 'from-amber-600 to-orange-600',
+    features: ['SMTP', 'HTML Şablonlar', 'Test Maili'],
+  },
+  {
     title: 'Slider Yönetimi',
     icon: '🖼️',
     description: 'Ana sayfa slider düzenle',

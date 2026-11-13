@@ -11,8 +11,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const logs = await kinguin.listSyncLogs({}, { take: limit, order: { started_at: "DESC" } })
 
   const normalized = (logs || []).map((log: any) => {
-    const status =
-      log.status === "completed"
+    const startedMs = log.started_at ? new Date(log.started_at).getTime() : NaN
+    // 2 saatten uzun süre "running" kalan kayıtlar takılı kalmıştır
+    const staleRunning =
+      log.status === "running" &&
+      Number.isFinite(startedMs) &&
+      Date.now() - startedMs > 2 * 60 * 60 * 1000
+
+    const status = staleRunning
+      ? "failed"
+      : log.status === "completed"
         ? "success"
         : log.status === "failed"
           ? "failed"
@@ -26,14 +34,35 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       `${log.items_updated ?? 0} guncellendi`,
     ]
     if (log.items_failed) parts.push(`${log.items_failed} hata`)
+    if (staleRunning) parts.push("zaman aşımı")
+
+    const typeLabels: Record<string, string> = {
+      full: "Tam senkron",
+      price: "Fiyat senkronu",
+      stock: "Stok senkronu",
+      import: "Ürün aktarımı",
+      order_status: "Sipariş durumu",
+    }
+    const source = log.source || "kinguin"
+    const providerLabels: Record<string, string> = {
+      kinguin: "Kinguin",
+      codeswholesale: "CodesWholesale",
+      codesWholesale: "CodesWholesale",
+      manual: "Manuel",
+    }
+    const providerLabel = providerLabels[source] || source
+    const typeLabel = typeLabels[log.type] || log.type || "Senkron"
 
     return {
       id: log.id,
       type: log.type,
+      type_label: typeLabel,
+      source,
+      provider_label: providerLabel,
       status,
       raw_status: log.status,
       timestamp: log.started_at ? new Date(log.started_at).toLocaleString("tr-TR") : "-",
-      message: `${log.type === "price" ? "Fiyat" : "Tam"} senkron`,
+      message: `${providerLabel} · ${typeLabel}`,
       details: parts.join(" · "),
       items_total: log.items_total,
       items_added: log.items_added,

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import PolicyLayout from '@/components/layout/PolicyLayout'
 import toast, { Toaster } from 'react-hot-toast'
+import { api } from '@/lib/api'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -12,33 +13,54 @@ export default function ContactPage() {
     message: '',
   })
   const [loading, setLoading] = useState(false)
+  const [supportEmail, setSupportEmail] = useState('support@digitalgamestore.com')
+
+  useEffect(() => {
+    api
+      .get('/store/settings')
+      .then((res) => {
+        const email = res.data?.store?.support_email
+        if (email) setSupportEmail(email)
+      })
+      .catch(() => null)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // TODO: Implement actual contact form submission
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      toast.success('Message sent successfully! We will get back to you soon.', {
-        duration: 5000,
-        style: {
-          background: '#15171c',
-          color: '#fff',
-          border: '1px solid #ff6b35',
-        },
+      const response = await api.post('/store/contact', {
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject || 'İletişim',
+        message: formData.message,
       })
+
+      toast.success(
+        response.data?.message || 'Mesajınız gönderildi. En kısa sürede dönüş yapacağız.',
+        {
+          duration: 5000,
+          style: {
+            background: '#15171c',
+            color: '#fff',
+            border: '1px solid #ff6b35',
+          },
+        }
+      )
 
       setFormData({ name: '', email: '', subject: '', message: '' })
-    } catch (error) {
-      toast.error('Failed to send message. Please try again.', {
-        style: {
-          background: '#15171c',
-          color: '#fff',
-          border: '1px solid #ff6b35',
-        },
-      })
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || 'Mesaj gönderilemedi. Lütfen tekrar deneyin.',
+        {
+          style: {
+            background: '#15171c',
+            color: '#fff',
+            border: '1px solid #ff6b35',
+          },
+        }
+      )
     } finally {
       setLoading(false)
     }
@@ -158,10 +180,10 @@ export default function ContactPage() {
                         <h3 className="text-xl font-bold text-white mb-2">Email Support</h3>
                         <p className="text-gray-400 mb-2">For general inquiries:</p>
                         <a
-                          href="mailto:support@digitalgamestore.com"
+                          href={`mailto:${supportEmail}`}
                           className="text-[#ff6b35] hover:underline font-semibold"
                         >
-                          support@digitalgamestore.com
+                          {supportEmail}
                         </a>
                       </div>
                     </div>

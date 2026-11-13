@@ -19,6 +19,7 @@ import {
   when,
 } from "@medusajs/framework/workflows-sdk"
 import { encryptKeys, decryptKeys } from "../utils/key-crypto"
+import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 
 interface FulfillKinguinOrderInput {
@@ -414,7 +415,6 @@ const deliverKeysStep = createStep(
       return new StepResponse({ delivered: 0 }, null)
     }
     const keyInventory = container.resolve("keyInventory") as any
-    const notificationModule = container.resolve("notification") as any
     const orderModule = container.resolve("order") as any
     const logger = container.resolve("logger") as any
 
@@ -441,23 +441,34 @@ const deliverKeysStep = createStep(
       }
     }
 
-    // E-posta (dev fallback logger provider'a duser, akis bozulmaz)
+    // E-posta — admin panel SMTP ayarlariyla gonderilir; hata akisi bozmaz.
     try {
       const order = await orderModule.retrieveOrder(input.orderId, { relations: ["items"] })
       const to = input.email || order?.email
       if (to) {
-        await notificationModule.createNotifications({
+        const keysHtml = buildTableHtml(
+          (input.keys || []).map((k: any) => ({
+            title: escapeHtmlValue(k.name || k.product_id || "Dijital anahtar"),
+            code: `<code style="font-family:monospace;background:#f3f4f6;padding:3px 7px;border-radius:4px;font-size:13px;">${escapeHtmlValue(
+              k.serial || ""
+            )}</code>`,
+          })),
+          [
+            { key: "title", label: "Ürün" },
+            { key: "code", label: "Anahtar" },
+          ]
+        )
+
+        await sendTemplateEmail(container, {
           to,
-          channel: "email",
-          template: "order-digital-keys",
+          templateKey: "order-digital-keys",
           data: {
-            order_id: input.orderId,
-            display_id: order?.display_id ?? order?.id,
-            keys: input.keys.map((k) => ({
-              title: k.name ?? k.product_id,
-              code: k.serial,
-              type: k.type,
-            })),
+            customer_name:
+              order?.billing_address?.first_name ||
+              String(to).split("@")[0] ||
+              "Değerli Müşteri",
+            order_number: order?.display_id ? String(order.display_id) : input.orderId,
+            keys_html: keysHtml,
           },
         })
       }

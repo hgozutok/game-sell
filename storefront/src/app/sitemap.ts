@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next"
+import { BLOG_POSTS } from "@/lib/blog-posts"
 
 const API_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY || ""
@@ -36,6 +37,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/how-it-works",
     "/privacy",
     "/terms",
+    "/cookies",
+    "/returns",
+    "/delivery",
+    "/blog",
+    "/about",
   ].map((path) => ({
     url: `${SITE_URL}${path}`,
     lastModified: now,
@@ -67,5 +73,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }))
 
-  return [...staticRoutes, ...productRoutes, ...collectionRoutes]
+  const blogRoutes: MetadataRoute.Sitemap = BLOG_POSTS.map((post) => ({
+    url: `${SITE_URL}/blog/${post.slug}`,
+    lastModified: new Date(post.date),
+    changeFrequency: "monthly",
+    priority: 0.6,
+  }))
+
+  return [...staticRoutes, ...productRoutes, ...collectionRoutes, ...blogRoutes]
 }

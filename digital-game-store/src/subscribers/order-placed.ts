@@ -1,6 +1,7 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework/subscribers"
 import { Modules } from "@medusajs/framework/utils"
 import { fulfillKinguinOrderWorkflow } from "../workflows/fulfill-kinguin-order"
+import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
 
 /**
  * order.placed — odenen dijital siparisleri fulfillment kuyruguna alir.
@@ -73,7 +74,53 @@ export default async function orderPlacedHandler({
   )
   if (digitalItems.length === 0) return
 
+  // Sipariş onayı e-postası — SMTP yapılandırılmışsa gönderilir, akışı bloklamaz
+  if (order.email) {
+    try {
+      const itemsHtml = buildTableHtml(
+        (lineItems || []).map((item: any) => ({
+          title: escapeHtmlValue(item.title || item.product_title || "Ürün"),
+          quantity: escapeHtmlValue(item.quantity || 1),
+          total: escapeHtmlValue(
+            `${(Number(item.total || 0) / 100).toFixed(2)} ${String(
+              order.currency_code || ""
+            ).toUpperCase()}`
+          ),
+        })),
+        [
+          { key: "title", label: "Ürün" },
+          { key: "quantity", label: "Adet", align: "right" },
+          { key: "total", label: "Tutar", align: "right" },
+        ]
+      )
+
+      await sendTemplateEmail(container, {
+        to: order.email,
+        templateKey: "order-confirmation",
+        data: {
+          customer_name:
+            order.billing_address?.first_name ||
+            String(order.email).split("@")[0] ||
+            "Değerli Müşteri",
+          order_number: order.display_id ? String(order.display_id) : order.id,
+          items_html: itemsHtml,
+          total: `${(Number(order.total || 0) / 100).toFixed(2)} ${String(
+            order.currency_code || ""
+          ).toUpperCase()}`,
+          currency: String(order.currency_code || "").toUpperCase(),
+        },
+      })
+    } catch (e: any) {
+      logger.warn(`[order-placed] onay e-postasi gonderilemedi: ${e?.message}`)
+    }
+  }
+
   const settings = await kinguin.getSettings()
+  const storeSettings = container.resolve("storeSettings") as any
+  const autoFulfillEnabled =
+    (await storeSettings
+      .getSettingValue("orders.auto_fulfillment_enabled", false)
+      .catch(() => false)) === true
 
   const setState = async (state: string, extra: Record<string, any> = {}) => {
     await orderModule.updateOrders([
@@ -101,11 +148,27 @@ export default async function orderPlacedHandler({
     return
   }
 
-  // 0b) Sipariş onayı olmadan da otomatik teslimat yok
-  if (order.metadata?.order_approved !== true) {
+  // 0b) Sipariş onayı olmadan da otomatik teslimat yok — otomatik moddaysa onayı biz veririz
+  const orderApproved = order.metadata?.order_approved === true || autoFulfillEnabled
+  if (!orderApproved) {
     await setState('awaiting_approval', { fulfillment_error: 'Sipariş onayı bekleniyor' })
     logger.info(`[order-placed] ${orderId}: sipariş onayı yok — manuel kuyruğa alındı`)
     return
+  }
+
+  // Otomatik mod: ödeme alınmışsa sipariş + ödeme onayını otomatik işaretle
+  if (autoFulfillEnabled) {
+    const now = new Date().toISOString()
+    order.metadata = {
+      ...(order.metadata || {}),
+      payment_approved: true,
+      payment_approved_at: order.metadata?.payment_approved_at || now,
+      payment_approved_by: order.metadata?.payment_approved_by || 'auto',
+      order_approved: true,
+      order_approved_at: order.metadata?.order_approved_at || now,
+      order_approved_by: order.metadata?.order_approved_by || 'auto',
+    }
+    await orderModule.updateOrders([{ id: orderId, metadata: order.metadata }])
   }
 
   // 1) Manuel onay modu

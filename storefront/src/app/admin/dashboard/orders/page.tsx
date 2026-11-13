@@ -219,7 +219,7 @@ export default function AdminOrdersControlPage() {
       setMessage({
         ok: true,
         text: next
-          ? 'Otomatik gönderim açıldı (yine de sipariş + ödeme onayı gerekir).'
+          ? 'Otomatik gönderim açıldı: ödeme tamamlanınca keyler otomatik gönderilecek.'
           : 'Otomatik gönderim kapatıldı.',
       })
     } catch {
@@ -270,7 +270,8 @@ export default function AdminOrdersControlPage() {
           <div>
             <h2 className="text-xl font-black text-white">Otomatik Fulfillment</h2>
             <p className="text-gray-400 text-sm">
-              Açık olsa bile key yalnızca sipariş + ödeme onayı verildikten sonra gönderilir.
+              Açıkken ödemesi tamamlanan siparişler otomatik onaylanır ve keyleri gönderilir.
+              Kapalıyken sipariş + ödeme onayı elle verilir.
             </p>
           </div>
           <div className="flex items-center gap-3">

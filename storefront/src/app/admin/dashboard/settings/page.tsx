@@ -131,6 +131,13 @@ export default function SettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const email = String(settings.support_email || '').trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Geçerli bir destek e-postası girin. Örnek: destek@magaza.com')
+      return
+    }
+
     setLoading(true)
     setSuccess(false)
 
@@ -139,7 +146,7 @@ export default function SettingsPage() {
       const settingsToSave = [
         { key: 'store.name', value: settings.store_name, category: 'store' },
         { key: 'store.description', value: settings.store_description, category: 'store' },
-        { key: 'store.support_email', value: settings.support_email, category: 'store' },
+        { key: 'store.support_email', value: email, category: 'store' },
         { key: 'store.logo_url', value: settings.logo_url, category: 'store' },
         { key: 'store.enable_wishlist', value: settings.enable_wishlist, category: 'store' },
         { key: 'store.enable_reviews', value: settings.enable_reviews, category: 'store' },
@@ -152,33 +159,46 @@ export default function SettingsPage() {
 
       await adminApi.post('/admin/settings/batch', { settings: settingsToSave })
 
-      await adminApi.post('/admin/settings/provider-currency', {
-        kinguin_currency: settings.kinguin_currency?.toLowerCase?.() || 'eur',
-        codeswholesale_currency: settings.codeswholesale_currency?.toLowerCase?.() || 'usd',
-      })
+      // Yardımcı ayarlar ana kaydı bloklamaz
+      try {
+        await adminApi.post('/admin/settings/provider-currency', {
+          kinguin_currency: settings.kinguin_currency?.toLowerCase?.() || 'eur',
+          codeswholesale_currency: settings.codeswholesale_currency?.toLowerCase?.() || 'usd',
+        })
+      } catch (providerError) {
+        console.warn('Provider currency save failed:', providerError)
+      }
 
       // Save per-country tax rates
-      await adminApi.post('/admin/settings/tax/countries', {
-        country_tax_rates: countryRates,
-      })
+      try {
+        await adminApi.post('/admin/settings/tax/countries', {
+          country_tax_rates: countryRates,
+        })
+      } catch (taxError) {
+        console.warn('Country tax save failed:', taxError)
+      }
 
       // Sunucudan geri oku — kaydedilen degerler ekranda kalsin
-      const fresh = await adminApi.get('/admin/settings')
-      const list: Array<{ key: string; value: any }> = fresh.data?.settings || []
-      const map: Record<string, any> = {}
-      list.forEach((item) => {
-        map[item.key] = item.value
-      })
-      setSettings((prev) => ({
-        ...prev,
-        store_name: map['store.name'] ?? prev.store_name,
-        store_description: map['store.description'] ?? prev.store_description,
-        support_email: map['store.support_email'] ?? prev.support_email,
-        logo_url: map['store.logo_url'] ?? prev.logo_url,
-        currency: String(map['currencies.default'] ?? prev.currency).toUpperCase(),
-        tax_rate: Number(map['tax.rate'] ?? prev.tax_rate),
-        max_price_eur: Number(map['catalog.max_price_eur'] ?? prev.max_price_eur),
-      }))
+      try {
+        const fresh = await adminApi.get('/admin/settings')
+        const list: Array<{ key: string; value: any }> = fresh.data?.settings || []
+        const map: Record<string, any> = {}
+        list.forEach((item) => {
+          map[item.key] = item.value
+        })
+        setSettings((prev) => ({
+          ...prev,
+          store_name: map['store.name'] ?? prev.store_name,
+          store_description: map['store.description'] ?? prev.store_description,
+          support_email: map['store.support_email'] ?? prev.support_email,
+          logo_url: map['store.logo_url'] ?? prev.logo_url,
+          currency: String(map['currencies.default'] ?? prev.currency).toUpperCase(),
+          tax_rate: Number(map['tax.rate'] ?? prev.tax_rate),
+          max_price_eur: Number(map['catalog.max_price_eur'] ?? prev.max_price_eur),
+        }))
+      } catch (refreshError) {
+        console.warn('Settings refresh failed:', refreshError)
+      }
 
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -209,11 +229,11 @@ export default function SettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {success && (
           <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-3 rounded-lg mb-6">
-            ✅ Ayarlar başarıyla kaydedildi!
+            ✅ Ayarlar başarıyla kaydedildi! Destek e-postası: {settings.support_email}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {/* Store Info */}
           <div className="gaming-card p-6">
             <h2 className="text-xl font-bold text-white mb-4">Mağaza Bilgileri</h2>

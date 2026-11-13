@@ -85,20 +85,20 @@ export default function Header() {
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex items-center gap-2 sm:gap-3 group">
             {storeInfo.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={storeInfo.logo_url}
                 alt={storeInfo.name || 'Logo'}
-                className="h-12 max-w-[170px] object-contain group-hover:scale-105 transition-transform"
+                className="h-10 sm:h-12 max-w-[110px] sm:max-w-[170px] object-contain group-hover:scale-105 transition-transform"
               />
             ) : (
-              <div className="w-12 h-12 bg-gradient-to-br from-[#ff6b35] to-[#f7931e] rounded-lg flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-lg">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[#ff6b35] to-[#f7931e] rounded-lg flex items-center justify-center text-xl sm:text-2xl group-hover:scale-110 transition-transform shadow-lg">
                 🎮
               </div>
             )}
-            <div>
+            <div className="hidden sm:block">
               <div className="text-xl font-bold text-white">{storeInfo.name || 'DIGITAL KEYS'}</div>
               <div className="text-xs text-gray-400">INSTANT DELIVERY</div>
             </div>
@@ -223,6 +223,79 @@ export default function Header() {
             )}
           </div>
 
+          {/* Mobile Quick Actions (dil, para birimi, sepet, hesap) */}
+          <div className="flex md:hidden items-center gap-1.5">
+            <LanguageSwitcher compact />
+
+            <div className="relative">
+              <button
+                onClick={() => setIsCurrencyOpen(!isCurrencyOpen)}
+                aria-label="Para birimi seç"
+                className="px-2 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition font-bold text-xs flex items-center gap-1"
+              >
+                <span className="text-sm">{selectedCurrency.symbol}</span>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {isCurrencyOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-[#1a1d24] border border-gray-700 rounded-lg shadow-xl z-50">
+                  {currencies.map((currency) => (
+                    <button
+                      key={currency.code}
+                      onClick={() => {
+                        setSelectedCurrency(currency)
+                        setIsCurrencyOpen(false)
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-[#ff6b35] hover:text-white transition flex items-center justify-between ${
+                        selectedCurrency.code === currency.code
+                          ? 'bg-[#ff6b35]/20 text-[#ff6b35]'
+                          : 'text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>{currency.symbol}</span>
+                        <span className="font-medium">{currency.code.toUpperCase()}</span>
+                      </span>
+                      {selectedCurrency.code === currency.code && (
+                        <span className="text-green-500">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/cart"
+              aria-label={t('nav.cart')}
+              className="relative p-2 text-gray-300 hover:text-[#ff6b35] transition"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              {cartItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#ff6b35] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                  {cartItemCount}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              href={customer ? '/account' : '/login'}
+              aria-label={customer ? t('nav.myAccount') : t('nav.login')}
+              className="flex items-center gap-1 px-1.5 py-2 text-gray-300 hover:text-[#ff6b35] transition"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              {!customer && (
+                <span className="text-[10px] font-bold">{t('nav.login')}</span>
+              )}
+            </Link>
+          </div>
+
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -241,6 +314,24 @@ export default function Header() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <div className="lg:hidden mt-4 pb-4 border-t border-gray-800 pt-4 space-y-2">
+            <div className="flex items-center gap-2 pb-2">
+              <LanguageSwitcher />
+              <select
+                value={selectedCurrency.code}
+                onChange={(e) => {
+                  const next = currencies.find((c) => c.code === e.target.value)
+                  if (next) setSelectedCurrency(next)
+                }}
+                aria-label="Para birimi"
+                className="flex-1 px-3 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg text-sm focus:border-[#ff6b35] focus:outline-none"
+              >
+                {currencies.map((currency) => (
+                  <option key={currency.code} value={currency.code}>
+                    {currency.code.toUpperCase()} ({currency.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
             <Link href="/products" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
               {t('nav.allGames')}
             </Link>
@@ -257,6 +348,12 @@ export default function Header() {
               <>
                 <Link href="/account" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
                   {t('nav.myAccount')}
+                </Link>
+                <Link href="/account/orders" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
+                  {t('nav.myOrders')}
+                </Link>
+                <Link href="/account/keys" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
+                  {t('nav.myKeys')}
                 </Link>
                 <button onClick={() => { handleLogout(); setIsMenuOpen(false); }} className="block w-full text-left py-2 text-red-400 hover:text-red-300">
                   {t('nav.logout')}

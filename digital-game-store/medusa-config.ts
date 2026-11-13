@@ -139,6 +139,9 @@ export default defineConfig({
     storeSettings: {
       resolve: "./src/modules/store-settings",
     },
+    emailTemplate: {
+      resolve: "./src/modules/email-template",
+    },
     slider: {
       resolve: "./src/modules/slider",
     },

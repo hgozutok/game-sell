@@ -1,10 +1,42 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useT } from '@/components/useT'
+import { api } from '@/lib/api'
+
+const PAYMENT_BADGES: Record<string, string[]> = {
+  stripe: ['VISA', 'MASTERCARD', 'AMEX'],
+  paypal: ['PAYPAL'],
+  mollie: ['IDEAL', 'BANCONTACT', 'SEPA', 'CARDS'],
+  bank_transfer: ['BANK TRANSFER'],
+  'bank-transfer': ['BANK TRANSFER'],
+  crypto: ['CRYPTO'],
+}
 
 export default function Footer() {
   const t = useT()
+  const [paymentBadges, setPaymentBadges] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    api
+      .get('/store/payment-methods')
+      .then((res) => {
+        const methods: Array<{ id: string }> = res.data?.methods || []
+        const badges = new Set<string>()
+        methods.forEach((method) => {
+          const id = String(method.id || '').toLowerCase()
+          const mapped = PAYMENT_BADGES[id] || []
+          mapped.forEach((badge) => badges.add(badge))
+        })
+        setPaymentBadges(Array.from(badges))
+      })
+      .catch(() => {
+        // Odeme ucu erisilemezse aktif oldugu bilinen havale ile devam et
+        setPaymentBadges(['BANK TRANSFER'])
+      })
+  }, [])
+
   return (
     <footer className="bg-[#15171c] border-t border-gray-800 mt-auto">
       <div className="container mx-auto px-4 py-12">
@@ -16,7 +48,7 @@ export default function Footer() {
                 🎮
               </div>
               <div>
-                <h3 className="text-xl font-black text-white">DIGITAL KEYS</h3>
+                <h3 className="text-xl font-black text-white">HUPIPLAY</h3>
                 <p className="text-xs text-gray-500">INSTANT DELIVERY</p>
               </div>
             </div>
@@ -58,6 +90,7 @@ export default function Footer() {
               <li><Link href="/contact" className="text-gray-400 hover:text-[#ff6b35] transition">Contact Us</Link></li>
               <li><Link href="/faq" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.faq')}</Link></li>
               <li><Link href="/returns" className="text-gray-400 hover:text-[#ff6b35] transition">Returns Policy</Link></li>
+              <li><Link href="/delivery" className="text-gray-400 hover:text-[#ff6b35] transition">Delivery Policy</Link></li>
               <li><Link href="/how-it-works" className="text-gray-400 hover:text-[#ff6b35] transition">How It Works</Link></li>
             </ul>
           </div>
@@ -67,8 +100,8 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link href="/about" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.about')}</Link></li>
               <li><Link href="/blog" className="text-gray-400 hover:text-[#ff6b35] transition">Blog</Link></li>
-              <li><Link href="/careers" className="text-gray-400 hover:text-[#ff6b35] transition">Careers</Link></li>
               <li><Link href="/privacy" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.privacy')}</Link></li>
+              <li><Link href="/cookies" className="text-gray-400 hover:text-[#ff6b35] transition">Cookie Policy</Link></li>
               <li><Link href="/terms" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.terms')}</Link></li>
             </ul>
           </div>
@@ -78,11 +111,17 @@ export default function Footer() {
         <div className="border-t border-gray-800 pt-8 mb-8">
           <h4 className="text-white font-bold mb-4 text-sm uppercase">Accepted Payment Methods</h4>
           <div className="flex flex-wrap gap-3">
-            {['VISA', 'MASTERCARD', 'PAYPAL', 'AMEX', 'CRYPTO'].map((method) => (
-              <div key={method} className="bg-[#1a1d24] border border-gray-800 px-4 py-2 rounded-lg text-gray-400 text-xs font-bold">
-                {method}
-              </div>
-            ))}
+            {paymentBadges === null ? (
+              <div className="text-gray-500 text-xs">Loading payment methods…</div>
+            ) : paymentBadges.length > 0 ? (
+              paymentBadges.map((method) => (
+                <div key={method} className="bg-[#1a1d24] border border-gray-800 px-4 py-2 rounded-lg text-gray-400 text-xs font-bold">
+                  {method}
+                </div>
+              ))
+            ) : (
+              <div className="text-gray-500 text-xs">No payment methods configured</div>
+            )}
           </div>
         </div>
 
@@ -90,7 +129,7 @@ export default function Footer() {
         <div className="border-t border-gray-800 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm">
             <p className="text-gray-500">
-              © {new Date().getFullYear()} Digital Game Store. {t('footer.rights')}
+              © {new Date().getFullYear()} HUPIPLAY. {t('footer.rights')}
             </p>
             <div className="flex items-center gap-6 text-gray-500">
               <span className="flex items-center gap-2">

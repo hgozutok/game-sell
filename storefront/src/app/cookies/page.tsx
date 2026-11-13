@@ -1,135 +1,172 @@
 import PolicyLayout from '@/components/layout/PolicyLayout'
+import Link from 'next/link'
 
 export const metadata = {
-  title: 'Cookie Policy | Digital Game Store',
-  description: 'Learn about how we use cookies on our website.',
+  title: 'Cookie Policy | HUPIPLAY',
+  description:
+    'How HUPIPLAY uses cookies and browser storage, the categories we use, and how you can control them.',
 }
 
 export default function CookiesPage() {
   return (
-    <PolicyLayout title="Cookie Policy" lastUpdated="October 27, 2025">
+    <PolicyLayout title="Cookie Policy" lastUpdated="13 November 2026">
       <div className="space-y-8 text-gray-300">
+        <div className="bg-[#1a1d24] border border-[#ff6b35]/30 rounded-lg p-6">
+          <p className="text-lg">
+            This policy explains how we use cookies and similar technologies such as browser local storage. It
+            should be read together with our{' '}
+            <Link href="/privacy" className="text-[#ff6b35] hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
+
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">What Are Cookies?</h2>
+          <h2 className="text-3xl font-bold text-white mb-4">1. What are cookies and local storage?</h2>
+          <p className="mb-3">
+            Cookies are small text files stored on your device by a website. Local storage is a browser feature
+            that lets a site store data on your device without an expiry date until you clear it. Both are used
+            to remember your choices and keep the store working.
+          </p>
           <p>
-            Cookies are small text files that are placed on your computer or mobile device when you visit a website.
-            They are widely used to make websites work more efficiently and provide information to website owners.
+            We use the term &quot;cookies&quot; below to cover cookies, local storage and similar technologies.
           </p>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">How We Use Cookies</h2>
-          <p className="mb-4">We use cookies for the following purposes:</p>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <strong className="text-white">Essential Cookies:</strong> Required for the website to function properly,
-              including shopping cart and checkout processes
-            </li>
-            <li>
-              <strong className="text-white">Performance Cookies:</strong> Help us understand how visitors interact with
-              our website by collecting anonymous data
-            </li>
-            <li>
-              <strong className="text-white">Functionality Cookies:</strong> Remember your preferences and settings to
-              provide enhanced features
-            </li>
-            <li>
-              <strong className="text-white">Marketing Cookies:</strong> Track your browsing activity to deliver
-              relevant advertisements
-            </li>
-          </ul>
+          <h2 className="text-3xl font-bold text-white mb-4">2. Your choices</h2>
+          <p className="mb-3">
+            Strictly necessary cookies do not require consent because the store cannot work without them. Any
+            analytics or marketing cookies are used only with your consent, in line with the UK Privacy and
+            Electronic Communications Regulations (PECR) and, where applicable, EU ePrivacy rules.
+          </p>
+          <p>
+            You can clear or block cookies through your browser settings. Blocking necessary cookies may stop
+            the cart, login or checkout from working.
+          </p>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">Types of Cookies We Use</h2>
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-xl font-bold text-white mb-2">Session Cookies</h3>
-              <p>Temporary cookies that expire when you close your browser. Used for shopping cart functionality.</p>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white mb-2">Persistent Cookies</h3>
-              <p>
-                Remain on your device for a set period or until you delete them. Used to remember your preferences and
-                login status.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white mb-2">Third-Party Cookies</h3>
-              <p>
-                Set by external services we use, such as payment processors and analytics providers (Google Analytics,
-                payment gateways).
-              </p>
-            </div>
+          <h2 className="text-3xl font-bold text-white mb-4">3. Strictly necessary cookies and storage we use</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border border-gray-800">
+              <thead className="bg-[#1a1d24] text-white">
+                <tr>
+                  <th className="text-left p-3 border-b border-gray-800">Name</th>
+                  <th className="text-left p-3 border-b border-gray-800">Type</th>
+                  <th className="text-left p-3 border-b border-gray-800">Purpose</th>
+                  <th className="text-left p-3 border-b border-gray-800">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="p-3 border-b border-gray-800 font-mono">cart-storage</td>
+                  <td className="p-3 border-b border-gray-800">Local storage</td>
+                  <td className="p-3 border-b border-gray-800">Keeps the items in your shopping cart</td>
+                  <td className="p-3 border-b border-gray-800">Until cleared</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b border-gray-800 font-mono">language-storage</td>
+                  <td className="p-3 border-b border-gray-800">Local storage</td>
+                  <td className="p-3 border-b border-gray-800">Remembers your language (TR/EN)</td>
+                  <td className="p-3 border-b border-gray-800">Until cleared</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b border-gray-800 font-mono">currency-storage</td>
+                  <td className="p-3 border-b border-gray-800">Local storage</td>
+                  <td className="p-3 border-b border-gray-800">Remembers your selected currency</td>
+                  <td className="p-3 border-b border-gray-800">Until cleared</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b border-gray-800 font-mono">customer_token</td>
+                  <td className="p-3 border-b border-gray-800">Local storage</td>
+                  <td className="p-3 border-b border-gray-800">Keeps you signed in to your customer account</td>
+                  <td className="p-3 border-b border-gray-800">Until logout or expiry</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b border-gray-800 font-mono">
+                    customer_id, customer_email, customer_first_name, customer_last_name
+                  </td>
+                  <td className="p-3 border-b border-gray-800">Local storage</td>
+                  <td className="p-3 border-b border-gray-800">
+                    Displays your account details and pre-fills checkout
+                  </td>
+                  <td className="p-3 border-b border-gray-800">Until logout or cleared</td>
+                </tr>
+                <tr>
+                  <td className="p-3 border-b border-gray-800 font-mono">medusa_auth_token</td>
+                  <td className="p-3 border-b border-gray-800">Local storage</td>
+                  <td className="p-3 border-b border-gray-800">Authenticates store requests</td>
+                  <td className="p-3 border-b border-gray-800">Until logout or expiry</td>
+                </tr>
+                <tr>
+                  <td className="p-3">
+                    admin_token, admin_email, admin_authenticated, admin-tax-settings
+                  </td>
+                  <td className="p-3">Local storage</td>
+                  <td className="p-3">Admin panel session and settings (admin users only)</td>
+                  <td className="p-3">Until logout or cleared</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+          <p className="mt-3 text-sm text-gray-400">
+            These items are set by our own store. They are not used for advertising.
+          </p>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">Managing Cookies</h2>
-          <p className="mb-4">
-            You can control and manage cookies in your browser settings. However, please note that disabling cookies may
-            affect the functionality of our website and limit your access to certain features.
+          <h2 className="text-3xl font-bold text-white mb-4">4. Analytics and marketing cookies</h2>
+          <p className="mb-3">
+            We do not currently run third-party advertising or behavioural profiling cookies on the store. If we
+            introduce analytics or marketing tools, we will update this policy and ask for your consent before
+            setting non-essential cookies.
           </p>
-          <p className="mb-4">Most browsers allow you to:</p>
+          <p>
+            Aggregate server logs may be used to understand traffic and prevent abuse; these are described in
+            our Privacy Policy.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-3xl font-bold text-white mb-4">5. Third-party cookies on payment pages</h2>
+          <p>
+            When you choose a payment method, you may be redirected to or use an embedded checkout from Stripe,
+            PayPal or Mollie. Those providers may set their own cookies and process data under their privacy and
+            cookie policies. We do not control those cookies. Please review the relevant provider&apos;s policy
+            before paying.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-3xl font-bold text-white mb-4">6. How to manage cookies</h2>
           <ul className="list-disc pl-6 space-y-2">
-            <li>View what cookies are stored and delete them individually</li>
-            <li>Block third-party cookies</li>
-            <li>Block all cookies from specific websites</li>
-            <li>Block all cookies from all websites</li>
-            <li>Delete all cookies when you close your browser</li>
+            <li>
+              <strong className="text-white">Browser settings:</strong> most browsers let you view, delete and
+              block cookies. Use the help section of your browser for instructions.
+            </li>
+            <li>
+              <strong className="text-white">Local storage:</strong> you can clear site data for this store in
+              your browser&apos;s privacy settings.
+            </li>
+            <li>
+              <strong className="text-white">Do Not Track:</strong> we do not currently respond to browser
+              Do-Not-Track signals because no uniform standard exists, but we do not run non-essential tracking
+              cookies without consent.
+            </li>
           </ul>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">Browser-Specific Instructions</h2>
-          <div className="space-y-2">
-            <p>
-              <strong className="text-white">Google Chrome:</strong> Settings → Privacy and Security → Cookies and other
-              site data
-            </p>
-            <p>
-              <strong className="text-white">Mozilla Firefox:</strong> Settings → Privacy & Security → Cookies and Site
-              Data
-            </p>
-            <p>
-              <strong className="text-white">Safari:</strong> Preferences → Privacy → Manage Website Data
-            </p>
-            <p>
-              <strong className="text-white">Microsoft Edge:</strong> Settings → Cookies and site permissions → Cookies
-              and site data
-            </p>
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-3xl font-bold text-white mb-4">Analytics Cookies</h2>
-          <p className="mb-4">We use analytics services to help us understand how visitors use our website:</p>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>Google Analytics: Tracks visitor behavior and website performance</li>
-            <li>Payment Provider Analytics: Monitors transaction success rates and payment methods</li>
-          </ul>
-          <p className="mt-4">
-            These services collect information anonymously and report website trends without identifying individual
-            visitors.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-3xl font-bold text-white mb-4">Updates to This Policy</h2>
+          <h2 className="text-3xl font-bold text-white mb-4">7. Changes and contact</h2>
           <p>
-            We may update this Cookie Policy from time to time. Any changes will be posted on this page with an updated
-            revision date.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-3xl font-bold text-white mb-4">Contact Us</h2>
-          <p>
-            If you have questions about our use of cookies, please contact us at:
-            <br />
-            <a href="mailto:privacy@digitalgamestore.com" className="text-[#ff6b35] hover:underline">
-              privacy@digitalgamestore.com
+            We may update this policy when our use of cookies changes. The &quot;Last Updated&quot; date shows
+            the current version. Questions:{' '}
+            <a href="mailto:support@hupiplay.uk" className="text-[#ff6b35] hover:underline">
+              support@hupiplay.uk
             </a>
+            .
           </p>
         </section>
       </div>

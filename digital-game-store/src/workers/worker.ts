@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq"
 import Redis from "ioredis"
 import type KeyInventoryService from "../modules/key-inventory/service"
+import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
 
 const connection = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
@@ -38,7 +39,7 @@ const keyFulfillmentWorker = new Worker(
     const keyInventoryService = container.resolve("keyInventory") as KeyInventoryService
     const codesWholesaleService = container.resolve("codesWholesale") as any
     const kinguinService = container.resolve("kinguin") as any
-    const notificationService = container.resolve("notification") as any
+    const orderModule = container.resolve("order") as any
 
     const keys: any[] = []
 
@@ -92,16 +93,36 @@ const keyFulfillmentWorker = new Worker(
       }
     }
 
-    // Send email with keys
-    await notificationService.send({
-      to: customerId,
-      channel: "email",
-      template: "order-digital-keys",
-      data: {
-        order_id: orderId,
-        keys,
-      },
-    })
+    // Send email with keys (admin panel SMTP ayarlari)
+    try {
+      const order = await orderModule.retrieveOrder(orderId).catch(() => null)
+      const email = order?.email
+      if (email) {
+        const keysHtml = buildTableHtml(
+          keys.map((key: any) => ({
+            title: escapeHtmlValue(key.product_title || key.product_id || "Dijital anahtar"),
+            code: `<code style="font-family:monospace;background:#f3f4f6;padding:3px 7px;border-radius:4px;">${escapeHtmlValue(
+              key.key_code || key.code || ""
+            )}</code>`,
+          })),
+          [
+            { key: "title", label: "Ürün" },
+            { key: "code", label: "Anahtar" },
+          ]
+        )
+        await sendTemplateEmail(container, {
+          to: email,
+          templateKey: "order-digital-keys",
+          data: {
+            customer_name: String(email).split("@")[0] || "Değerli Müşteri",
+            order_number: order?.display_id ? String(order.display_id) : orderId,
+            keys_html: keysHtml,
+          },
+        })
+      }
+    } catch (emailError: any) {
+      console.warn(`[worker] e-posta gonderilemedi: ${emailError?.message}`)
+    }
 
     // Mark keys as delivered
     for (const key of keys) {

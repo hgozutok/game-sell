@@ -44,6 +44,7 @@ const navGroups: Array<{
     items: [
       { label: 'Slider', href: '/admin/dashboard/slider', icon: '🖼️' },
       { label: 'Mağaza Ayarları', href: '/admin/dashboard/settings', icon: '⚙️' },
+      { label: 'E-posta Ayarları', href: '/admin/dashboard/email', icon: '📧' },
     ],
   },
 ]

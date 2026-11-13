@@ -1,12 +1,24 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { api } from '@/lib/api'
 
 function CheckoutFailedContent() {
   const searchParams = useSearchParams()
   const reason = searchParams.get('reason') || 'unknown'
+  const [supportEmail, setSupportEmail] = useState('support@digitalgamestore.com')
+
+  useEffect(() => {
+    api
+      .get('/store/settings')
+      .then((res) => {
+        const email = res.data?.store?.support_email
+        if (email) setSupportEmail(email)
+      })
+      .catch(() => null)
+  }, [])
 
   const errorMessages: Record<string, string> = {
     payment_failed: 'Your payment could not be processed. Please check your payment details and try again.',
@@ -148,7 +160,7 @@ function CheckoutFailedContent() {
               <Link href="/contact" className="text-[#ff6b35] hover:underline font-semibold">
                 Contact Support →
               </Link>
-              <a href="mailto:support@digitalgamestore.com" className="text-[#ff6b35] hover:underline font-semibold">
+              <a href={`mailto:${supportEmail}`} className="text-[#ff6b35] hover:underline font-semibold">
                 Email Us →
               </a>
             </div>

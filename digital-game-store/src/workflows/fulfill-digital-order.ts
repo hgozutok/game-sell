@@ -5,6 +5,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { Modules } from "@medusajs/framework/utils"
+import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
 import type KeyInventoryService from "../modules/key-inventory/service"
 
 interface FulfillDigitalOrderInput {
@@ -132,9 +133,8 @@ const fetchKeysFromProviderStep = createStep(
 const sendKeyDeliveryEmailStep = createStep(
   "send-key-delivery-email",
   async (input: { orderId: string; customerId: string; email?: string; keys: any[] }, { container }) => {
-    const notificationService = container.resolve(Modules.NOTIFICATION) as any
-    const keyInventoryService = container.resolve("keyInventory") as KeyInventoryService
     const orderModuleService = container.resolve(Modules.ORDER) as any
+    const keyInventoryService = container.resolve("keyInventory") as KeyInventoryService
     const logger = container.resolve("logger") as any
 
     const order = await orderModuleService
@@ -142,42 +142,40 @@ const sendKeyDeliveryEmailStep = createStep(
       .catch(() => null)
     const email = input.email || order?.email
 
-    // Bildirim gonderimi teslimati bloklamaz — key teslimi her durumda tamamlanir.
-    try {
-      if (email) {
-        if (typeof notificationService?.createNotifications === "function") {
-          await notificationService.createNotifications({
-            to: email,
-            channel: "email",
-            template: "order-digital-keys",
-            data: {
-              order_id: input.orderId,
-              keys: input.keys,
-            },
-          })
-        } else if (typeof notificationService?.send === "function") {
-          await notificationService.send({
-            to: email,
-            channel: "email",
-            template: "order-digital-keys",
-            data: {
-              order_id: input.orderId,
-              keys: input.keys,
-            },
-          })
-        } else {
-          logger?.warn?.("Notification module has no send/createNotifications; email skipped.")
-        }
-      }
-    } catch (e: any) {
-      logger?.warn?.(`Key delivery email failed for order ${input.orderId}: ${e?.message}`)
+    // SMTP ayarlari admin panelden gelir; hata teslimati bloklamaz.
+    if (email) {
+      const keysHtml = buildTableHtml(
+        (input.keys || []).map((key: any) => ({
+          title: escapeHtmlValue(key.product_title || key.title || key.product_id || "Dijital anahtar"),
+          code: `<code style="font-family:monospace;background:#f3f4f6;padding:3px 7px;border-radius:4px;font-size:13px;">${escapeHtmlValue(
+            key.key_code || key.code || key.serial || ""
+          )}</code>`,
+        })),
+        [
+          { key: "title", label: "Ürün" },
+          { key: "code", label: "Anahtar" },
+        ]
+      )
+
+      await sendTemplateEmail(container, {
+        to: email,
+        templateKey: "order-digital-keys",
+        data: {
+          customer_name:
+            order?.billing_address?.first_name ||
+            order?.shipping_address?.first_name ||
+            String(email).split("@")[0] ||
+            "Değerli Müşteri",
+          order_number: order?.display_id ? String(order.display_id) : input.orderId,
+          keys_html: keysHtml,
+        },
+      })
     }
 
     // Mark keys as delivered
     for (const key of input.keys) {
       await keyInventoryService.markKeyAsDelivered(key.id)
     }
-
     // Siparis metadata'sini koruyarak teslimati isaretle
     try {
       const metadata = {
