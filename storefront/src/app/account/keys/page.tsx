@@ -3,8 +3,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import Link from 'next/link'
+import { useT } from '@/components/useT'
 
 export default function MyKeysPage() {
+  const t = useT()
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-keys'],
     queryFn: async () => {
@@ -19,7 +21,7 @@ export default function MyKeysPage() {
         <div className="bg-[#15171c] border-b border-gray-800">
           <div className="container mx-auto px-4 py-12">
             <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-              MY GAME KEYS 🔑
+              {t('account.keys')} 🔑
             </h1>
             <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e]"></div>
           </div>
@@ -43,7 +45,7 @@ export default function MyKeysPage() {
       <div className="bg-[#15171c] border-b border-gray-800">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-            MY GAME KEYS 🔑
+            {t('account.keys')} 🔑
           </h1>
           <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] mb-4"></div>
           <p className="text-gray-400 text-lg">Your digital game library</p>

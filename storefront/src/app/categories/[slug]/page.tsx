@@ -5,6 +5,8 @@ import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import ProductCard from '@/components/products/ProductCard'
+import { usePriceCap } from '@/hooks/usePriceCap'
+import { useT } from '@/components/useT'
 
 interface Collection {
   id: string
@@ -37,6 +39,8 @@ interface Product {
 }
 
 export default function CategoryPage() {
+  const t = useT()
+  const { isOverCap } = usePriceCap()
   const params = useParams()
   const searchParams = useSearchParams()
   const slug = params.slug as string
@@ -58,18 +62,25 @@ export default function CategoryPage() {
         const foundCollection = collections.find((col: Collection) => col.handle === slug)
         
         if (foundCollection) {
+          console.log('Found collection:', foundCollection)
           setCollection(foundCollection)
           
           // Fetch products in this collection
           const productsResponse = await api.get(`/store/collections/${foundCollection.id}/products`, {
             params: {
               limit: 50,
+              hideZeroPrice: 'false',
+              hideZeroStock: 'false',
             },
           })
 
+          console.log('Products response:', productsResponse.data)
           if (productsResponse.data.products) {
+            console.log('Setting products:', productsResponse.data.products.length)
             setProducts(productsResponse.data.products)
           }
+        } else {
+          console.warn('Collection not found for slug:', slug)
         }
       } catch (error) {
         console.error('Failed to fetch collection data:', error)
@@ -84,6 +95,9 @@ export default function CategoryPage() {
   // Filter and sort products
   // Note: Price and stock filtering should be done by backend API
   const filteredProducts = products.filter((product) => {
+    // Admin tarafinda belirlenen listeleme ust fiyat limiti (EUR)
+    if (isOverCap(product)) return false
+
     // Filter by platform
     if (filterPlatform === 'all') return true
     return product.metadata?.platform?.toLowerCase() === filterPlatform.toLowerCase()
@@ -121,11 +135,11 @@ export default function CategoryPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
             <Link href="/" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Home
+              {t('catalog.home')}
             </Link>
             <span className="text-gray-600">/</span>
             <Link href="/categories" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Categories
+              {t('catalog.categories')}
             </Link>
             <span className="text-gray-600">/</span>
             <span className="text-white font-semibold">{collection?.title || slug}</span>
@@ -140,10 +154,10 @@ export default function CategoryPage() {
             <h1 className="text-5xl md:text-6xl font-black text-white mb-4">
               {collection?.title || slug.toUpperCase()}
             </h1>
-            <p className="text-xl text-gray-400">Explore {collection?.title || slug} games</p>
+            <p className="text-xl text-gray-400">{t('catalog.exploreCollection')}</p>
             <div className="mt-6">
               <span className="text-[#ff6b35] font-bold text-lg">
-                {products.length} {products.length === 1 ? 'Game' : 'Games'} Available
+                {products.length} {t('catalog.gamesAvailable')}
               </span>
             </div>
           </div>
@@ -156,13 +170,13 @@ export default function CategoryPage() {
           <div className="flex flex-wrap gap-4">
             {/* Platform Filter */}
             <div>
-              <label className="text-gray-400 text-sm mb-2 block">PLATFORM</label>
+              <label className="text-gray-400 text-sm mb-2 block">{t('catalog.platform')}</label>
               <select
                 value={filterPlatform}
                 onChange={(e) => setFilterPlatform(e.target.value)}
                 className="bg-[#15171c] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
               >
-                <option value="all">All Platforms</option>
+                <option value="all">{t('catalog.allPlatforms')}</option>
                 <option value="steam">Steam</option>
                 <option value="epic">Epic Games</option>
                 <option value="origin">Origin</option>
@@ -173,16 +187,16 @@ export default function CategoryPage() {
 
             {/* Sort */}
             <div>
-              <label className="text-gray-400 text-sm mb-2 block">SORT BY</label>
+              <label className="text-gray-400 text-sm mb-2 block">{t('catalog.sortBy')}</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="bg-[#15171c] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
               >
-                <option value="featured">Featured</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-                <option value="name">Name: A to Z</option>
+                <option value="featured">{t('catalog.featured')}</option>
+                <option value="price-asc">{t('catalog.priceAsc')}</option>
+                <option value="price-desc">{t('catalog.priceDesc')}</option>
+                <option value="name">{t('catalog.nameAsc')}</option>
               </select>
             </div>
           </div>
@@ -207,10 +221,10 @@ export default function CategoryPage() {
         ) : (
           <div className="text-center py-20">
             <div className="text-8xl mb-4 opacity-20">🎮</div>
-            <h3 className="text-2xl font-bold text-white mb-2">No Products Found</h3>
-            <p className="text-gray-400 mb-6">Try adjusting your filters or check back later</p>
+            <h3 className="text-2xl font-bold text-white mb-2">{t('catalog.noProducts')}</h3>
+            <p className="text-gray-400 mb-6">{t('catalog.noProductsDesc')}</p>
             <Link href="/products" className="btn-primary">
-              Browse All Products
+              {t('catalog.browseAll')}
             </Link>
           </div>
         )}

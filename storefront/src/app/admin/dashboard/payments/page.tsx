@@ -16,6 +16,13 @@ interface PaymentSystem {
 
 const defaultPaymentSystems: Omit<PaymentSystem, 'status' | 'config'>[] = [
   {
+    id: 'stripe',
+    name: 'Stripe',
+    description: 'Kredi/banka kartı ile güvenli ödeme',
+    icon: '💳',
+    features: ['Visa / Mastercard', '3D Secure', 'Stripe Elements'],
+  },
+  {
     id: 'paypal',
     name: 'PayPal',
     description: 'PayPal ile ödeme al',
@@ -37,6 +44,13 @@ const defaultPaymentSystems: Omit<PaymentSystem, 'status' | 'config'>[] = [
     features: ['UK Banka Havalesi', 'Manuel Onay'],
   },
 ]
+
+const requiredFields: Record<string, string[]> = {
+  stripe: ['publishable_key', 'secret_key'],
+  paypal: ['client_id', 'client_secret'],
+  mollie: ['api_key'],
+  bank_transfer: ['bank_name', 'account_name', 'iban'],
+}
 
 export default function PaymentsPage() {
   const [systems, setSystems] = useState<PaymentSystem[]>([])
@@ -75,11 +89,22 @@ export default function PaymentsPage() {
     }
   }
 
+  const isConfigured = (system: PaymentSystem) => {
+    const fields = requiredFields[system.id] || []
+    return fields.every((field) => Boolean((system.config?.[field] || '').trim()))
+  }
+
   const toggleSystem = async (systemId: string) => {
     const system = systems.find(s => s.id === systemId)
     if (!system) return
 
     const newStatus = system.status === 'active' ? 'inactive' : 'active'
+
+    if (newStatus === 'active' && !isConfigured(system)) {
+      alert(`⚠️ ${system.name} için önce zorunlu alanları doldurun: ${(requiredFields[system.id] || []).join(', ')}`)
+      openConfiguration(system)
+      return
+    }
 
     try {
       await adminApi.post('/admin/payment-settings', {
@@ -209,6 +234,14 @@ export default function PaymentsPage() {
                 ))}
               </div>
 
+              <div className="mb-4 text-xs">
+                {isConfigured(system) ? (
+                  <span className="text-green-400">✓ Yapılandırıldı</span>
+                ) : (
+                  <span className="text-yellow-400">⚠ Eksik bilgi — Yapılandır'a tıklayın</span>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={() => openConfiguration(system)}
@@ -304,10 +337,86 @@ export default function PaymentsPage() {
                   </>
                 )}
 
+                {selectedSystem.id === 'stripe' && (
+                  <>
+                    <div>
+                      <label className="text-gray-400 text-sm mb-2 block">
+                        Stripe Publishable Key
+                      </label>
+                      <input
+                        type="text"
+                        value={
+                          configValues.publishable_key ||
+                          selectedSystem.config.publishable_key ||
+                          ''
+                        }
+                        onChange={(e) =>
+                          setConfigValues((prev) => ({ ...prev, publishable_key: e.target.value }))
+                        }
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        placeholder="pk_test_... veya pk_live_..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-gray-400 text-sm mb-2 block">
+                        Stripe Secret Key
+                      </label>
+                      <input
+                        type="password"
+                        value={configValues.secret_key || selectedSystem.config.secret_key || ''}
+                        onChange={(e) =>
+                          setConfigValues((prev) => ({ ...prev, secret_key: e.target.value }))
+                        }
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        placeholder="sk_test_... veya sk_live_..."
+                      />
+                    </div>
+                    <div className="text-gray-400 text-xs space-y-1">
+                      <p>
+                        Secret key panele kaydedilir. Backend'in Stripe saglayicisini yuklemesi
+                        icin <code className="text-gray-300">STRIPE_API_KEY</code> ortam
+                        degiskenine de yazilmalidir.
+                      </p>
+                      <p>Webhook adresi: /hooks/payment/stripe_stripe</p>
+                    </div>
+                  </>
+                )}
+
                 {selectedSystem.id === 'bank_transfer' && (
-                  <div className="text-gray-400 text-sm">
-                    <p className="mb-2">Banka havalesi için yapılandırma gerekmez.</p>
-                    <p>Müşteriler sipariş sonrası banka bilgilerini alır ve manuel havale yapar.</p>
+                  <div className="space-y-4">
+                    {[
+                      { key: 'bank_name', label: 'Banka Adı', placeholder: 'Barclays Bank UK' },
+                      { key: 'account_name', label: 'Hesap Sahibi', placeholder: 'Digital Game Store Ltd' },
+                      { key: 'iban', label: 'IBAN', placeholder: 'GB29NWBK60161331926819' },
+                      { key: 'account_number', label: 'Hesap Numarası', placeholder: '12345678' },
+                      { key: 'sort_code', label: 'Sort Code', placeholder: '20-00-00' },
+                      { key: 'swift', label: 'SWIFT / BIC', placeholder: 'BARCGB22' },
+                    ].map((field) => (
+                      <div key={field.key}>
+                        <label className="text-gray-400 text-sm mb-2 block">{field.label}</label>
+                        <input
+                          type="text"
+                          value={
+                            configValues[field.key] || selectedSystem.config[field.key] || ''
+                          }
+                          onChange={(e) =>
+                            setConfigValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                          }
+                          className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                          placeholder={field.placeholder}
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <label className="text-gray-400 text-sm mb-2 block">Ödeme Notu</label>
+                      <textarea
+                        rows={2}
+                        value={configValues.note || selectedSystem.config.note || ''}
+                        onChange={(e) => setConfigValues((prev) => ({ ...prev, note: e.target.value }))}
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        placeholder="Lütfen açıklama kısmına sipariş numaranızı yazın."
+                      />
+                    </div>
                   </div>
                 )}
 

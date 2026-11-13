@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { useT } from '@/components/useT'
 
 interface Collection {
   id: string
@@ -13,6 +14,7 @@ interface Collection {
 }
 
 export default function CategoriesPage() {
+  const t = useT()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -57,10 +59,10 @@ export default function CategoriesPage() {
       <div className="bg-[#15171c] border-b border-gray-800">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-            GAME CATEGORIES
+            {t('catalog.gameCategories')}
           </h1>
           <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] mb-4"></div>
-          <p className="text-gray-400 text-lg">Explore games by your favorite genre</p>
+          <p className="text-gray-400 text-lg">{t('catalog.categoriesSubtitle')}</p>
         </div>
       </div>
       
@@ -77,14 +79,14 @@ export default function CategoriesPage() {
                 <div className="p-8">
                   <div className="relative z-10">
                     <div className="inline-block mb-4 px-3 py-1 bg-[#ff6b35]/20 backdrop-blur-sm rounded-full text-xs font-bold text-[#ff6b35]">
-                      COLLECTION
+                      {t('catalog.collection')}
                     </div>
                     <h3 className="text-2xl font-black text-white mb-3 group-hover:text-[#ff6b35] transition-colors">
                       {collection.title}
                     </h3>
-                    <p className="text-gray-400 mb-6">Explore {collection.title} games</p>
+                    <p className="text-gray-400 mb-6">{t('catalog.exploreCollection')}</p>
                     <div className="inline-flex items-center gap-2 text-white font-bold group-hover:gap-4 transition-all">
-                      EXPLORE
+                      {t('catalog.explore')}
                       <span className="text-xl group-hover:text-[#ff6b35]">→</span>
                     </div>
                   </div>
@@ -95,10 +97,10 @@ export default function CategoriesPage() {
         ) : (
           <div className="text-center py-20">
             <div className="text-8xl mb-4 opacity-20">🎮</div>
-            <h3 className="text-2xl font-bold text-white mb-2">No Categories Found</h3>
-            <p className="text-gray-400 mb-6">Categories will appear here once products are imported</p>
+            <h3 className="text-2xl font-bold text-white mb-2">{t('catalog.noCategories')}</h3>
+            <p className="text-gray-400 mb-6">{t('catalog.noCategoriesDesc')}</p>
             <Link href="/products" className="btn-primary">
-              Browse All Products
+              {t('catalog.browseAll')}
             </Link>
           </div>
         )}

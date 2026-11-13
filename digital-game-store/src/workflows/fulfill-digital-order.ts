@@ -4,11 +4,13 @@ import {
   transform,
 } from "@medusajs/framework/workflows-sdk"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
+import { Modules } from "@medusajs/framework/utils"
 import type KeyInventoryService from "../modules/key-inventory/service"
 
 interface FulfillDigitalOrderInput {
   orderId: string
   customerId: string
+  email?: string
   items: Array<{
     productId: string
     variantId?: string
@@ -129,56 +131,62 @@ const fetchKeysFromProviderStep = createStep(
 
 const sendKeyDeliveryEmailStep = createStep(
   "send-key-delivery-email",
-  async (input: { orderId: string; customerId: string; keys: any[] }, { container }) => {
-    const notificationService = container.resolve("notification") as any
+  async (input: { orderId: string; customerId: string; email?: string; keys: any[] }, { container }) => {
+    const notificationService = container.resolve(Modules.NOTIFICATION) as any
     const keyInventoryService = container.resolve("keyInventory") as KeyInventoryService
-    const orderModuleService = container.resolve("order") as any
+    const orderModuleService = container.resolve(Modules.ORDER) as any
     const logger = container.resolve("logger") as any
 
-    // Send email with keys
-    await notificationService.send({
-      to: input.customerId,
-      channel: "email",
-      template: "order-digital-keys",
-      data: {
-        order_id: input.orderId,
-        keys: input.keys,
-      },
-    })
+    const order = await orderModuleService
+      .retrieveOrder(input.orderId)
+      .catch(() => null)
+    const email = input.email || order?.email
+
+    // Bildirim gonderimi teslimati bloklamaz — key teslimi her durumda tamamlanir.
+    try {
+      if (email) {
+        if (typeof notificationService?.createNotifications === "function") {
+          await notificationService.createNotifications({
+            to: email,
+            channel: "email",
+            template: "order-digital-keys",
+            data: {
+              order_id: input.orderId,
+              keys: input.keys,
+            },
+          })
+        } else if (typeof notificationService?.send === "function") {
+          await notificationService.send({
+            to: email,
+            channel: "email",
+            template: "order-digital-keys",
+            data: {
+              order_id: input.orderId,
+              keys: input.keys,
+            },
+          })
+        } else {
+          logger?.warn?.("Notification module has no send/createNotifications; email skipped.")
+        }
+      }
+    } catch (e: any) {
+      logger?.warn?.(`Key delivery email failed for order ${input.orderId}: ${e?.message}`)
+    }
 
     // Mark keys as delivered
     for (const key of input.keys) {
       await keyInventoryService.markKeyAsDelivered(key.id)
     }
 
-    // Try to mark order as fulfilled and tag metadata for traceability
+    // Siparis metadata'sini koruyarak teslimati isaretle
     try {
-      if (typeof orderModuleService?.updateOrder === "function") {
-        await orderModuleService.updateOrder(input.orderId, {
-          metadata: {
-            ...(await orderModuleService
-              .retrieveOrder(input.orderId)
-              .then((o: any) => o?.metadata || {})
-              .catch(() => ({}))),
-            digital_fulfilled: true,
-            digital_fulfilled_at: new Date().toISOString(),
-          },
-          // Some implementations may ignore this field; metadata will still persist
-          fulfillment_status: "fulfilled",
-        })
-      } else if (typeof orderModuleService?.updateOrders === "function") {
-        await orderModuleService.updateOrders([
-          {
-            id: input.orderId,
-            metadata: {
-              digital_fulfilled: true,
-              digital_fulfilled_at: new Date().toISOString(),
-            },
-          },
-        ])
-      } else {
-        logger?.warn?.("Order service does not support updateOrder/updateOrders; skipping status update.")
+      const metadata = {
+        ...(order?.metadata || {}),
+        digital_fulfilled: true,
+        digital_fulfilled_at: new Date().toISOString(),
+        fulfillment_state: "fulfilled",
       }
+      await orderModuleService.updateOrders([{ id: input.orderId, metadata }])
     } catch (e: any) {
       logger?.warn?.(`Failed to mark order ${input.orderId} fulfilled: ${e?.message}`)
     }
@@ -225,6 +233,7 @@ export const fulfillDigitalOrderWorkflow = createWorkflow(
     const emailResult = sendKeyDeliveryEmailStep({
       orderId: input.orderId,
       customerId: input.customerId,
+      email: input.email,
       keys: allKeys,
     })
 

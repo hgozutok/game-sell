@@ -1,6 +1,13 @@
 import { AbstractPaymentProvider } from '@medusajs/framework/utils'
 
 class MollieProviderService extends AbstractPaymentProvider {
+  constructor(
+    cradle: Record<string, unknown> = {},
+    options: Record<string, any> = {}
+  ) {
+    super(cradle, options)
+  }
+
   static identifier = 'mollie'
 
   async initiatePayment(input: any): Promise<any> {

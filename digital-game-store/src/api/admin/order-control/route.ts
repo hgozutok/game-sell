@@ -15,18 +15,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const limit = Math.min(Number(req.query.limit) || 20, 100)
     const offset = Math.max(Number(req.query.offset) || 0, 0)
 
-    const [orders, count] = await Promise.all([
-      orderModule.listOrders(
-        {},
-        {
-          relations: ['items', 'items.product', 'items.variant', 'customer'],
-          take: limit,
-          skip: offset,
-          order: { created_at: 'DESC' },
-        }
-      ),
-      orderModule.countOrders({}),
-    ])
+    // countOrders servis metodolojisinde yok; listAndCountOrders tek sorguda doner.
+    const [orders, count] = await orderModule.listAndCountOrders(
+      {},
+      {
+        // items.product / items.variant cross-module link; order modulu JOINED stratejisiyle
+        // cozemiyor (Cannot read properties of undefined). Sadece items yuklenir.
+        relations: ['items'],
+        take: limit,
+        skip: offset,
+        order: { created_at: 'DESC' },
+      }
+    )
 
     res.json({ orders, count, limit, offset })
   } catch (error: any) {
@@ -50,18 +50,49 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
 
     const order = await orderModule.retrieveOrder(orderId, {
-      relations: ['items', 'items.product', 'items.variant'],
+      relations: ['items'],
     })
 
-    const digitalItems = order.items.filter((item: any) => item.product?.metadata?.is_digital === true)
+    // Ödeme ve sipariş onayı olmadan key gönderimi yok
+    const metadata = order.metadata || {}
+    const paidStatuses = ['captured', 'partially_captured']
+    const paymentApproved =
+      metadata.payment_approved === true || paidStatuses.includes(String(order.payment_status))
+    const orderApproved = metadata.order_approved === true
+    if (!paymentApproved || !orderApproved) {
+      return res.status(409).json({
+        message: 'Key gönderilemez: ödeme ve sipariş onayı gerekli.',
+        payment_approved: paymentApproved,
+        order_approved: orderApproved,
+      })
+    }
+
+    // items.product relation'i order modulunde cozulemiyor; urunleri ayri modulden cek.
+    const productModule = req.scope.resolve(Modules.PRODUCT) as any
+    const productIds = Array.from(
+      new Set(order.items.map((item: any) => item.product_id).filter(Boolean))
+    )
+    const products = productIds.length ? await productModule.listProducts({ id: productIds }) : []
+    const productsById = new Map(products.map((p: any) => [p.id, p]))
+
+    const flaggedItems = order.items.filter((item: any) => {
+      const product: any = productsById.get(item.product_id)
+      return product?.metadata?.is_digital === true || item.metadata?.is_digital === true
+    })
+
+    // Magaza tamamen dijital anahtar satiyor; urun metadata'si isaretlenmemisse
+    // tum kalemler dijital kabul edilir.
+    const digitalItems = flaggedItems.length > 0 ? flaggedItems : order.items
+
     if (digitalItems.length === 0) {
-      return res.status(400).json({ message: 'Order contains no digital items' })
+      return res.status(400).json({ message: 'Order contains no items' })
     }
 
     await fulfillDigitalOrderWorkflow(req.scope).run({
       input: {
         orderId: order.id,
         customerId: order.customer_id,
+        email: order.email,
         items: digitalItems.map((item: any) => ({
           productId: item.product_id,
           variantId: item.variant_id,

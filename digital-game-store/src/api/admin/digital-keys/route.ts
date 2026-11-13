@@ -9,7 +9,7 @@ export const AUTHENTICATE = false
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const keyInventoryService = req.scope.resolve("keyInventory") as KeyInventoryService
 
-  const { product_id, status, limit = 50, offset = 0 } = req.query
+  const { product_id, status, provider, limit = 50, offset = 0 } = req.query
 
   const filters: any = {}
   
@@ -17,16 +17,23 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     filters.product_id = product_id
   }
   
-  if (status) {
+  if (status && status !== "all") {
     filters.status = status
   }
 
-  const keys = await keyInventoryService.listDigitalKeys(
-    { filters },
-    { skip: Number(offset), take: Number(limit) }
-  )
+  if (provider && provider !== "all") {
+    filters.provider = provider
+  }
 
-  const count = keys.length
+  // MedusaService imzasi: listDigitalKeys(filters, config) — eskiden { filters }
+  // sarmalandigi icin sorgu bos donuyor/hata veriyordu.
+  const keys = await keyInventoryService.listDigitalKeys(filters, {
+    skip: Number(offset),
+    take: Number(limit),
+  })
+
+  const [, total] = await keyInventoryService.listAndCountDigitalKeys(filters)
+  const count = total
 
   res.json({
     digital_keys: keys,

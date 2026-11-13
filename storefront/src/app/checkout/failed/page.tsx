@@ -1,9 +1,10 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function CheckoutFailedPage() {
+function CheckoutFailedContent() {
   const searchParams = useSearchParams()
   const reason = searchParams.get('reason') || 'unknown'
 
@@ -155,5 +156,13 @@ export default function CheckoutFailedPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CheckoutFailedPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0a0b0d]" />}>
+      <CheckoutFailedContent />
+    </Suspense>
   )
 }

@@ -40,9 +40,10 @@ class UserPreferencesService extends MedusaService({
 
     if (existing) {
       // Update existing preference
-      return await this.updateUserPreferences(existing.id, {
+      return await this.updateUserPreferences({
+        id: existing.id,
         value,
-      })
+      } as any)
     }
 
     // Create new preference
@@ -60,7 +61,7 @@ class UserPreferencesService extends MedusaService({
     const preference = await this.getPreference(key, userId)
     
     if (preference) {
-      await this.deleteUserPreferences(preference.id)
+      await this.deleteUserPreferences({ id: preference.id })
     }
   }
 
@@ -76,9 +77,9 @@ class UserPreferencesService extends MedusaService({
    */
   async deleteAllUserPreferences(userId: string | null = null): Promise<void> {
     const preferences = await this.getUserPreferences(userId)
-    
+
     for (const pref of preferences) {
-      await this.deleteUserPreferences(pref.id)
+      await this.deleteUserPreferences({ id: pref.id })
     }
   }
 }

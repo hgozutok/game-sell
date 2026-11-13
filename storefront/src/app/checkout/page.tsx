@@ -12,6 +12,8 @@ import { z } from 'zod'
 import toast, { Toaster } from 'react-hot-toast'
 import { api } from '@/lib/api'
 import { formatMoney, convertAmount } from '@/utils/currency'
+import { useT } from '@/components/useT'
+import StripePaymentModal from '@/components/StripePaymentModal'
 
 const checkoutSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -21,20 +23,24 @@ const checkoutSchema = z.object({
   city: z.string().min(2, 'City is required'),
   postalCode: z.string().min(3, 'Postal code is required'),
   country: z.string().min(2, 'Country is required'),
-  paymentMethod: z.enum(['paypal', 'mollie', 'bank-transfer'], {
-    required_error: 'Please select a payment method',
+  paymentMethod: z.enum(['stripe', 'paypal', 'mollie', 'bank-transfer', 'bank_transfer'], {
+    error: 'Please select a payment method',
   }),
 })
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>
 
 export default function CheckoutPage() {
+  const t = useT()
   const router = useRouter()
   const { items, getTotalPrice, clearCart } = useCartStore()
   const { selectedCurrency, currencies } = useCurrencyStore()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'info' | 'payment'>('info')
+  const [stripeSecret, setStripeSecret] = useState<string | null>(null)
+  const [stripeCartId, setStripeCartId] = useState<string | null>(null)
   const [availableMethods, setAvailableMethods] = useState<Array<{id: string, name: string}>>([])
+  const [stripePublishableKey, setStripePublishableKey] = useState('')
   const [methodsLoaded, setMethodsLoaded] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState('us')
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -97,6 +103,7 @@ export default function CheckoutPage() {
         const response = await api.get('/store/payment-methods')
         const methods = response.data.methods || []
         setAvailableMethods(methods)
+        setStripePublishableKey(response.data.stripe_publishable_key || '')
         
         // Set first method as default if available
         if (methods.length > 0) {
@@ -224,11 +231,19 @@ export default function CheckoutPage() {
           postal_code: data.postalCode,
           country_code: data.country,
         },
-        payment_method: data.paymentMethod,
+        payment_method: data.paymentMethod.replace(/_/g, '-'),
       }
 
       console.log('Creating order with data:', orderData)
       const response = await api.post('/store/orders/create', orderData)
+
+      // Stripe: kart onayi gerekiyor — modal acilir, siparis onay sonrasi tamamlanir
+      if (response.data.requires_action && response.data.payment?.client_secret) {
+        setStripeSecret(response.data.payment.client_secret)
+        setStripeCartId(response.data.cart_id)
+        setLoading(false)
+        return
+      }
 
       if (response.data.order) {
         const orderId = response.data.order.id
@@ -237,7 +252,7 @@ export default function CheckoutPage() {
         clearCart()
 
         // Redirect to success page
-        router.push(`/checkout/success?order_id=${orderId}`)
+        router.push(`/checkout/success?order_id=${orderId}&method=${encodeURIComponent(data.paymentMethod)}`)
 
         toast.success('Order placed successfully!', {
           style: {
@@ -280,6 +295,25 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-[#0a0b0d]">
       <Toaster position="top-right" />
 
+      {stripeSecret && stripeCartId && (
+        <StripePaymentModal
+          clientSecret={stripeSecret}
+          cartId={stripeCartId}
+          amountLabel={formattedTotal}
+          publishableKey={stripePublishableKey}
+          onSuccess={(order) => {
+            setStripeSecret(null)
+            setStripeCartId(null)
+            clearCart()
+            router.push(`/checkout/success?order_id=${order?.id || ''}&method=stripe`)
+          }}
+          onClose={() => {
+            setStripeSecret(null)
+            setStripeCartId(null)
+          }}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-[#15171c] border-b border-gray-800">
         <div className="container mx-auto px-4 py-4">
@@ -292,7 +326,7 @@ export default function CheckoutPage() {
               Cart
             </Link>
             <span className="text-gray-600">/</span>
-            <span className="text-white font-semibold">Checkout</span>
+            <span className="text-white font-semibold">{t('checkout.title')}</span>
           </div>
         </div>
       </div>
@@ -341,7 +375,7 @@ export default function CheckoutPage() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-white font-semibold mb-2">Email *</label>
+                    <label className="block text-white font-semibold mb-2">{t('checkout.email')} *</label>
                     <input
                       type="email"
                       {...register('email')}
@@ -353,7 +387,7 @@ export default function CheckoutPage() {
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-white font-semibold mb-2">First Name *</label>
+                      <label className="block text-white font-semibold mb-2">{t('checkout.firstName')} *</label>
                       <input
                         type="text"
                         {...register('firstName')}
@@ -363,7 +397,7 @@ export default function CheckoutPage() {
                       {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName.message}</p>}
                     </div>
                     <div>
-                      <label className="block text-white font-semibold mb-2">Last Name *</label>
+                      <label className="block text-white font-semibold mb-2">{t('checkout.lastName')} *</label>
                       <input
                         type="text"
                         {...register('lastName')}
@@ -432,7 +466,7 @@ export default function CheckoutPage() {
 
               {/* Payment Method */}
               <div className="gaming-card p-8">
-                <h2 className="text-2xl font-black text-white mb-6">💳 PAYMENT METHOD</h2>
+                <h2 className="text-2xl font-black text-white mb-6">💳 {t('checkout.paymentMethod')}</h2>
 
                 {!methodsLoaded ? (
                   <div className="flex items-center justify-center py-8">
@@ -450,12 +484,14 @@ export default function CheckoutPage() {
                       const icons: Record<string, string> = {
                         paypal: '🅿️',
                         mollie: '🇪🇺',
+                        stripe: '💳',
                         'bank-transfer': '🏦',
                         bank_transfer: '🏦',
                       }
                       const descriptions: Record<string, string> = {
                         paypal: 'Pay with your PayPal account',
                         mollie: 'iDEAL, Bancontact, and more',
+                        stripe: 'Visa, Mastercard — 3D Secure ile güvenli ödeme',
                         'bank-transfer': 'Manual bank transfer - requires approval',
                         bank_transfer: 'Manual bank transfer - requires approval',
                       }
@@ -487,7 +523,7 @@ export default function CheckoutPage() {
 
               {/* Submit Button */}
               <button type="submit" disabled={loading} className="w-full btn-primary text-lg py-4">
-                {loading ? 'PROCESSING...' : `PLACE ORDER - ${formattedTotal}`}
+                {loading ? 'PROCESSING...' : `${t('checkout.placeOrder')} - ${formattedTotal}`}
               </button>
 
               <p className="text-center text-sm text-gray-500">

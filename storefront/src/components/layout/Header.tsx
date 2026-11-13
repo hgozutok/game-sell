@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { useAuth } from '@/contexts/AuthContext'
+import { useT } from '@/components/useT'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
+import { api } from '@/lib/api'
 
 export default function Header() {
   const router = useRouter()
@@ -13,10 +16,22 @@ export default function Header() {
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false)
   const [cartItemCount, setCartItemCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
+  const [storeInfo, setStoreInfo] = useState<{ name?: string; logo_url?: string }>({})
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const getTotalItems = useCartStore((state) => state.getTotalItems)
   const { customer, logout } = useAuth()
+  const t = useT()
   const { selectedCurrency, currencies, setSelectedCurrency, loadCurrencyRates } = useCurrencyStore()
+
+  // Magaza adi + logo (admin ayarlarindan)
+  useEffect(() => {
+    api
+      .get('/store/settings')
+      .then((res) => setStoreInfo(res.data?.store || {}))
+      .catch(() => {
+        /* varsayilan marka kullanilir */
+      })
+  }, [])
   
   // Prevent hydration mismatch by only reading cart count on client side
   useEffect(() => {
@@ -64,18 +79,27 @@ export default function Header() {
     <header className="bg-[#15171c] border-b border-gray-800 sticky top-0 z-50">
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white text-center py-2 text-sm font-semibold">
-        🔥 FLASH SALE: UP TO 80% OFF - LIMITED TIME ONLY! 🔥
+        {t('nav.banner')}
       </div>
       
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#ff6b35] to-[#f7931e] rounded-lg flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-lg">
-              🎮
-            </div>
+            {storeInfo.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={storeInfo.logo_url}
+                alt={storeInfo.name || 'Logo'}
+                className="h-12 max-w-[170px] object-contain group-hover:scale-105 transition-transform"
+              />
+            ) : (
+              <div className="w-12 h-12 bg-gradient-to-br from-[#ff6b35] to-[#f7931e] rounded-lg flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-lg">
+                🎮
+              </div>
+            )}
             <div>
-              <div className="text-xl font-bold text-white">DIGITAL KEYS</div>
+              <div className="text-xl font-bold text-white">{storeInfo.name || 'DIGITAL KEYS'}</div>
               <div className="text-xs text-gray-400">INSTANT DELIVERY</div>
             </div>
           </Link>
@@ -83,16 +107,16 @@ export default function Header() {
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center gap-6">
             <Link href="/products" className="text-gray-300 hover:text-[#ff6b35] transition font-medium">
-              ALL GAMES
+              {t('nav.allGames')}
             </Link>
             <Link href="/categories" className="text-gray-300 hover:text-[#ff6b35] transition font-medium">
-              CATEGORIES
+              {t('nav.categories')}
             </Link>
             <Link href="/deals" className="px-4 py-2 bg-[#ff6b35] text-white rounded font-bold hover:bg-[#ff7b45] transition">
-              DEALS 🔥
+              {t('nav.deals')}
             </Link>
             <Link href="/new-releases" className="text-gray-300 hover:text-[#ff6b35] transition font-medium">
-              NEW RELEASES
+              {t('nav.newReleases')}
             </Link>
           </div>
 
@@ -101,7 +125,7 @@ export default function Header() {
             <div className="relative">
               <input 
                 type="search" 
-                placeholder="Search games..." 
+                placeholder={t('nav.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg w-64 focus:border-[#ff6b35] focus:outline-none"
@@ -115,6 +139,8 @@ export default function Header() {
                 </button>
               )}
             </div>
+
+            <LanguageSwitcher />
 
             {/* Currency Selector */}
             <div className="relative">
@@ -177,22 +203,22 @@ export default function Header() {
                 </button>
                 <div className="absolute right-0 mt-2 w-48 bg-[#1a1d24] border border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                   <Link href="/account" className="block px-4 py-2 text-gray-300 hover:bg-[#ff6b35] hover:text-white rounded-t-lg transition">
-                    My Account
+                    {t('nav.myAccount')}
                   </Link>
                   <Link href="/account/orders" className="block px-4 py-2 text-gray-300 hover:bg-[#ff6b35] hover:text-white transition">
-                    My Orders
+                    {t('nav.myOrders')}
                   </Link>
                   <Link href="/account/keys" className="block px-4 py-2 text-gray-300 hover:bg-[#ff6b35] hover:text-white transition">
-                    My Keys
+                    {t('nav.myKeys')}
                   </Link>
                   <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-400 hover:bg-red-500 hover:text-white rounded-b-lg transition">
-                    Logout
+                    {t('nav.logout')}
                   </button>
                 </div>
               </div>
             ) : (
               <Link href="/login" className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition font-medium">
-                LOGIN
+                {t('nav.login')}
               </Link>
             )}
           </div>
@@ -216,29 +242,29 @@ export default function Header() {
         {isMenuOpen && (
           <div className="lg:hidden mt-4 pb-4 border-t border-gray-800 pt-4 space-y-2">
             <Link href="/products" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
-              ALL GAMES
+              {t('nav.allGames')}
             </Link>
             <Link href="/categories" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
-              CATEGORIES
+              {t('nav.categories')}
             </Link>
             <Link href="/deals" className="block py-2 text-[#ff6b35] font-bold" onClick={() => setIsMenuOpen(false)}>
-              DEALS 🔥
+              {t('nav.deals')}
             </Link>
             <Link href="/cart" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
-              CART
+              {t('nav.cart')}
             </Link>
             {customer ? (
               <>
                 <Link href="/account" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
-                  MY ACCOUNT
+                  {t('nav.myAccount')}
                 </Link>
                 <button onClick={() => { handleLogout(); setIsMenuOpen(false); }} className="block w-full text-left py-2 text-red-400 hover:text-red-300">
-                  LOGOUT
+                  {t('nav.logout')}
                 </button>
               </>
             ) : (
               <Link href="/login" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
-                LOGIN
+                {t('nav.login')}
               </Link>
             )}
           </div>

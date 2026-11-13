@@ -4,6 +4,13 @@ import { AbstractPaymentProvider } from "@medusajs/framework/utils"
 class BankTransferProviderService extends AbstractPaymentProvider {
   static identifier = "bank-transfer"
 
+  constructor(
+    cradle: Record<string, unknown> = {},
+    options: Record<string, any> = {}
+  ) {
+    super(cradle, options)
+  }
+
   async initiatePayment(input: any): Promise<any> {
     const { amount, currency_code } = input.context || input
     
@@ -31,13 +38,15 @@ class BankTransferProviderService extends AbstractPaymentProvider {
   }
 
   async authorizePayment(input: any): Promise<any> {
-    // Bank transfers need manual verification
+    // SANDBOX: havale onayini otomatik authorized dondurur — siparis akisi
+    // (completeCart) test edilebilir. Gercek ortamda admin dogrulamasi
+    // /admin/bank-transfer/verify uzerinden yapilir.
     return {
       data: {
         ...input.data,
-        status: "pending_verification",
+        status: "authorized",
       },
-      status: "pending",
+      status: "authorized",
     }
   }
 

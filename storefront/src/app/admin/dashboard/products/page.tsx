@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { adminApi } from '@/lib/admin-api'
 
@@ -30,6 +30,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [settingsLoaded, setSettingsLoaded] = useState(true)
+  const requestId = useRef(0)
   
   // Load saved settings from localStorage
   const [savedLimit, setSavedLimit] = useState(() => {
@@ -47,11 +48,11 @@ export default function ProductsPage() {
         try {
           return JSON.parse(saved)
         } catch {
-          return { hideZeroPrice: true, hideZeroStock: true }
+          return { hideZeroPrice: true, hideZeroStock: false }
         }
       }
     }
-    return { hideZeroPrice: true, hideZeroStock: true }
+    return { hideZeroPrice: true, hideZeroStock: false }
   })
 
   // Temporary settings (before saving)
@@ -59,28 +60,35 @@ export default function ProductsPage() {
   const [filters, setFilters] = useState(savedFilters)
 
   const fetchProducts = async () => {
+    const reqId = ++requestId.current
     setLoading(true)
     try {
       const response = await adminApi.get('/admin/products', {
         params: {
           skip: (page - 1) * savedLimit,
           take: savedLimit,
+          limit: savedLimit,
+          offset: (page - 1) * savedLimit,
           fields: '*variants,*variants.prices,collection_id,metadata',
           hideZeroPrice: savedFilters.hideZeroPrice ? 'true' : 'false',
           hideZeroStock: savedFilters.hideZeroStock ? 'true' : 'false',
         }
       })
 
+      // Eski (gecikmis) istekler yeni sonucu ezmesin
+      if (reqId !== requestId.current) return
+
       setProducts(response.data.products || [])
       const count = response.data.count || 0
-      setTotalPages(Math.ceil(count / savedLimit))
+      const effectiveLimit = Number(response.data.limit) || savedLimit
+      setTotalPages(Math.max(1, Math.ceil(count / effectiveLimit)))
     } catch (err: any) {
+      if (reqId !== requestId.current) return
       console.error('Products fetch error:', err)
-      // Show empty list on error
       setProducts([])
       setTotalPages(1)
     } finally {
-      setLoading(false)
+      if (reqId === requestId.current) setLoading(false)
     }
   }
 
@@ -173,7 +181,16 @@ export default function ProductsPage() {
               <select
                 id="limit"
                 value={limit}
-                onChange={(e) => setLimit(Number(e.target.value))}
+                onChange={(e) => {
+                  const value = Number(e.target.value)
+                  // Secim aninda uygula ve kalici sakla
+                  setLimit(value)
+                  setSavedLimit(value)
+                  setPage(1)
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('admin_products_limit', String(value))
+                  }
+                }}
                 className="bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg"
               >
                 <option value={25}>25</option>
@@ -204,7 +221,9 @@ export default function ProductsPage() {
             </p>
             <button
               onClick={() => {
-                setFilters({ hideZeroPrice: false, hideZeroStock: false })
+                const reset = { hideZeroPrice: false, hideZeroStock: false }
+                setFilters(reset)
+                setSavedFilters(reset)
                 setPage(1)
               }}
               className="btn-primary"

@@ -9,6 +9,8 @@ import { useCartStore } from '@/store/cartStore'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { convertAmount, getCurrencySymbol } from '@/utils/currency'
 import toast, { Toaster } from 'react-hot-toast'
+import { useT } from '@/components/useT'
+import { usePriceCap } from '@/hooks/usePriceCap'
 
 interface Product {
   id: string
@@ -56,6 +58,8 @@ interface Product {
 }
 
 export default function ProductDetailPage() {
+  const t = useT()
+  const { isOverCap } = usePriceCap()
   const params = useParams()
   const slug = params.slug as string
   const [product, setProduct] = useState<Product | null>(null)
@@ -91,7 +95,7 @@ export default function ProductDetailPage() {
         }
       } catch (error) {
         console.error('Failed to fetch product:', error)
-        toast.error('Failed to load product')
+        toast.error(t('product.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -99,6 +103,50 @@ export default function ProductDetailPage() {
 
     fetchProduct()
   }, [slug])
+
+  // SEO: dinamik title, meta description ve JSON-LD (client-side)
+  useEffect(() => {
+    if (!product) return
+    const title = product.title || product.handle
+    document.title = `${title} | GameStore`
+    const metaDesc = document.querySelector('meta[name="description"]')
+    if (metaDesc) {
+      metaDesc.setAttribute('content', (product.description || title).slice(0, 160))
+    }
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: title,
+      description: (product.description || '').slice(0, 5000) || undefined,
+      image: images.map((img) => img.url).filter(Boolean),
+      sku: product.variants?.[0]?.id,
+      brand: product.metadata?.publisher ? { '@type': 'Brand', name: product.metadata.publisher } : undefined,
+      offers: {
+        '@type': 'Offer',
+        url: `${window.location.origin}/products/${product.handle}`,
+        priceCurrency: selectedCurrency.code,
+        price: (amount / 100).toFixed(2),
+        availability: 'https://schema.org/InStock',
+        itemCondition: 'https://schema.org/NewCondition',
+      },
+    }
+
+    const id = 'product-jsonld'
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) {
+      script = document.createElement('script')
+      script.id = id
+      script.type = 'application/ld+json'
+      document.head.appendChild(script)
+    }
+    script.textContent = JSON.stringify(jsonLd)
+
+    return () => {
+      document.getElementById(id)?.remove()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, amount, selectedCurrency.code])
 
   // Update price when currency or variant changes
   useEffect(() => {
@@ -143,6 +191,7 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (!product) return
+    if (isOverCap(product)) return
 
     const currentVariant = product.variants[selectedVariant]
 
@@ -158,7 +207,7 @@ export default function ProductDetailPage() {
       metadata: product.metadata,
     })
 
-    toast.success('Added to cart!', {
+    toast.success(t('product.addedToCart'), {
       icon: '🎮',
       style: {
         background: '#15171c',
@@ -180,9 +229,9 @@ export default function ProductDetailPage() {
     return (
       <div className="min-h-screen bg-[#0a0b0d] flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-black text-white mb-4">Product Not Found</h1>
+          <h1 className="text-4xl font-black text-white mb-4">{t('product.notFound')}</h1>
           <Link href="/products" className="btn-primary">
-            Browse Products
+            {t('product.browse')}
           </Link>
         </div>
       </div>
@@ -325,7 +374,7 @@ export default function ProductDetailPage() {
               {/* Badges */}
               <div className="flex flex-wrap gap-2 mb-6">
                 <span className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white text-sm font-bold px-4 py-1 rounded-full">
-                  ⚡ INSTANT DELIVERY
+                  {t('product.instantDelivery')}
                 </span>
                 {product.metadata?.platform && (
                   <span className="bg-[#1a1d24] border border-gray-700 text-white text-sm font-semibold px-4 py-1 rounded-full">
@@ -349,7 +398,7 @@ export default function ProductDetailPage() {
             <div className="gaming-card p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-sm text-gray-500 mb-1">PRICE</div>
+                  <div className="text-sm text-gray-500 mb-1">{t('product.price')}</div>
                   <div className="text-4xl font-black text-white">
                     {getCurrencySymbol(selectedCurrency.code)}
                     {(amount / 100).toFixed(2)}
@@ -361,14 +410,14 @@ export default function ProductDetailPage() {
                 </div>
                 <div className="text-right">
                   <div className="text-green-500 font-bold text-xl mb-1">-30%</div>
-                  <div className="text-xs text-gray-500">You Save: {selectedCurrency.symbol}{((amount / 100) * 0.4).toFixed(2)}</div>
+                  <div className="text-xs text-gray-500">{t('product.youSave')} {selectedCurrency.symbol}{((amount / 100) * 0.4).toFixed(2)}</div>
                 </div>
               </div>
 
               {/* Variant Selection */}
               {product.variants.length > 1 && (
                 <div className="mb-4">
-                  <div className="text-sm text-gray-400 mb-2">SELECT EDITION</div>
+                  <div className="text-sm text-gray-400 mb-2">{t('product.selectEdition')}</div>
                   <div className="flex flex-wrap gap-2">
                     {product.variants.map((variant, index) => (
                       <button
@@ -388,9 +437,15 @@ export default function ProductDetailPage() {
               )}
 
               {/* Add to Cart Button */}
-              <button onClick={handleAddToCart} className="w-full btn-primary text-lg py-4">
-                🛒 ADD TO CART
-              </button>
+              {isOverCap(product) ? (
+                <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
+                  Bu ürün, mağazanın listeleme fiyat limitinin üzerinde olduğu için satışa kapalıdır.
+                </div>
+              ) : (
+                <button onClick={handleAddToCart} className="w-full btn-primary text-lg py-4">
+                  {t('product.addToCart')}
+                </button>
+              )}
             </div>
 
             {/* Provider Metadata */}
@@ -400,26 +455,26 @@ export default function ProductDetailPage() {
               (product.metadata?.badges && product.metadata.badges.length > 0) ||
               (product.metadata?.tags && product.metadata.tags.length > 0)) && (
               <div className="gaming-card p-6 mb-6">
-                <h3 className="text-xl font-bold text-white mb-4">🌍 GAME DETAILS</h3>
+                <h3 className="text-xl font-bold text-white mb-4">{t('product.gameDetails')}</h3>
 
                 <div className="space-y-4 text-sm">
                   {product.metadata?.platform && (
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">Platform</div>
+                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">{t('product.platform')}</div>
                       <div className="text-white font-semibold">{product.metadata.platform}</div>
                     </div>
                   )}
 
                   {product.metadata?.region && (
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">Region</div>
+                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">{t('product.region')}</div>
                       <div className="text-white font-semibold">{getReadableRegion(product.metadata.region)}</div>
                     </div>
                   )}
 
                   {product.metadata?.languages && product.metadata.languages.length > 0 && (
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">Languages</div>
+                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">{t('product.languages')}</div>
                       <div className="flex flex-wrap gap-2">
                         {product.metadata.languages.map((language: string) => (
                           <span key={language} className="px-3 py-1 bg-[#1a1d24] text-gray-200 rounded-full border border-gray-700 text-xs font-semibold">
@@ -462,23 +517,23 @@ export default function ProductDetailPage() {
             {/* Additional Info */}
             {(product.metadata?.developer || product.metadata?.publisher || product.metadata?.release_date) && (
               <div className="gaming-card p-6">
-                <h3 className="text-xl font-bold text-white mb-4">📋 DETAILS</h3>
+                <h3 className="text-xl font-bold text-white mb-4">{t('product.details')}</h3>
                 <div className="space-y-2 text-sm">
                   {product.metadata?.developer && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Developer:</span>
+                      <span className="text-gray-500">{t('product.developer')}</span>
                       <span className="text-white font-semibold">{product.metadata.developer}</span>
                     </div>
                   )}
                   {product.metadata?.publisher && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Publisher:</span>
+                      <span className="text-gray-500">{t('product.publisher')}</span>
                       <span className="text-white font-semibold">{product.metadata.publisher}</span>
                     </div>
                   )}
                   {product.metadata?.release_date && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Release Date:</span>
+                      <span className="text-gray-500">{t('product.releaseDate')}</span>
                       <span className="text-white font-semibold">{product.metadata.release_date}</span>
                     </div>
                   )}
@@ -492,7 +547,7 @@ export default function ProductDetailPage() {
         {product.description && (
           <div className="mt-12">
             <div className="gaming-card p-8">
-              <h2 className="text-3xl font-black text-white mb-6">📖 ABOUT THIS GAME</h2>
+              <h2 className="text-3xl font-black text-white mb-6">{t('product.about')}</h2>
               <div className="text-gray-300 leading-relaxed whitespace-pre-line">{product.description}</div>
             </div>
           </div>

@@ -11,12 +11,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     // Get all payment-related settings
     const paymentSettings = await storeSettings.listSettingsByCategory('payment')
 
-    // Format response
+    // Format response — kayitli deger yoksa varsayilanlar
     const settings: any = {
       stripe: { active: false, config: {} },
       paypal: { active: false, config: {} },
       mollie: { active: false, config: {} },
-      bank_transfer: { active: true, config: {} }, // Always active
+      // Banka havalesi varsayilan olarak acik; admin kapatirsa kapali kalir
+      bank_transfer: { active: true, config: {} },
       crypto: { active: false, config: {} },
     }
 
@@ -31,7 +32,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         }
         
         if (field === 'active') {
-          settings[provider].active = setting.value
+          settings[provider].active = setting.value === true || setting.value === 'true'
         } else {
           settings[provider].config[field] = setting.value
         }

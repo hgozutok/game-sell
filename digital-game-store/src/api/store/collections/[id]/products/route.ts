@@ -35,6 +35,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       return false
     })
 
+    // Fetch full product details with variants and prices for each product
+    products = await Promise.all(
+      products.map(async (product: any) => {
+        try {
+          const fullProduct = await productModuleService.retrieveProduct(product.id)
+          return fullProduct
+        } catch (error) {
+          console.error(`Failed to retrieve full product ${product.id}:`, error)
+          return product
+        }
+      })
+    )
+
     console.log(`[Collection Products] Products in collection: ${products.length}`)
 
     // Debug: Check product structure

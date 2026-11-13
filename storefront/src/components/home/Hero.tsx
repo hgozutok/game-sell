@@ -1,6 +1,11 @@
+'use client'
+
 import Link from 'next/link'
+import { useT } from '@/components/useT'
 
 export default function Hero() {
+  const t = useT()
+
   return (
     <section className="relative bg-gradient-to-br from-[#1a1d24] via-[#15171c] to-[#0a0b0d] text-white py-20 overflow-hidden">
       {/* Background Pattern */}
@@ -13,35 +18,36 @@ export default function Hero() {
       {/* Glowing orbs */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#ff6b35] rounded-full filter blur-[120px] opacity-20 animate-pulse"></div>
       <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-purple-600 rounded-full filter blur-[120px] opacity-20 animate-pulse"></div>
-      
+
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 bg-[#1a1d24] border border-[#ff6b35]/30 rounded-full">
             <span className="w-2 h-2 bg-[#ff6b35] rounded-full animate-pulse"></span>
-            <span className="text-sm font-semibold text-[#ff6b35]">OVER 100,000+ GAMES AVAILABLE</span>
+            <span className="text-sm font-semibold text-[#ff6b35]">{t('home.badge')}</span>
           </div>
-          
+
           <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-            BUY GAME KEYS
+            {t('home.heroTitle1')}
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff6b35] via-[#f7931e] to-[#ff6b35] animate-gradient">
-              PLAY INSTANTLY
+              {t('home.heroTitle2')}
             </span>
           </h1>
-          
+
           <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-            The best prices on PC, PlayStation, Xbox, and Nintendo games. 
-            <span className="text-[#ff6b35] font-semibold"> Instant digital delivery</span> guaranteed.
+            {t('home.heroDesc')}{' '}
+            <span className="text-[#ff6b35] font-semibold">{t('home.heroDescHighlight')}</span>{' '}
+            {t('home.heroDescEnd')}
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <Link href="/products" className="btn-primary group">
-              SHOP NOW
+              {t('home.shopNow')}
               <span className="inline-block ml-2 group-hover:translate-x-1 transition-transform">→</span>
             </Link>
             <Link href="/deals" className="btn-secondary">
-              VIEW DEALS 🔥
+              {t('home.viewDeals')}
             </Link>
           </div>
 
@@ -49,23 +55,23 @@ export default function Hero() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16">
             <div className="bg-[#1a1d24] p-6 rounded-xl border border-gray-800">
               <div className="text-4xl mb-2">⚡</div>
-              <div className="font-bold text-sm">INSTANT DELIVERY</div>
-              <div className="text-xs text-gray-500">In Seconds</div>
+              <div className="font-bold text-sm">{t('home.trustInstant')}</div>
+              <div className="text-xs text-gray-500">{t('home.trustInstantSub')}</div>
             </div>
             <div className="bg-[#1a1d24] p-6 rounded-xl border border-gray-800">
               <div className="text-4xl mb-2">🔒</div>
-              <div className="font-bold text-sm">SECURE PAYMENT</div>
-              <div className="text-xs text-gray-500">SSL Protected</div>
+              <div className="font-bold text-sm">{t('home.trustSecure')}</div>
+              <div className="text-xs text-gray-500">{t('home.trustSecureSub')}</div>
             </div>
             <div className="bg-[#1a1d24] p-6 rounded-xl border border-gray-800">
               <div className="text-4xl mb-2">💯</div>
-              <div className="font-bold text-sm">MONEY BACK</div>
-              <div className="text-xs text-gray-500">Guaranteed</div>
+              <div className="font-bold text-sm">{t('home.trustMoneyBack')}</div>
+              <div className="text-xs text-gray-500">{t('home.trustMoneyBackSub')}</div>
             </div>
             <div className="bg-[#1a1d24] p-6 rounded-xl border border-gray-800">
               <div className="text-4xl mb-2">⭐</div>
-              <div className="font-bold text-sm">24/7 SUPPORT</div>
-              <div className="text-xs text-gray-500">Always Here</div>
+              <div className="font-bold text-sm">{t('home.trustSupport')}</div>
+              <div className="text-xs text-gray-500">{t('home.trustSupportSub')}</div>
             </div>
           </div>
         </div>

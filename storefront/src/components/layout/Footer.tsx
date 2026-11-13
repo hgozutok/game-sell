@@ -1,6 +1,10 @@
+'use client'
+
 import Link from 'next/link'
+import { useT } from '@/components/useT'
 
 export default function Footer() {
+  const t = useT()
   return (
     <footer className="bg-[#15171c] border-t border-gray-800 mt-auto">
       <div className="container mx-auto px-4 py-12">
@@ -52,7 +56,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link href="/help" className="text-gray-400 hover:text-[#ff6b35] transition">Help Center</Link></li>
               <li><Link href="/contact" className="text-gray-400 hover:text-[#ff6b35] transition">Contact Us</Link></li>
-              <li><Link href="/faq" className="text-gray-400 hover:text-[#ff6b35] transition">FAQ</Link></li>
+              <li><Link href="/faq" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.faq')}</Link></li>
               <li><Link href="/returns" className="text-gray-400 hover:text-[#ff6b35] transition">Returns Policy</Link></li>
               <li><Link href="/how-it-works" className="text-gray-400 hover:text-[#ff6b35] transition">How It Works</Link></li>
             </ul>
@@ -61,11 +65,11 @@ export default function Footer() {
           <div>
             <h4 className="font-bold mb-4 text-white uppercase text-sm">Company</h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/about" className="text-gray-400 hover:text-[#ff6b35] transition">About Us</Link></li>
+              <li><Link href="/about" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.about')}</Link></li>
               <li><Link href="/blog" className="text-gray-400 hover:text-[#ff6b35] transition">Blog</Link></li>
               <li><Link href="/careers" className="text-gray-400 hover:text-[#ff6b35] transition">Careers</Link></li>
-              <li><Link href="/privacy" className="text-gray-400 hover:text-[#ff6b35] transition">Privacy Policy</Link></li>
-              <li><Link href="/terms" className="text-gray-400 hover:text-[#ff6b35] transition">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.privacy')}</Link></li>
+              <li><Link href="/terms" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.terms')}</Link></li>
             </ul>
           </div>
         </div>
@@ -86,7 +90,7 @@ export default function Footer() {
         <div className="border-t border-gray-800 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm">
             <p className="text-gray-500">
-              © {new Date().getFullYear()} Digital Game Store. All rights reserved.
+              © {new Date().getFullYear()} Digital Game Store. {t('footer.rights')}
             </p>
             <div className="flex items-center gap-6 text-gray-500">
               <span className="flex items-center gap-2">

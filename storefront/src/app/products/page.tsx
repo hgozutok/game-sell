@@ -5,8 +5,12 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import ProductCard from '@/components/products/ProductCard'
 import { useCurrencyStore } from '@/store/currencyStore'
+import { useT } from '@/components/useT'
+import { usePriceCap } from '@/hooks/usePriceCap'
 
 export default function ProductsPage() {
+  const t = useT()
+  const { cap, ready: priceCapReady, isOverCap } = usePriceCap()
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(50)
@@ -70,7 +74,7 @@ export default function ProductsPage() {
 
   // Fetch products with pagination and filters
   const { data, isLoading, error } = useQuery({
-    queryKey: ['products', page, limit, platform, genre, priceMin, priceMax, sortBy],
+    queryKey: ['products', page, limit, platform, genre, priceMin, priceMax, sortBy, cap],
     queryFn: async () => {
       const response = await api.get('/store/products', {
         params: {
@@ -86,6 +90,11 @@ export default function ProductsPage() {
         const price = p.variants?.[0]?.prices?.[0]?.amount || 0
         return price > 0
       })
+
+      // Admin tarafinda belirlenen listeleme ust fiyat limiti (EUR)
+      if (cap > 0) {
+        products = products.filter((p: any) => !isOverCap(p))
+      }
 
       // Apply filters
       if (platform !== 'all') {
@@ -147,7 +156,7 @@ export default function ProductsPage() {
         count: totalCount,
       }
     },
-    enabled: !!allProductsData,
+    enabled: !!allProductsData && priceCapReady,
   })
 
   const products = data?.products || []
@@ -209,7 +218,7 @@ export default function ProductsPage() {
                 {showPriceFilter && (
                   <div className="absolute top-full left-0 mt-2 w-80 bg-[#1a1d24] border border-gray-700 rounded-lg p-6 shadow-xl z-50 price-filter-container">
                     <div className="mb-4">
-                      <label className="text-white text-sm font-semibold mb-2 block">Price Range ({selectedCurrency.code})</label>
+                      <label className="text-white text-sm font-semibold mb-2 block">{t('catalog.priceRange')} ({selectedCurrency.code})</label>
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
                           <label className="text-gray-400 text-xs mb-1 block">Min ({selectedCurrency.symbol})</label>

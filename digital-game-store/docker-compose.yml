@@ -42,19 +42,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/medusa-store
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: supersecretjwttoken
-      COOKIE_SECRET: supersecretcookie
       NODE_ENV: development
     ports:
       - "9000:9000"
-      - "7001:7001"
     volumes:
       - ./src:/app/src
       - ./medusa-config.ts:/app/medusa-config.ts
-    command: npm run dev
+    command: sh -c "npx medusa db:migrate --execute-safe-links && npm run dev"
 
   worker:
     build:
@@ -68,6 +67,8 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/medusa-store
       REDIS_URL: redis://redis:6379

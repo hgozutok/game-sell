@@ -1,6 +1,11 @@
+'use client'
+
 import ProductGrid from '@/components/products/ProductGrid'
+import { useT } from '@/components/useT'
 
 export default function DealsPage() {
+  const t = useT()
+
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
       {/* Epic Header */}
@@ -11,13 +16,13 @@ export default function DealsPage() {
         </div>
         <div className="container mx-auto px-4 py-16 relative z-10 text-center">
           <div className="inline-block mb-4 px-4 py-2 bg-[#ff6b35] text-white text-sm font-black rounded-full animate-pulse">
-            🔥 LIMITED TIME OFFERS 🔥
+            {t('deals.badge')}
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-white mb-4">
-            MEGA DEALS
+            {t('deals.title')}
           </h1>
           <p className="text-2xl text-orange-200 font-bold mb-6">
-            UP TO 80% OFF - LOWEST PRICES GUARANTEED
+            {t('deals.subtitle')}
           </p>
         </div>
       </div>
@@ -29,30 +34,30 @@ export default function DealsPage() {
             <div className="flex items-center gap-4">
               <span className="text-5xl">⏰</span>
               <div>
-                <h3 className="font-black text-white text-xl">FLASH SALE ENDING SOON!</h3>
-                <p className="text-sm text-gray-400">Don't miss these incredible savings</p>
+                <h3 className="font-black text-white text-xl">{t('deals.flashTitle')}</h3>
+                <p className="text-sm text-gray-400">{t('deals.flashDesc')}</p>
               </div>
             </div>
             <div className="flex gap-4 font-mono text-3xl font-black text-white">
               <div className="text-center">
                 <div className="bg-[#1a1d24] border border-gray-700 rounded-lg p-3 min-w-[80px]">23</div>
-                <div className="text-xs text-gray-500 mt-1">HOURS</div>
+                <div className="text-xs text-gray-500 mt-1">{t('deals.hours')}</div>
               </div>
               <div className="text-[#ff6b35] text-4xl self-center">:</div>
               <div className="text-center">
                 <div className="bg-[#1a1d24] border border-gray-700 rounded-lg p-3 min-w-[80px]">59</div>
-                <div className="text-xs text-gray-500 mt-1">MINUTES</div>
+                <div className="text-xs text-gray-500 mt-1">{t('deals.minutes')}</div>
               </div>
               <div className="text-[#ff6b35] text-4xl self-center">:</div>
               <div className="text-center">
                 <div className="bg-[#1a1d24] border border-gray-700 rounded-lg p-3 min-w-[80px]">45</div>
-                <div className="text-xs text-gray-500 mt-1">SECONDS</div>
+                <div className="text-xs text-gray-500 mt-1">{t('deals.seconds')}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      
+
       <div className="container mx-auto px-4 py-12">
         <ProductGrid />
       </div>

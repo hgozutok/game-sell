@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
@@ -20,11 +20,22 @@ interface Order {
   }>
 }
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessContent() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order_id')
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
+  const method = searchParams.get('method') || ''
+  const [bank, setBank] = useState<Record<string, string> | null>(null)
+
+  // Banka havalesi secildiyse admin paneldeki hesap bilgilerini goster
+  useEffect(() => {
+    if (!method.startsWith('bank')) return
+    api
+      .get('/store/settings')
+      .then((res) => setBank(res.data?.payments?.bank_transfer || null))
+      .catch(() => setBank(null))
+  }, [method])
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -73,6 +84,35 @@ export default function CheckoutSuccessPage() {
               </p>
             )}
           </div>
+
+          {/* Bank Transfer Details */}
+          {bank && (
+            <div className="gaming-card p-8 mb-6 border border-[#ff6b35]/40">
+              <h2 className="text-2xl font-black text-white mb-2">🏦 Banka Havalesi Bilgileri</h2>
+              <p className="text-sm text-gray-400 mb-6">
+                Siparişinizin hazırlanması için aşağıdaki hesaba havale/EFT yapın. Açıklama kısmına
+                sipariş numaranızı yazmayı unutmayın.
+              </p>
+              <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+                {[
+                  ['Banka', bank.bank_name],
+                  ['Hesap Sahibi', bank.account_name],
+                  ['IBAN', bank.iban],
+                  ['Hesap Numarası', bank.account_number],
+                  ['Sort Code', bank.sort_code],
+                  ['SWIFT / BIC', bank.swift],
+                ]
+                  .filter(([, value]) => Boolean(value))
+                  .map(([label, value]) => (
+                    <div key={label} className="rounded-lg bg-[#1a1d24] border border-gray-800 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
+                      <div className="text-white font-mono break-all">{value}</div>
+                    </div>
+                  ))}
+              </dl>
+              {bank.note && <p className="mt-4 text-xs text-gray-500">{bank.note}</p>}
+            </div>
+          )}
 
           {/* What Happens Next */}
           <div className="gaming-card p-8 mb-6">
@@ -180,5 +220,13 @@ export default function CheckoutSuccessPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0a0b0d]" />}>
+      <CheckoutSuccessContent />
+    </Suspense>
   )
 }

@@ -8,8 +8,10 @@ import { useCurrencyStore } from "@/store/currencyStore"
 import { useTaxSettingsStore } from "@/store/taxSettingsStore"
 import { api } from "@/lib/api"
 import { formatMoney, getCurrencySymbol, convertAmount } from "@/utils/currency"
+import { useT } from '@/components/useT'
 
 export default function CartPage() {
+  const t = useT()
   const router = useRouter()
   const { items, removeItem, updateQuantity } = useCartStore()
   const { selectedCurrency, currencies } = useCurrencyStore()
@@ -186,7 +188,7 @@ export default function CartPage() {
               <div className="w-32 h-32 bg-gradient-to-br from-[#ff6b35]/20 to-[#f7931e]/20 rounded-full flex items-center justify-center text-7xl mx-auto mb-6">
                 🛒
               </div>
-              <h2 className="text-3xl font-black text-white mb-4">YOUR CART IS EMPTY</h2>
+              <h2 className="text-3xl font-black text-white mb-4">{t('cart.empty')}</h2>
               <p className="text-gray-400 mb-8 text-lg">
                 Start shopping and add some amazing games to your cart!
               </p>
@@ -319,7 +321,7 @@ export default function CartPage() {
               
             <div className="space-y-4 mb-6">
                 <div className="flex justify-between text-lg">
-                  <span className="text-gray-400">Subtotal</span>
+                  <span className="text-gray-400">{t('cart.subtotal')}</span>
                   <span className="text-white font-semibold">
                     {previewLoading ? 'Calculating...' : formatPrice(previewTotals.subtotal)}
                   </span>
@@ -341,14 +343,14 @@ export default function CartPage() {
                 onClick={handleCheckout}
                 className="w-full btn-primary mb-4 py-4"
               >
-                Proceed to Checkout
+                {t('cart.checkout')}
               </button>
 
               <Link
                 href="/products"
                 className="block text-center text-[#ff6b35] hover:text-[#ff7b45] font-semibold"
               >
-                Continue Shopping
+                {t('cart.continueShopping')}
               </Link>
 
               <div className="mt-8 pt-8 border-t border-gray-800">

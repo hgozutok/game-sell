@@ -27,12 +27,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const { margin_percentage, min_price, max_price, is_active, priority } = req.body as any
 
-    const rule = await pricingSettings.updatePricingRule(id, {
+    const patch = {
       ...(margin_percentage !== undefined && { margin_percentage }),
       ...(min_price !== undefined && { min_price }),
       ...(max_price !== undefined && { max_price }),
       ...(is_active !== undefined && { is_active }),
       ...(priority !== undefined && { priority }),
+    }
+
+    const rule = await pricingSettings.updatePricingRule(id, patch)
+
+    const auditLog = req.scope.resolve('auditLog') as any
+    await auditLog.log({
+      action: 'pricing_rule.update',
+      entity: 'pricing_rule',
+      entity_id: id,
+      diff: patch,
+      actor_id: (req as any).auth_context?.actor_id ?? null,
+      ip: req.headers?.['x-forwarded-for'] ?? null,
     })
 
     res.json({ pricing_rule: rule })
@@ -48,6 +60,17 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     const { id } = req.params
 
     await pricingSettings.deletePricingRule(id)
+
+    const auditLog = req.scope.resolve('auditLog') as any
+    await auditLog.log({
+      action: 'pricing_rule.delete',
+      entity: 'pricing_rule',
+      entity_id: id,
+      diff: { deleted: true },
+      actor_id: (req as any).auth_context?.actor_id ?? null,
+      ip: req.headers?.['x-forwarded-for'] ?? null,
+    })
+
     res.json({ message: 'Pricing rule deleted successfully' })
   } catch (error: any) {
     console.error('Pricing rule DELETE error:', error)

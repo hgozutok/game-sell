@@ -8,6 +8,7 @@ import ProductCard from "@/components/products/ProductCard"
 import { api } from "@/lib/api"
 import "swiper/css"
 import "swiper/css/navigation"
+import { useT } from "@/components/useT"
 
 interface Product {
   id: string
@@ -37,6 +38,7 @@ interface ProductCollectionProps {
 }
 
 export default function ProductCollection({ title, filter, viewAllLink }: ProductCollectionProps) {
+  const t = useT()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -109,7 +111,7 @@ export default function ProductCollection({ title, filter, viewAllLink }: Produc
             href={viewAllLink}
             className="text-[#ff6b35] hover:text-[#ff7b45] font-semibold flex items-center space-x-2 group"
           >
-            <span>View All</span>
+            <span>{t("home.viewAll")}</span>
             <svg
               className="w-5 h-5 group-hover:translate-x-1 transition-transform"
               fill="none"

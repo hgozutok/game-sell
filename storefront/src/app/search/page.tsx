@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import ProductCard from '@/components/products/ProductCard'
+import { usePriceCap } from '@/hooks/usePriceCap'
 import Link from 'next/link'
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams()
+  const { cap, ready: priceCapReady, isOverCap } = usePriceCap()
   const query = searchParams.get('q') || ''
   const [debouncedQuery, setDebouncedQuery] = useState('')
 
@@ -23,7 +25,7 @@ export default function SearchPage() {
 
   // Fetch search results
   const { data, isLoading, error } = useQuery({
-    queryKey: ['search', debouncedQuery],
+    queryKey: ['search', debouncedQuery, cap],
     queryFn: async () => {
       const response = await api.get('/store/products', {
         params: {
@@ -40,6 +42,11 @@ export default function SearchPage() {
         return price > 0
       })
       
+      // Admin tarafinda belirlenen listeleme ust fiyat limiti (EUR)
+      if (cap > 0) {
+        products = products.filter((product: any) => !isOverCap(product))
+      }
+
       // Filter by search query
       if (debouncedQuery.length >= 2) {
         products = products.filter((product: any) =>
@@ -54,7 +61,7 @@ export default function SearchPage() {
         count: products.length,
       }
     },
-    enabled: debouncedQuery.length >= 2,
+    enabled: debouncedQuery.length >= 2 && priceCapReady,
   })
 
   const products = data?.products || []
@@ -141,3 +148,10 @@ export default function SearchPage() {
   )
 }
 
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0a0b0d]" />}>
+      <SearchPageContent />
+    </Suspense>
+  )
+}

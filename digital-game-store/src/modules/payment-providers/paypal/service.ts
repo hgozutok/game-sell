@@ -1,6 +1,13 @@
 import { AbstractPaymentProvider } from '@medusajs/framework/utils'
 
 class PayPalProviderService extends AbstractPaymentProvider {
+  constructor(
+    cradle: Record<string, unknown> = {},
+    options: Record<string, any> = {}
+  ) {
+    super(cradle, options)
+  }
+
   static identifier = 'paypal'
 
   async initiatePayment(input: any): Promise<any> {

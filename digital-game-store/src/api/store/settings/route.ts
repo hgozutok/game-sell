@@ -25,6 +25,42 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       'store.description',
       'Your trusted marketplace for digital game keys'
     )
+    const whatsappNumber = await storeSettingsModule.getSettingValue('store.whatsapp_number', '')
+    const whatsappMessage = await storeSettingsModule.getSettingValue(
+      'store.whatsapp_message',
+      'Merhaba, bir urun hakkinda bilgi almak istiyorum.'
+    )
+    // Listeleme ust fiyat limiti (EUR). 0 = sinirsiz. Varsayilan 100 EUR.
+    const maxPriceEur = await storeSettingsModule.getSettingValue('catalog.max_price_eur', 100)
+    const supportEmail = await storeSettingsModule.getSettingValue(
+      'store.support_email',
+      'support@digitalgamestore.com'
+    )
+    const logoUrl = await storeSettingsModule.getSettingValue('store.logo_url', '')
+
+    // Odeme saglayici ayarlari (admin panelden yonetilir)
+    const settingsValue = async (key: string, fallback = '') => {
+      const value = await storeSettingsModule.getSettingValue(key, fallback)
+      return value ?? fallback
+    }
+
+    const stripePublishableKey = await settingsValue(
+      'payment.stripe.publishable_key',
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
+    )
+
+    const bankTransfer = {
+      bank_name: await settingsValue('payment.bank_transfer.bank_name', 'Barclays Bank UK'),
+      account_name: await settingsValue('payment.bank_transfer.account_name', 'Digital Game Store Ltd'),
+      iban: await settingsValue('payment.bank_transfer.iban', 'GB29NWBK60161331926819'),
+      account_number: await settingsValue('payment.bank_transfer.account_number', '12345678'),
+      sort_code: await settingsValue('payment.bank_transfer.sort_code', '20-00-00'),
+      swift: await settingsValue('payment.bank_transfer.swift', 'BARCGB22'),
+      note: await settingsValue(
+        'payment.bank_transfer.note',
+        'Please include the reference number in your payment description'
+      ),
+    }
 
     res.json({
       theme: themeSettings,
@@ -36,9 +72,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       store: {
         name: storeName,
         description: storeDescription,
+        support_email: supportEmail,
+        logo_url: logoUrl || '',
+        whatsapp_number: whatsappNumber || '',
+        whatsapp_message: whatsappMessage || '',
       },
       taxes: {
         rate: typeof taxRate === 'number' ? taxRate : parseFloat(taxRate) || 0,
+      },
+      catalog: {
+        max_price_eur: Number(maxPriceEur) || 0,
+      },
+      payments: {
+        stripe_publishable_key: stripePublishableKey,
+        bank_transfer: bankTransfer,
       },
     })
   } catch (error: any) {
@@ -58,9 +105,28 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       store: {
         name: 'Digital Game Store',
         description: 'Your trusted marketplace for digital game keys',
+        support_email: 'support@digitalgamestore.com',
+        logo_url: '',
+        whatsapp_number: '',
+        whatsapp_message: '',
       },
       taxes: {
         rate: 0,
+      },
+      catalog: {
+        max_price_eur: 100,
+      },
+      payments: {
+        stripe_publishable_key: '',
+        bank_transfer: {
+          bank_name: 'Barclays Bank UK',
+          account_name: 'Digital Game Store Ltd',
+          iban: 'GB29NWBK60161331926819',
+          account_number: '12345678',
+          sort_code: '20-00-00',
+          swift: 'BARCGB22',
+          note: 'Please include the reference number in your payment description',
+        },
       },
     })
   }

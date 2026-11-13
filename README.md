@@ -27,6 +27,8 @@
 
 ## 🚀 Quick Start
 
+> Kinguin entegrasyonunun kurulumu, sandbox test akışı ve canlıya geçiş için: **[digital-game-store/KINGUIN_SETUP.md](digital-game-store/KINGUIN_SETUP.md)**
+
 ### Prerequisites
 - Node.js 20+
 - PostgreSQL 14+

@@ -1,30 +1,29 @@
-import { MedusaContainer } from '@medusajs/framework/types'
+import { MedusaContainer } from "@medusajs/framework/types"
+import { runKinguinSync, shouldRunSync } from "../utils/kinguin-sync"
 
+/**
+ * Periyodik Kinguin senkronizasyonu.
+ *
+ * Medusa job schedule'i boot'ta sabitlenir; admin'den degistirilebilir periyot
+ * icin job 15 dakikada bir uyanir ve kinguin_settings.sync_interval_minutes
+ * dolmussa gercek senkronu calistirir (runKinguinSync).
+ */
 export default async function syncProductsJob(container: MedusaContainer) {
-  const logger = container.resolve('logger')
+  const logger = container.resolve("logger")
 
-  logger.info('Starting scheduled product sync job...')
-
-  try {
-    // TODO: Implement product sync logic
-    // This job will sync prices and availability from external providers
-    
-    logger.info('Product sync completed (not yet implemented)')
-
-    return {
-      success: true,
-      updated: 0,
-      errors: 0,
-      total: 0,
-    }
-  } catch (error) {
-    logger.error('Product sync job failed:', error)
-    throw error
+  const { due, reason } = await shouldRunSync(container)
+  if (!due) {
+    logger.info(`[sync-products] atlandi (${reason})`)
+    return { success: true, skipped: true, reason }
   }
+
+  logger.info("[sync-products] Kinguin senkronizasyonu basliyor...")
+  const summary = await runKinguinSync(container, { force: true })
+  logger.info(`[sync-products] tamamlandi: ${JSON.stringify(summary)}`)
+  return { success: summary.status === "completed", summary }
 }
 
-// Job configuration
 export const config = {
-  name: 'sync-products',
-  schedule: '0 */6 * * *', // Run every 6 hours
+  name: "sync-products",
+  schedule: "*/15 * * * *", // 15 dk'da bir uyan; gercek periyot ayarlardan gelir
 }

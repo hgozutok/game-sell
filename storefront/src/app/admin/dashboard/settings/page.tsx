@@ -16,10 +16,15 @@ export default function SettingsPage() {
     enable_reviews: true,
     kinguin_currency: 'EUR',
     codeswholesale_currency: 'USD',
+    whatsapp_number: '',
+    whatsapp_message: '',
+    max_price_eur: 100,
+    logo_url: '',
   })
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [countryRates, setCountryRates] = useState<Record<string, number>>({})
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   const countryOptions = [
     { code: 'US', label: 'United States' },
@@ -41,23 +46,28 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await api.get('/store/settings')
-        console.log('Settings response:', response.data)
-        
-        // Backend returns { store: {...}, currencies: {...}, theme: {...} }
-        // We need to adapt it to our format
-        if (response.data) {
-          setSettings((prev) => ({
-            ...prev,
-            store_name: response.data.store?.name || 'Digital Game Store',
-            store_description: response.data.store?.description || '',
-            support_email: response.data.store?.support_email || 'support@digitalgamestore.com',
-            currency: response.data.currencies?.default || 'USD',
-            tax_rate: response.data.taxes?.rate || response.data.store?.tax_rate || 0,
-            enable_wishlist: response.data.store?.enable_wishlist !== false,
-            enable_reviews: response.data.store?.enable_reviews !== false,
-          }))
-        }
+        // Admin kaynagindan oku (public store endpoint'e bagimli degil)
+        const response = await adminApi.get('/admin/settings')
+        const list: Array<{ key: string; value: any }> = response.data?.settings || []
+        const map: Record<string, any> = {}
+        list.forEach((item) => {
+          map[item.key] = item.value
+        })
+
+        setSettings((prev) => ({
+          ...prev,
+          store_name: map['store.name'] ?? prev.store_name,
+          store_description: map['store.description'] ?? '',
+          support_email: map['store.support_email'] ?? prev.support_email,
+          currency: String(map['currencies.default'] ?? prev.currency).toUpperCase(),
+          tax_rate: Number(map['tax.rate'] ?? 0),
+          enable_wishlist: map['store.enable_wishlist'] !== false,
+          enable_reviews: map['store.enable_reviews'] !== false,
+          whatsapp_number: map['store.whatsapp_number'] ?? '',
+          whatsapp_message: map['store.whatsapp_message'] ?? '',
+          max_price_eur: Number(map['catalog.max_price_eur'] ?? 100),
+          logo_url: map['store.logo_url'] ?? '',
+        }))
 
         try {
           const providerCurrencyRes = await adminApi.get('/admin/settings/provider-currency')
@@ -82,11 +92,42 @@ export default function SettingsPage() {
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error)
-        // Continue with default settings if fetch fails
+        alert('Ayarlar yuklenemedi. Backend calisiyor mu?')
       }
     }
     fetchSettings()
   }, [])
+
+  const handleLogoUpload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo en fazla 2 MB olabilir')
+      return
+    }
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = () => reject(new Error('Dosya okunamadi'))
+      reader.readAsDataURL(file)
+    })
+
+    setUploadingLogo(true)
+    try {
+      const res = await adminApi.post('/admin/settings/logo', { data_url: dataUrl })
+      const url = res.data?.url || ''
+      setSettings((prev) => ({ ...prev, logo_url: url }))
+      // Hemen kaydet; kullanici ayrica Kaydet'e basmak zorunda kalmasin
+      await adminApi.post('/admin/settings', {
+        key: 'store.logo_url',
+        value: url,
+        category: 'store',
+      })
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'Logo yuklenemedi')
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,22 +135,22 @@ export default function SettingsPage() {
     setSuccess(false)
 
     try {
-      // Save each setting individually using the backend format
+      // Tum ayarlari tek istekte kaydet
       const settingsToSave = [
         { key: 'store.name', value: settings.store_name, category: 'store' },
         { key: 'store.description', value: settings.store_description, category: 'store' },
         { key: 'store.support_email', value: settings.support_email, category: 'store' },
-        { key: 'currencies.default', value: settings.currency, category: 'currencies' },
+        { key: 'store.logo_url', value: settings.logo_url, category: 'store' },
         { key: 'store.enable_wishlist', value: settings.enable_wishlist, category: 'store' },
         { key: 'store.enable_reviews', value: settings.enable_reviews, category: 'store' },
+        { key: 'store.whatsapp_number', value: settings.whatsapp_number, category: 'store' },
+        { key: 'store.whatsapp_message', value: settings.whatsapp_message, category: 'store' },
+        { key: 'currencies.default', value: settings.currency, category: 'currencies' },
+        { key: 'tax.rate', value: Number(settings.tax_rate) || 0, category: 'tax' },
+        { key: 'catalog.max_price_eur', value: Number(settings.max_price_eur) || 0, category: 'catalog' },
       ]
 
-      for (const setting of settingsToSave) {
-        await adminApi.post('/admin/settings', setting)
-      }
-
-      // Save default tax rate through dedicated endpoint
-      await adminApi.post('/admin/settings/tax', { tax_rate: settings.tax_rate })
+      await adminApi.post('/admin/settings/batch', { settings: settingsToSave })
 
       await adminApi.post('/admin/settings/provider-currency', {
         kinguin_currency: settings.kinguin_currency?.toLowerCase?.() || 'eur',
@@ -120,6 +161,24 @@ export default function SettingsPage() {
       await adminApi.post('/admin/settings/tax/countries', {
         country_tax_rates: countryRates,
       })
+
+      // Sunucudan geri oku — kaydedilen degerler ekranda kalsin
+      const fresh = await adminApi.get('/admin/settings')
+      const list: Array<{ key: string; value: any }> = fresh.data?.settings || []
+      const map: Record<string, any> = {}
+      list.forEach((item) => {
+        map[item.key] = item.value
+      })
+      setSettings((prev) => ({
+        ...prev,
+        store_name: map['store.name'] ?? prev.store_name,
+        store_description: map['store.description'] ?? prev.store_description,
+        support_email: map['store.support_email'] ?? prev.support_email,
+        logo_url: map['store.logo_url'] ?? prev.logo_url,
+        currency: String(map['currencies.default'] ?? prev.currency).toUpperCase(),
+        tax_rate: Number(map['tax.rate'] ?? prev.tax_rate),
+        max_price_eur: Number(map['catalog.max_price_eur'] ?? prev.max_price_eur),
+      }))
 
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -195,6 +254,113 @@ export default function SettingsPage() {
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Mağaza Logosu</label>
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="h-16 w-16 rounded-lg bg-[#1a1d24] border border-gray-700 flex items-center justify-center overflow-hidden">
+                    {settings.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={settings.logo_url}
+                        alt="Logo"
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-2xl">🎮</span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleLogoUpload(file)
+                      }}
+                      className="block w-full text-sm text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-[#ff6b35] file:px-4 file:py-2 file:text-white file:font-semibold hover:file:bg-[#f7931e]"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      {uploadingLogo ? 'Yükleniyor…' : 'PNG/JPG/WEBP/SVG · en fazla 2 MB'}
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="url"
+                  value={settings.logo_url}
+                  onChange={(e) => setSettings({ ...settings, logo_url: e.target.value })}
+                  placeholder="https://... veya /static/logo.png"
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* WhatsApp Destek */}
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-1">WhatsApp Destek Butonu</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Numara girildiğinde mağazada sağ altta WhatsApp butonu görünür. Boş bırakılırsa buton
+              gizlenir.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  WhatsApp Numarası (ülke kodu ile)
+                </label>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="+90 555 111 22 33"
+                  value={settings.whatsapp_number}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_number: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Sadece rakamlar kullanılır: +90 555 111 22 33 → 905551112233
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Ön tanımlı mesaj
+                </label>
+                <textarea
+                  rows={2}
+                  value={settings.whatsapp_message}
+                  onChange={(e) => setSettings({ ...settings, whatsapp_message: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                  placeholder="Merhaba, bir ürün hakkında bilgi almak istiyorum."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Listeleme Limiti */}
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-1">Listeleme Üst Fiyat Limiti</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Belirtilen EUR değerinin üzerindeki ürünler mağazada listelenmez ve satın alınamaz.
+            </p>
+
+            <div className="max-w-xs">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Üst limit (EUR)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={settings.max_price_eur}
+                onChange={(e) =>
+                  setSettings({ ...settings, max_price_eur: Math.max(0, Number(e.target.value)) })
+                }
+                className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                0 yazarsanız limit kaldırılır. Örnek: 100 → 100 EUR üzeri ürünler gizlenir.
+              </p>
             </div>
           </div>
 

@@ -44,6 +44,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       priority: priority || 0,
     })
 
+    const auditLog = req.scope.resolve('auditLog') as any
+    await auditLog.log({
+      action: 'pricing_rule.create',
+      entity: 'pricing_rule',
+      entity_id: rule?.id ?? null,
+      diff: {
+        category_id,
+        category_name,
+        provider: provider || 'all',
+        margin_percentage,
+        min_price,
+        max_price,
+        priority: priority || 0,
+      },
+      actor_id: (req as any).auth_context?.actor_id ?? null,
+      ip: req.headers?.['x-forwarded-for'] ?? null,
+    })
+
     res.status(201).json({ pricing_rule: rule })
   } catch (error: any) {
     console.error('Pricing rules POST error:', error)
