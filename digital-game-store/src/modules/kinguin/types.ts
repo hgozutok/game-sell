@@ -59,6 +59,14 @@ export class KinguinOrderModeError extends KinguinError {
   }
 }
 
+// ESA guide §14: hicbir key iade kriterlerine uymuyor (hepsi claim edilmis veya 24h gecti)
+export class KinguinNoKeysToReturnError extends KinguinError {
+  constructor(message = "Kinguin: no keys eligible for return") {
+    super(message, 422, "NoKeysToReturn")
+    this.name = "KinguinNoKeysToReturnError"
+  }
+}
+
 // ===================== Tip tanimlari =====================
 
 // GET /v1/products satiri (ESA API)

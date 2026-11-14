@@ -54,6 +54,16 @@ type OrderDetail = {
   digital_fulfilled?: boolean
   fulfillment_state?: string | null
   metadata?: Record<string, any>
+  digital_keys?: Array<{
+    id: string
+    key_code?: string | null
+    provider?: string | null
+    status?: string | null
+    platform?: string | null
+    region?: string | null
+    assigned_at?: string | null
+    delivered_at?: string | null
+  }>
   items: OrderItem[]
 }
 
@@ -110,6 +120,10 @@ export default function AdminOrdersControlPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [autoFulfill, setAutoFulfill] = useState<boolean>(false)
+  const [sandboxBusy, setSandboxBusy] = useState(false)
+  const [sandboxResult, setSandboxResult] = useState<any>(null)
+  const [returnBusy, setReturnBusy] = useState(false)
+  const [returnMsg, setReturnMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const loadOrders = useCallback(async () => {
     setLoading(true)
@@ -160,6 +174,7 @@ export default function AdminOrdersControlPage() {
 
   const selectOrder = async (orderId: string) => {
     setSelectedId(orderId)
+    setSandboxResult(null)
     setMessage(null)
     await loadDetail(orderId)
   }
@@ -226,6 +241,62 @@ export default function AdminOrdersControlPage() {
       setMessage({ ok: false, text: 'Ayar kaydedilemedi' })
     } finally {
       setBusy(null)
+    }
+  }
+
+  const testKinguinSandbox = async (orderId: string) => {
+    setSandboxBusy(true)
+    setSandboxResult(null)
+    try {
+      const res = await adminApi.post(`/admin/order-control/${orderId}/kinguin-sandbox-test`)
+      setSandboxResult(res.data)
+    } catch (e: any) {
+      setSandboxResult({
+        ok: false,
+        message: e?.response?.data?.message || 'Kinguin sandbox testi başarısız',
+        code: e?.response?.data?.code,
+      })
+    } finally {
+      setSandboxBusy(false)
+    }
+  }
+
+  // Kinguin key iadesi — iki asamali: talep -> admin onayi
+  const requestKinguinReturn = async (orderId: string) => {
+    setReturnBusy(true)
+    setReturnMsg(null)
+    try {
+      const res = await adminApi.post(`/admin/order-control/${orderId}/kinguin-return-keys`)
+      setReturnMsg({ ok: true, text: res.data?.message || 'İade talebi oluşturuldu' })
+      await loadDetail(orderId)
+    } catch (e: any) {
+      setReturnMsg({
+        ok: false,
+        text: e?.response?.data?.message || 'İade talebi oluşturulamadı',
+      })
+    } finally {
+      setReturnBusy(false)
+    }
+  }
+
+  const resolveKinguinReturn = async (orderId: string, approved: boolean) => {
+    setReturnBusy(true)
+    setReturnMsg(null)
+    try {
+      const res = await adminApi.post(`/admin/order-control/${orderId}/kinguin-return-keys/approve`, {
+        approved,
+      })
+      setReturnMsg({ ok: true, text: res.data?.message || (approved ? 'İade onaylandı' : 'İade reddedildi') })
+      await loadDetail(orderId)
+      await loadOrders()
+    } catch (e: any) {
+      setReturnMsg({
+        ok: false,
+        text: e?.response?.data?.message || 'İade işlemi başarısız',
+      })
+      await loadDetail(orderId)
+    } finally {
+      setReturnBusy(false)
     }
   }
 
@@ -502,6 +573,48 @@ export default function AdminOrdersControlPage() {
                     </div>
                   </div>
 
+                  {/* Sipariş anahtarları */}
+                  {detail.digital_keys && detail.digital_keys.length > 0 && (
+                    <div>
+                      <h3 className="text-white font-bold mb-2">Sipariş Anahtarları</h3>
+                      <div className="space-y-2">
+                        {detail.digital_keys.map((key) => (
+                          <div
+                            key={key.id}
+                            className="rounded-lg border border-gray-800 bg-[#0f1116] p-3 text-xs space-y-1"
+                          >
+                            <div className="font-mono text-gray-200 break-all">
+                              {key.key_code || '-'}
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-[11px]">
+                              <span className="px-2 py-0.5 rounded bg-[#1a1d24] border border-gray-700 text-gray-300">
+                                {key.provider || 'bilinmiyor'}
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/30 text-green-300">
+                                {key.status || '-'}
+                              </span>
+                              {key.platform && (
+                                <span className="px-2 py-0.5 rounded bg-[#1a1d24] border border-gray-700 text-gray-400">
+                                  {key.platform}
+                                </span>
+                              )}
+                              {key.region && (
+                                <span className="px-2 py-0.5 rounded bg-[#1a1d24] border border-gray-700 text-gray-400">
+                                  {key.region}
+                                </span>
+                              )}
+                            </div>
+                            {key.provider && key.provider !== 'kinguin' && (
+                              <p className="text-[11px] text-yellow-400">
+                                Bu anahtar Kinguin kaynaklı değil; sandbox testi Kinguin eşleşmesi gerektirir.
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Toplamlar */}
                   <div className="space-y-2 border-t border-gray-800 pt-3 text-gray-300">
                     <div className="flex justify-between gap-3">
@@ -577,6 +690,101 @@ export default function AdminOrdersControlPage() {
                       <p className="text-xs text-yellow-400">
                         Key gönderimi için sipariş ve ödeme onayının ikisi de gerekli.
                       </p>
+                    )}
+                    <button
+                      onClick={() => testKinguinSandbox(detail.id)}
+                      disabled={sandboxBusy || busy !== null}
+                      className="w-full px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-200 rounded-lg hover:border-[#ff6b35] disabled:opacity-40"
+                    >
+                      {sandboxBusy ? 'Sandbox testi çalışıyor…' : '🧪 Kinguin Sandbox Testi'}
+                    </button>
+                    {/* Kinguin key iadesi — talep + onay (ESA §14: key claim edilmeden) */}
+                    {detail?.metadata?.kinguin_return_status === 'pending_approval' ? (
+                      <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 space-y-2">
+                        <p className="text-xs text-yellow-300 font-bold">
+                          ↩️ İade talebi bekliyor — onayınız gerekiyor
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => resolveKinguinReturn(detail.id, true)}
+                            disabled={returnBusy}
+                            className="flex-1 px-3 py-2 bg-red-500/15 border border-red-500/40 text-red-300 rounded-lg disabled:opacity-40"
+                          >
+                            {returnBusy ? '…' : '✅ Onayla (Kinguin’e iade)'}
+                          </button>
+                          <button
+                            onClick={() => resolveKinguinReturn(detail.id, false)}
+                            disabled={returnBusy}
+                            className="flex-1 px-3 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg disabled:opacity-40"
+                          >
+                            ❌ Reddet
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Onaylanınca key’ler Kinguin’e iade edilir, tutar Kinguin bakiyesine geri yazılır. Key’ler müşteriye teslim edildiyse iade edilemez.
+                        </p>
+                      </div>
+                    ) : (
+                      detail?.metadata?.kinguin_order_id &&
+                      !fulfilled && (
+                        <button
+                          onClick={() => requestKinguinReturn(detail.id)}
+                          disabled={returnBusy || busy !== null}
+                          className="w-full px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-200 rounded-lg hover:border-red-500/50 disabled:opacity-40"
+                        >
+                          {returnBusy ? 'Talep oluşturuluyor…' : '↩️ Kinguin Key İade Talebi'}
+                        </button>
+                      )
+                    )}
+                    {returnMsg && (
+                      <div
+                        className={`rounded-lg border p-3 text-xs ${
+                          returnMsg.ok
+                            ? 'bg-green-500/10 border-green-500/40 text-green-300'
+                            : 'bg-red-500/10 border-red-500/40 text-red-300'
+                        }`}
+                      >
+                        {returnMsg.text}
+                      </div>
+                    )}
+                    {sandboxResult && (
+                      <div
+                        className={`rounded-lg border p-3 text-xs space-y-1 ${
+                          sandboxResult.ok
+                            ? 'bg-green-500/10 border-green-500/40 text-green-300'
+                            : 'bg-red-500/10 border-red-500/40 text-red-300'
+                        }`}
+                      >
+                        <div className="font-bold text-white">
+                          {sandboxResult.ok ? 'Sandbox sonucu' : 'Sandbox hatası'}
+                        </div>
+                        <p>{sandboxResult.message}</p>
+                        {sandboxResult.local_order_keys && (
+                          <p>
+                            Yerel key: {sandboxResult.local_order_keys.count ?? 0}
+                            {Array.isArray(sandboxResult.local_order_keys.statuses) &&
+                              sandboxResult.local_order_keys.statuses.length > 0 &&
+                              ` · ${sandboxResult.local_order_keys.statuses.join(', ')}`}
+                          </p>
+                        )}
+                        {sandboxResult.sandbox_order_id && (
+                          <p className="font-mono break-all">
+                            Sandbox sipariş: {sandboxResult.sandbox_order_id}
+                          </p>
+                        )}
+                        {typeof sandboxResult.test_key_count === 'number' && (
+                          <p>Test anahtarı: {sandboxResult.test_key_count}</p>
+                        )}
+                        {Array.isArray(sandboxResult.test_keys) && sandboxResult.test_keys.length > 0 && (
+                          <div className="pt-1 space-y-1">
+                            {sandboxResult.test_keys.map((key: any, index: number) => (
+                              <div key={index} className="font-mono break-all text-gray-200">
+                                {key.serial || '-'} {key.name ? `· ${key.name}` : ''}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -4,6 +4,25 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { adminApi } from '@/lib/admin-api'
+import { translate } from '@/i18n'
+
+/** "facebook.com/x" gibi yazimlari https:// ile tamamlar. */
+function normalizeSocialUrl(value: string) {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed.replace(/^\/+/, '')}`
+}
+
+function isValidSocialUrl(url: string) {
+  if (!url) return true
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -20,6 +39,17 @@ export default function SettingsPage() {
     whatsapp_message: '',
     max_price_eur: 100,
     logo_url: '',
+    social_facebook: '',
+    social_instagram: '',
+    social_x: '',
+    social_linkedin: '',
+    social_youtube: '',
+    announcement_enabled: true,
+    announcement_en: '',
+    announcement_tr: '',
+    announcement_de: '',
+    announcement_fr: '',
+    announcement_ar: '',
   })
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -67,6 +97,17 @@ export default function SettingsPage() {
           whatsapp_message: map['store.whatsapp_message'] ?? '',
           max_price_eur: Number(map['catalog.max_price_eur'] ?? 100),
           logo_url: map['store.logo_url'] ?? '',
+          social_instagram: map['store.social.instagram'] ?? '',
+          announcement_enabled: map['store.announcement.enabled'] !== false,
+          announcement_en: map['store.announcement.en'] ?? '',
+          announcement_tr: map['store.announcement.tr'] ?? '',
+          announcement_de: map['store.announcement.de'] ?? '',
+          announcement_fr: map['store.announcement.fr'] ?? '',
+          announcement_ar: map['store.announcement.ar'] ?? '',
+          social_facebook: map['store.social.facebook'] ?? '',
+          social_x: map['store.social.x'] ?? '',
+          social_linkedin: map['store.social.linkedin'] ?? '',
+          social_youtube: map['store.social.youtube'] ?? '',
         }))
 
         try {
@@ -138,6 +179,29 @@ export default function SettingsPage() {
       return
     }
 
+    const socialUrls = {
+      facebook: normalizeSocialUrl(settings.social_facebook),
+      instagram: normalizeSocialUrl(settings.social_instagram),
+      x: normalizeSocialUrl(settings.social_x),
+      linkedin: normalizeSocialUrl(settings.social_linkedin),
+      youtube: normalizeSocialUrl(settings.social_youtube),
+    }
+
+    const invalidSocial = Object.entries(socialUrls).find(([, url]) => !isValidSocialUrl(url))
+    if (invalidSocial) {
+      alert('Geçerli bir sosyal medya adresi girin. Örnek: https://facebook.com/magazaniz')
+      return
+    }
+
+    setSettings((prev) => ({
+      ...prev,
+      social_facebook: socialUrls.facebook,
+      social_instagram: socialUrls.instagram,
+      social_x: socialUrls.x,
+      social_linkedin: socialUrls.linkedin,
+      social_youtube: socialUrls.youtube,
+    }))
+
     setLoading(true)
     setSuccess(false)
 
@@ -148,6 +212,17 @@ export default function SettingsPage() {
         { key: 'store.description', value: settings.store_description, category: 'store' },
         { key: 'store.support_email', value: email, category: 'store' },
         { key: 'store.logo_url', value: settings.logo_url, category: 'store' },
+        { key: 'store.social.facebook', value: socialUrls.facebook, category: 'store' },
+        { key: 'store.social.instagram', value: socialUrls.instagram, category: 'store' },
+        { key: 'store.social.x', value: socialUrls.x, category: 'store' },
+        { key: 'store.social.linkedin', value: socialUrls.linkedin, category: 'store' },
+        { key: 'store.social.youtube', value: socialUrls.youtube, category: 'store' },
+        { key: 'store.announcement.enabled', value: settings.announcement_enabled, category: 'store' },
+        { key: 'store.announcement.en', value: settings.announcement_en, category: 'store' },
+        { key: 'store.announcement.tr', value: settings.announcement_tr, category: 'store' },
+        { key: 'store.announcement.de', value: settings.announcement_de, category: 'store' },
+        { key: 'store.announcement.fr', value: settings.announcement_fr, category: 'store' },
+        { key: 'store.announcement.ar', value: settings.announcement_ar, category: 'store' },
         { key: 'store.enable_wishlist', value: settings.enable_wishlist, category: 'store' },
         { key: 'store.enable_reviews', value: settings.enable_reviews, category: 'store' },
         { key: 'store.whatsapp_number', value: settings.whatsapp_number, category: 'store' },
@@ -192,6 +267,11 @@ export default function SettingsPage() {
           store_description: map['store.description'] ?? prev.store_description,
           support_email: map['store.support_email'] ?? prev.support_email,
           logo_url: map['store.logo_url'] ?? prev.logo_url,
+          social_instagram: map['store.social.instagram'] ?? '',
+          social_facebook: map['store.social.facebook'] ?? '',
+          social_x: map['store.social.x'] ?? '',
+          social_linkedin: map['store.social.linkedin'] ?? '',
+          social_youtube: map['store.social.youtube'] ?? '',
           currency: String(map['currencies.default'] ?? prev.currency).toUpperCase(),
           tax_rate: Number(map['tax.rate'] ?? prev.tax_rate),
           max_price_eur: Number(map['catalog.max_price_eur'] ?? prev.max_price_eur),
@@ -352,6 +432,145 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, whatsapp_message: e.target.value })}
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                   placeholder="Merhaba, bir ürün hakkında bilgi almak istiyorum."
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-1">Sosyal Medya Bağlantıları</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Doldurduğunuz alanlar mağaza alt bilgisinde (footer) simge olarak görünür. Boş bırakılan
+              simgeler gizlenir. Adresi başında https:// olmadan da yazabilirsiniz; otomatik eklenir.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Facebook</label>
+                <input
+                  type="url"
+                  value={settings.social_facebook}
+                  onChange={(e) => setSettings({ ...settings, social_facebook: e.target.value })}
+                  placeholder="https://facebook.com/magazaniz"
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Instagram</label>
+                <input
+                  type="url"
+                  value={settings.social_instagram}
+                  onChange={(e) => setSettings({ ...settings, social_instagram: e.target.value })}
+                  placeholder="https://instagram.com/magazaniz"
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">X (Twitter)</label>
+                <input
+                  type="url"
+                  value={settings.social_x}
+                  onChange={(e) => setSettings({ ...settings, social_x: e.target.value })}
+                  placeholder="https://x.com/magazaniz"
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">LinkedIn</label>
+                <input
+                  type="url"
+                  value={settings.social_linkedin}
+                  onChange={(e) => setSettings({ ...settings, social_linkedin: e.target.value })}
+                  placeholder="https://linkedin.com/company/magazaniz"
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">YouTube</label>
+                <input
+                  type="url"
+                  value={settings.social_youtube}
+                  onChange={(e) => setSettings({ ...settings, social_youtube: e.target.value })}
+                  placeholder="https://youtube.com/@magazaniz"
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-1">Üst Duyuru Şeridi</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Header’ın en üstündeki turuncu şerit. Anahtarı kapatırsanız şerit tamamen kaldırılır.
+              Bir dil alanını boş bırakırsanız o dilde varsayılan metin (alanın içinde soluk görünen
+              yazı) gösterilir.
+            </p>
+
+            <label className="flex items-center gap-3 cursor-pointer mb-5">
+              <input
+                type="checkbox"
+                checked={settings.announcement_enabled}
+                onChange={(e) =>
+                  setSettings({ ...settings, announcement_enabled: e.target.checked })
+                }
+                className="w-5 h-5 bg-[#1a1d24] border border-gray-700 rounded text-[#ff6b35] focus:ring-[#ff6b35]"
+              />
+              <div>
+                <div className="text-white font-medium">Şeridi göster</div>
+                <div className="text-sm text-gray-400">
+                  Kapatıldığında üst şerit hiç görünmez.
+                </div>
+              </div>
+            </label>
+
+            <div className={`grid md:grid-cols-2 gap-4 ${settings.announcement_enabled ? '' : 'opacity-50'}`}>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Türkçe (TR)</label>
+                <textarea
+                  rows={2}
+                  value={settings.announcement_tr}
+                  onChange={(e) => setSettings({ ...settings, announcement_tr: e.target.value })}
+                  placeholder={translate('tr', 'nav.banner')}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">İngilizce (EN)</label>
+                <textarea
+                  rows={2}
+                  value={settings.announcement_en}
+                  onChange={(e) => setSettings({ ...settings, announcement_en: e.target.value })}
+                  placeholder={translate('en', 'nav.banner')}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Almanca (DE)</label>
+                <textarea
+                  rows={2}
+                  value={settings.announcement_de}
+                  onChange={(e) => setSettings({ ...settings, announcement_de: e.target.value })}
+                  placeholder={translate('de', 'nav.banner')}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Fransızca (FR)</label>
+                <textarea
+                  rows={2}
+                  value={settings.announcement_fr}
+                  onChange={(e) => setSettings({ ...settings, announcement_fr: e.target.value })}
+                  placeholder={translate('fr', 'nav.banner')}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Arapça (AR)</label>
+                <textarea
+                  rows={2}
+                  value={settings.announcement_ar}
+                  onChange={(e) => setSettings({ ...settings, announcement_ar: e.target.value })}
+                  placeholder={translate('ar', 'nav.banner')}
+                  className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                 />
               </div>
             </div>

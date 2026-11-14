@@ -38,6 +38,39 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     )
     const logoUrl = await storeSettingsModule.getSettingValue('store.logo_url', '')
 
+    // Sosyal medya baglantilari (admin panelden yonetilir, bos olanlar gizlenir)
+    const socialValue = async (key: string) => {
+      const value = await storeSettingsModule.getSettingValue(key, '')
+      return typeof value === 'string' ? value.trim() : ''
+    }
+    const social = {
+      facebook: await socialValue('store.social.facebook'),
+      instagram: await socialValue('store.social.instagram'),
+      x: await socialValue('store.social.x'),
+      linkedin: await socialValue('store.social.linkedin'),
+      youtube: await socialValue('store.social.youtube'),
+    }
+
+    // Ust duyuru seridi: admin panelden duzenlenir, kapatilirsa hic gosterilmez.
+    const announcementEnabled = await storeSettingsModule.getSettingValue(
+      'store.announcement.enabled',
+      true
+    )
+    const announcementText = async (key: string) => {
+      const value = await storeSettingsModule.getSettingValue(key, '')
+      return typeof value === 'string' ? value.trim() : ''
+    }
+    const announcement = {
+      enabled: announcementEnabled !== false,
+      texts: {
+        en: await announcementText('store.announcement.en'),
+        tr: await announcementText('store.announcement.tr'),
+        de: await announcementText('store.announcement.de'),
+        fr: await announcementText('store.announcement.fr'),
+        ar: await announcementText('store.announcement.ar'),
+      },
+    }
+
     // Odeme saglayici ayarlari (admin panelden yonetilir)
     const settingsValue = async (key: string, fallback = '') => {
       const value = await storeSettingsModule.getSettingValue(key, fallback)
@@ -76,6 +109,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         logo_url: logoUrl || '',
         whatsapp_number: whatsappNumber || '',
         whatsapp_message: whatsappMessage || '',
+        social,
+        announcement,
       },
       taxes: {
         rate: typeof taxRate === 'number' ? taxRate : parseFloat(taxRate) || 0,
@@ -109,6 +144,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         logo_url: '',
         whatsapp_number: '',
         whatsapp_message: '',
+        social: {
+          facebook: '',
+          instagram: '',
+          x: '',
+          linkedin: '',
+          youtube: '',
+        },
       },
       taxes: {
         rate: 0,

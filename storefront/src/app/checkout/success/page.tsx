@@ -4,6 +4,9 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { useT } from '@/components/useT'
+import { useTranslation } from '@/i18n/LocaleProvider'
+import { formatCurrency, formatDate } from '@/i18n'
 
 interface Order {
   id: string
@@ -21,6 +24,8 @@ interface Order {
 }
 
 function CheckoutSuccessContent() {
+  const t = useT()
+  const { locale } = useTranslation()
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order_id')
   const [order, setOrder] = useState<Order | null>(null)
@@ -76,11 +81,12 @@ function CheckoutSuccessContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 className="text-5xl font-black text-white mb-4">ORDER SUCCESSFUL! 🎉</h1>
-            <p className="text-xl text-gray-300 mb-2">Thank you for your purchase!</p>
+            <h1 className="text-5xl font-black text-white mb-4">{t('success.title')}</h1>
+            <p className="text-xl text-gray-300 mb-2">{t('success.thanks')}</p>
             {order && (
               <p className="text-gray-400">
-                Order #{order.display_id} • {new Date(order.created_at).toLocaleDateString()}
+                {t('success.orderNumber', { id: order.display_id })} •{' '}
+                {formatDate(order.created_at, locale, { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             )}
           </div>
@@ -88,19 +94,18 @@ function CheckoutSuccessContent() {
           {/* Bank Transfer Details */}
           {bank && (
             <div className="gaming-card p-8 mb-6 border border-[#ff6b35]/40">
-              <h2 className="text-2xl font-black text-white mb-2">🏦 Banka Havalesi Bilgileri</h2>
+              <h2 className="text-2xl font-black text-white mb-2">{t('success.bankTitle')}</h2>
               <p className="text-sm text-gray-400 mb-6">
-                Siparişinizin hazırlanması için aşağıdaki hesaba havale/EFT yapın. Açıklama kısmına
-                sipariş numaranızı yazmayı unutmayın.
+                {t('success.bankDesc')}
               </p>
               <dl className="grid sm:grid-cols-2 gap-4 text-sm">
                 {[
-                  ['Banka', bank.bank_name],
-                  ['Hesap Sahibi', bank.account_name],
-                  ['IBAN', bank.iban],
-                  ['Hesap Numarası', bank.account_number],
-                  ['Sort Code', bank.sort_code],
-                  ['SWIFT / BIC', bank.swift],
+                  [t('success.bank.bankName'), bank.bank_name],
+                  [t('success.bank.accountName'), bank.account_name],
+                  [t('success.bank.iban'), bank.iban],
+                  [t('success.bank.accountNumber'), bank.account_number],
+                  [t('success.bank.sortCode'), bank.sort_code],
+                  [t('success.bank.swift'), bank.swift],
                 ]
                   .filter(([, value]) => Boolean(value))
                   .map(([label, value]) => (
@@ -116,17 +121,16 @@ function CheckoutSuccessContent() {
 
           {/* What Happens Next */}
           <div className="gaming-card p-8 mb-6">
-            <h2 className="text-2xl font-black text-white mb-6">📧 WHAT HAPPENS NEXT?</h2>
+            <h2 className="text-2xl font-black text-white mb-6">{t('success.nextTitle')}</h2>
             <div className="space-y-4">
               <div className="flex gap-4 items-start">
                 <div className="flex-shrink-0 w-10 h-10 bg-[#ff6b35] rounded-full flex items-center justify-center font-bold text-white">
                   1
                 </div>
                 <div>
-                  <h3 className="font-bold text-white mb-1">Check Your Email</h3>
+                  <h3 className="font-bold text-white mb-1">{t('success.step1Title')}</h3>
                   <p className="text-gray-400 text-sm">
-                    We've sent your game keys and order confirmation to your email address. Check your inbox (and spam
-                    folder) now!
+                    {t('success.step1Desc')}
                   </p>
                 </div>
               </div>
@@ -136,9 +140,9 @@ function CheckoutSuccessContent() {
                   2
                 </div>
                 <div>
-                  <h3 className="font-bold text-white mb-1">View Your Keys</h3>
+                  <h3 className="font-bold text-white mb-1">{t('success.step2Title')}</h3>
                   <p className="text-gray-400 text-sm">
-                    You can also access your keys anytime from your account dashboard under "My Orders".
+                    {t('success.step2Desc')}
                   </p>
                 </div>
               </div>
@@ -148,9 +152,9 @@ function CheckoutSuccessContent() {
                   3
                 </div>
                 <div>
-                  <h3 className="font-bold text-white mb-1">Activate & Play!</h3>
+                  <h3 className="font-bold text-white mb-1">{t('success.step3Title')}</h3>
                   <p className="text-gray-400 text-sm">
-                    Follow the activation instructions included with your key to start playing immediately.
+                    {t('success.step3Desc')}
                   </p>
                 </div>
               </div>
@@ -160,22 +164,22 @@ function CheckoutSuccessContent() {
           {/* Order Details */}
           {order && (
             <div className="gaming-card p-8 mb-6">
-              <h2 className="text-2xl font-black text-white mb-6">📦 ORDER DETAILS</h2>
+              <h2 className="text-2xl font-black text-white mb-6">{t('success.orderDetails')}</h2>
               <div className="space-y-4">
                 {order.items.map((item, index) => (
                   <div key={index} className="bg-[#1a1d24] rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-bold text-white">{item.title}</h3>
-                        <p className="text-sm text-gray-400">Quantity: {item.quantity}</p>
+                        <p className="text-sm text-gray-400">{t('success.quantity', { count: item.quantity })}</p>
                       </div>
                       <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                        DELIVERED
+                        {t('success.delivered')}
                       </span>
                     </div>
                     {item.metadata?.digital_key && (
                       <div className="mt-3 bg-[#0a0b0d] border border-gray-700 rounded p-3">
-                        <div className="text-xs text-gray-500 mb-1">GAME KEY:</div>
+                        <div className="text-xs text-gray-500 mb-1">{t('success.gameKey')}</div>
                         <div className="font-mono text-[#ff6b35] text-lg font-bold">{item.metadata.digital_key}</div>
                       </div>
                     )}
@@ -184,12 +188,9 @@ function CheckoutSuccessContent() {
 
                 <div className="border-t border-gray-700 pt-4 mt-4">
                   <div className="flex justify-between text-lg font-bold text-white">
-                    <span>Total Paid:</span>
+                    <span>{t('success.totalPaid')}</span>
                     <span>
-                      {new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: order.currency_code,
-                      }).format(order.total / 100)}
+                      {formatCurrency(order.total / 100, order.currency_code, locale)}
                     </span>
                   </div>
                 </div>
@@ -200,21 +201,21 @@ function CheckoutSuccessContent() {
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/account/orders" className="btn-primary text-center">
-              VIEW ALL ORDERS
+              {t('success.viewAllOrders')}
             </Link>
             <Link href="/products" className="btn-secondary text-center">
-              CONTINUE SHOPPING
+              {t('success.continueShopping')}
             </Link>
           </div>
 
           {/* Help Section */}
           <div className="mt-8 bg-blue-500/10 border border-blue-500/30 rounded-lg p-6 text-center">
-            <h3 className="font-bold text-white mb-2">Need Help?</h3>
+            <h3 className="font-bold text-white mb-2">{t('success.helpTitle')}</h3>
             <p className="text-gray-400 text-sm mb-4">
-              If you didn't receive your keys or have any issues, our support team is here to help 24/7.
+              {t('success.helpDesc')}
             </p>
             <Link href="/contact" className="text-[#ff6b35] hover:underline font-semibold">
-              Contact Support →
+              {t('success.contactSupport')}
             </Link>
           </div>
         </div>

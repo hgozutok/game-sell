@@ -50,6 +50,10 @@ Modül **para güvenliği için varsayılan `order_mode=readonly`** ile başlar:
 6. **Bakiye kontrolü** — Admin → *Kinguin* → bakiye (`GET /admin/kinguin/balance`). Min bakiye eşiği altındaysa otomatik fulfill durur, admin bildirimi düşer.
 7. **Live'a geçiş** — Admin → *Kinguin Ayarlar* → "Canliya gec" (çift onay sorar). Bu adım **denetim kaydına** yazılır (`settings.update`, diff ile). Artık `auto_fulfill_enabled=true` ise ödeme sonrası Kinguin siparişi otomatik oluşur.
 
+### Sandbox sipariş testi (admin)
+
+`KINGUIN_SANDBOX_API_KEY` tanımlıysa **Admin → Sipariş Kontrol → sipariş detayı → 🧪 Kinguin Sandbox Testi** butonu, siparişin Kinguin ürünlerini sandbox ortamında test siparişi olarak oluşturur ve dönen test anahtarlarını gösterir. Üretim API'sine veya gerçek bakiyeye dokunmaz. Anahtar tanımlı değilse buton "sandbox anahtarı tanımlı değil" uyarısı verir; production anahtarı sandbox gateway'de 401 döner.
+
 ## 4. Fulfillment Akışı
 
 ```

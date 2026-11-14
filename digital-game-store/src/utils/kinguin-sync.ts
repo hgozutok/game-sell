@@ -48,7 +48,7 @@ export interface SyncSummary {
   logId?: string
 }
 
-function slugify(s: string): string {
+export function slugify(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFKD")
@@ -201,6 +201,35 @@ async function getOrCreateCollectionId(
   }
 }
 
+// Genres live in product categories (many-to-many); collections are many-to-one
+// so platform + genre ayni anda tutulamaz. Kategori yoksa yaratilir.
+async function getOrCreateGenreCategoryIds(
+  productModule: AnyService,
+  genres: string[] | null | undefined
+): Promise<string[]> {
+  const ids: string[] = []
+  for (const raw of genres || []) {
+    const name = String(raw).trim()
+    if (!name) continue
+    try {
+      const existing = await productModule.listProductCategories({ name })
+      if (existing?.length) {
+        ids.push(existing[0].id)
+        continue
+      }
+      const created = await productModule.createProductCategories({
+        name,
+        is_active: true,
+        is_internal: false,
+      })
+      ids.push(created.id)
+    } catch {
+      // kategori basarisiz olurursa urun listeleme akisini bloklamayalim
+    }
+  }
+  return [...new Set(ids)]
+}
+
 export async function listKinguinProduct(
   container: any,
   kp: KinguinProductRow,
@@ -233,6 +262,7 @@ export async function listKinguinProduct(
   const platformCollectionId = kp.platform
     ? await getOrCreateCollectionId(productModule, kp.platform)
     : null
+  const genreCategoryIds = await getOrCreateGenreCategoryIds(productModule, kp.genres)
 
   const metadata: Record<string, any> = {
     provider: "kinguin",
@@ -260,12 +290,19 @@ export async function listKinguinProduct(
     }
 
     if (productId) {
+      // updateProducts category_ids'i SET eder; mevcut kategorilerle birlestirilir
+      const current = await productModule
+        .listProducts({ id: productId }, { relations: ["categories"], take: 1 })
+        .catch(() => [])
+      const existingCatIds: string[] = (current?.[0]?.categories || []).map((c: any) => c.id)
       await productModule.updateProducts(productId, {
         title: kp.name.substring(0, 255),
         thumbnail,
         images: [{ url: thumbnail }],
         status: opts.publish === false ? "draft" : "published",
-        collection_ids: platformCollectionId ? [platformCollectionId] : undefined,
+        // Medusa v2'de urun->collection many-to-one; alan adi tekil (collection_ids yok sayilir)
+        collection_id: platformCollectionId || undefined,
+        category_ids: [...new Set([...existingCatIds, ...genreCategoryIds])],
         metadata,
       })
     } else {
@@ -275,7 +312,9 @@ export async function listKinguinProduct(
         status: opts.publish === false ? "draft" : "published",
         thumbnail,
         images: [{ url: thumbnail }],
-        collection_ids: platformCollectionId ? [platformCollectionId] : undefined,
+        // Medusa v2'de urun->collection many-to-one; alan adi tekil (collection_ids yok sayilir)
+        collection_id: platformCollectionId || undefined,
+        category_ids: genreCategoryIds.length ? genreCategoryIds : undefined,
         metadata,
       })
       productId = created.id

@@ -1,7 +1,10 @@
 'use client'
 
+import { getClientLocale, localeDir, translate } from '@/i18n'
+
 // Root layout'u bozuldugunda devreye giren en ust seviye hata sayfasi.
-// Kendi <html>/<body> etiketlerini render etmek zorundadir.
+// Kendi <html>/<body> etiketlerini render etmek zorundadir; provider yoktur,
+// bu yuzden dil dogrudan cerezden cozulur.
 export default function GlobalError({
   error,
   reset,
@@ -9,8 +12,12 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const locale = getClientLocale()
+  const t = (key: string, vars?: Record<string, string | number | undefined>) =>
+    translate(locale, key, vars)
+
   return (
-    <html lang="tr">
+    <html lang={locale} dir={localeDir(locale)}>
       <body
         style={{
           margin: 0,
@@ -21,20 +28,19 @@ export default function GlobalError({
           background: '#0a0b0d',
           color: '#fff',
           fontFamily:
-            'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+            'Inter, system-ui, -apple-system, "Segoe UI", Tahoma, Roboto, Helvetica, Arial, sans-serif',
           padding: '24px',
         }}
       >
         <div style={{ maxWidth: 520, textAlign: 'center' }}>
           <div style={{ fontSize: 72, marginBottom: 12 }}>🛠️</div>
-          <h1 style={{ fontSize: 30, margin: '0 0 12px' }}>Beklenmeyen bir hata oluştu</h1>
+          <h1 style={{ fontSize: 30, margin: '0 0 12px' }}>{t('globalError.title')}</h1>
           <p style={{ color: '#9ca3af', margin: '0 0 24px', lineHeight: 1.6 }}>
-            Mağaza şu anda yüklenemedi. Sayfayı yenilemeyi deneyin; sorun devam ederse destek ile
-            iletişime geçin.
+            {t('globalError.description')}
           </p>
           {error?.digest && (
             <p style={{ color: '#4b5563', fontSize: 12, fontFamily: 'monospace' }}>
-              Hata kodu: {error.digest}
+              {t('error.code', { code: error.digest })}
             </p>
           )}
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -50,7 +56,7 @@ export default function GlobalError({
                 cursor: 'pointer',
               }}
             >
-              Tekrar dene
+              {t('error.retry')}
             </button>
             <a
               href="/"
@@ -63,7 +69,7 @@ export default function GlobalError({
                 textDecoration: 'none',
               }}
             >
-              Ana sayfa
+              {t('error.home')}
             </a>
           </div>
         </div>

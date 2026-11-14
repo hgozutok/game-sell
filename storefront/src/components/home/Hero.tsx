@@ -44,7 +44,7 @@ export default function Hero() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <Link href="/products" className="btn-primary group">
               {t('home.shopNow')}
-              <span className="inline-block ml-2 group-hover:translate-x-1 transition-transform">→</span>
+              <span className="inline-block ms-2 group-hover:translate-x-1 transition-transform rtl:rotate-180">→</span>
             </Link>
             <Link href="/deals" className="btn-secondary">
               {t('home.viewDeals')}

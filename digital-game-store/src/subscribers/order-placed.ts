@@ -2,6 +2,7 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework/subsc
 import { Modules } from "@medusajs/framework/utils"
 import { fulfillKinguinOrderWorkflow } from "../workflows/fulfill-kinguin-order"
 import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
+import { evaluatePurchaseVelocity } from "../utils/velocity-guard"
 
 /**
  * order.placed — odenen dijital siparisleri fulfillment kuyruguna alir.
@@ -117,6 +118,9 @@ export default async function orderPlacedHandler({
 
   const settings = await kinguin.getSettings()
   const storeSettings = container.resolve("storeSettings") as any
+  // Hizli satin alma guard'i once kos: esik asilirsa auto_fulfillment_enabled
+  // burada kapanir ve asagidaki okuma manuel modu gorur.
+  const velocity = await evaluatePurchaseVelocity(container, logger)
   const autoFulfillEnabled =
     (await storeSettings
       .getSettingValue("orders.auto_fulfillment_enabled", false)
@@ -134,6 +138,18 @@ export default async function orderPlacedHandler({
         },
       },
     ])
+  }
+
+  // -1) Alarm tetiklendiyse bu siparis de manuel kuyruga duser
+  if (velocity.triggered) {
+    await setState("awaiting_approval", {
+      fulfillment_error: "Hizli satin alma alarmi — otomatik teslimat manuel moda alindi",
+      velocity_guard_triggered: true,
+    })
+    logger.warn(
+      `[order-placed] ${orderId}: hiz alarmi (${velocity.count}/${velocity.maxOrders} siparis, ${velocity.windowMinutes}dk) — manuel kuyruk`
+    )
+    return
   }
 
   // 0) Ödeme onayı olmadan otomatik teslimat yok
@@ -203,6 +219,7 @@ export default async function orderPlacedHandler({
     // readonly/zarar/bakiye guard'lari tekrar denemeyi gereksiz kilar — dogrudan kuyruk
     const manual =
       code === "READONLY" || code === "NEGATIVE_MARGIN" || code === "BALANCE" ||
+      code === "ORDER_LIMIT" ||
       e?.name === "KinguinOrderModeError" || e?.name === "KinguinInsufficientBalanceError"
     await orderModule.updateOrders([
       {

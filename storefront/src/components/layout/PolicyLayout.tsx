@@ -1,12 +1,17 @@
+'use client'
+
 import Link from 'next/link'
+import { useT } from '@/components/useT'
 
 interface PolicyLayoutProps {
   title: string
-  lastUpdated: string
+  lastUpdated?: string
   children: React.ReactNode
 }
 
 export default function PolicyLayout({ title, lastUpdated, children }: PolicyLayoutProps) {
+  const t = useT()
+
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
       {/* Breadcrumb */}
@@ -14,7 +19,7 @@ export default function PolicyLayout({ title, lastUpdated, children }: PolicyLay
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
             <Link href="/" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Home
+              {t('common.home')}
             </Link>
             <span className="text-gray-600">/</span>
             <span className="text-white font-semibold">{title}</span>
@@ -27,7 +32,11 @@ export default function PolicyLayout({ title, lastUpdated, children }: PolicyLay
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-5xl md:text-6xl font-black text-white mb-4">{title}</h1>
-            <p className="text-gray-400">Last Updated: {lastUpdated}</p>
+            {lastUpdated && (
+              <p className="text-gray-400">
+                {t('common.lastUpdated')}: {lastUpdated}
+              </p>
+            )}
           </div>
         </div>
       </div>

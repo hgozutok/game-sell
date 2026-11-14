@@ -169,10 +169,10 @@ export default function ProductsPage() {
       <div className="bg-gradient-to-r from-[#1a1d24] to-[#15171c] border-b border-gray-800">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-            ALL GAMES
+            {t('catalog.allGamesTitle')}
           </h1>
           <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] mb-4"></div>
-          <p className="text-gray-400 text-lg">Explore our complete collection of digital game keys</p>
+          <p className="text-gray-400 text-lg">{t('catalog.allGamesSubtitle')}</p>
         </div>
       </div>
       
@@ -189,9 +189,9 @@ export default function ProductsPage() {
                 }}
                 className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg hover:border-[#ff6b35] focus:border-[#ff6b35] focus:outline-none text-sm font-semibold"
               >
-                <option value="all">Platform: All</option>
+                <option value="all">{t('catalog.platformAll')}</option>
                 {platforms.map(p => (
-                  <option key={p} value={p}>Platform: {p}</option>
+                  <option key={p} value={p}>{t('catalog.platformOption', { value: p })}</option>
                 ))}
               </select>
               <select 
@@ -202,9 +202,9 @@ export default function ProductsPage() {
                 }}
                 className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg hover:border-[#ff6b35] focus:border-[#ff6b35] focus:outline-none text-sm font-semibold"
               >
-                <option value="all">Genre: All</option>
+                <option value="all">{t('catalog.genreAll')}</option>
                 {genres.map(g => (
-                  <option key={g} value={g}>Genre: {g}</option>
+                  <option key={g} value={g}>{t('catalog.genreOption', { value: g })}</option>
                 ))}
               </select>
               <div className="relative price-filter-container">
@@ -212,16 +212,16 @@ export default function ProductsPage() {
                   onClick={() => setShowPriceFilter(!showPriceFilter)}
                   className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg hover:border-[#ff6b35] hover:text-white transition text-sm font-semibold"
                 >
-                  Price: {selectedCurrency.symbol}{priceMin} - {selectedCurrency.symbol}{priceMax}
+                  {t('catalog.priceButton', { min: `${selectedCurrency.symbol}${priceMin}`, max: `${selectedCurrency.symbol}${priceMax}` })}
                 </button>
                 
                 {showPriceFilter && (
-                  <div className="absolute top-full left-0 mt-2 w-80 bg-[#1a1d24] border border-gray-700 rounded-lg p-6 shadow-xl z-50 price-filter-container">
+                  <div className="absolute top-full start-0 mt-2 w-80 bg-[#1a1d24] border border-gray-700 rounded-lg p-6 shadow-xl z-50 price-filter-container">
                     <div className="mb-4">
                       <label className="text-white text-sm font-semibold mb-2 block">{t('catalog.priceRange')} ({selectedCurrency.code})</label>
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
-                          <label className="text-gray-400 text-xs mb-1 block">Min ({selectedCurrency.symbol})</label>
+                          <label className="text-gray-400 text-xs mb-1 block">{t('catalog.priceMin', { symbol: selectedCurrency.symbol })}</label>
                           <input
                             type="number"
                             value={priceMin}
@@ -234,7 +234,7 @@ export default function ProductsPage() {
                           />
                         </div>
                         <div className="flex-1">
-                          <label className="text-gray-400 text-xs mb-1 block">Max ({selectedCurrency.symbol})</label>
+                          <label className="text-gray-400 text-xs mb-1 block">{t('catalog.priceMax', { symbol: selectedCurrency.symbol })}</label>
                           <input
                             type="number"
                             value={priceMax}
@@ -280,7 +280,7 @@ export default function ProductsPage() {
                       onClick={() => setShowPriceFilter(false)}
                       className="w-full px-4 py-2 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white rounded-lg font-bold hover:shadow-lg transition"
                     >
-                      Apply
+                      {t('catalog.apply')}
                     </button>
                   </div>
                 )}
@@ -291,11 +291,11 @@ export default function ProductsPage() {
               onChange={(e) => setSortBy(e.target.value)}
               className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg hover:border-[#ff6b35] focus:border-[#ff6b35] focus:outline-none text-sm font-semibold"
             >
-              <option value="popular">Sort: Popular</option>
-              <option value="low-high">Price: Low to High</option>
-              <option value="high-low">Price: High to Low</option>
-              <option value="a-z">Name: A-Z</option>
-              <option value="newest">Newest First</option>
+              <option value="popular">{t('catalog.sortPopular')}</option>
+              <option value="low-high">{t('catalog.sortLowHigh')}</option>
+              <option value="high-low">{t('catalog.sortHighLow')}</option>
+              <option value="a-z">{t('catalog.nameAsc')}</option>
+              <option value="newest">{t('catalog.sortNewest')}</option>
             </select>
           </div>
         </div>
@@ -317,20 +317,20 @@ export default function ProductsPage() {
         ) : error ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">😕</div>
-            <h3 className="text-2xl font-bold mb-2">Failed to load products</h3>
-            <p className="text-gray-600 mb-6">Please try again later or check your connection.</p>
+            <h3 className="text-2xl font-bold mb-2">{t('catalog.loadFailedTitle')}</h3>
+            <p className="text-gray-600 mb-6">{t('catalog.loadFailedDesc')}</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn-primary"
             >
-              Try Again
+              {t('catalog.tryAgain')}
             </button>
           </div>
         ) : !data || products.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🎮</div>
-            <h3 className="text-2xl font-bold mb-2">No products available</h3>
-            <p className="text-gray-600 mb-6">Check back soon for new games!</p>
+            <h3 className="text-2xl font-bold mb-2">{t('catalog.noProductsAvailable')}</h3>
+            <p className="text-gray-600 mb-6">{t('catalog.checkBack')}</p>
           </div>
         ) : (
           <>
@@ -345,7 +345,7 @@ export default function ProductsPage() {
               <div className="mt-8 flex items-center justify-between bg-[#15171c] border border-gray-800 rounded-xl p-6">
                 <div className="flex items-center gap-4">
                   <label htmlFor="productsPerPage" className="text-gray-400 text-sm">
-                    Ürün sayısı:
+                    {t('catalog.perPage')}
                   </label>
                   <select
                     id="productsPerPage"
@@ -368,17 +368,17 @@ export default function ProductsPage() {
                     disabled={page === 1}
                     className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    ← Önceki
+                    {t('catalog.previous')}
                   </button>
                   <span className="text-white px-4">
-                    Sayfa {page} / {totalPages}
+                    {t('catalog.pageOf', { page, total: totalPages })}
                   </span>
                   <button
                     onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={page === totalPages}
                     className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Sonraki →
+                    {t('catalog.next')}
                   </button>
                 </div>
               </div>

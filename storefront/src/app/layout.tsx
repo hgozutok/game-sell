@@ -1,31 +1,60 @@
 import type { Metadata } from 'next'
+import { cookies, headers } from 'next/headers'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import SiteChrome from '@/components/layout/SiteChrome'
-import LangAttribute from '@/components/LangAttribute'
+import {
+  INTL_LOCALE,
+  LOCALE_COOKIE,
+  localeDir,
+  matchAcceptLanguage,
+  resolveLocale,
+  translate,
+  type Locale,
+} from '@/i18n'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], display: 'swap' })
 
-export const metadata: Metadata = {
-  title: 'Digital Game Store - Buy Game Keys Instantly',
-  description: 'Purchase digital game keys for PC, PlayStation, Xbox and more. Instant delivery to your email.',
+/** Aktif dili cerezden, yoksa tarayici dilinden cozer. */
+function resolveRequestLocale(): Locale {
+  const cookieLocale = cookies().get(LOCALE_COOKIE)?.value
+  if (cookieLocale) return resolveLocale(cookieLocale)
+  return matchAcceptLanguage(headers().get('accept-language'))
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export function generateMetadata(): Metadata {
+  const locale = resolveRequestLocale()
+  const title = translate(locale, 'meta.title')
+  const description = translate(locale, 'meta.description')
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      locale: INTL_LOCALE[locale].replace('-', '_'),
+      siteName: 'HUPIPLAY',
+    },
+    other: {
+      'content-language': locale,
+    },
+  }
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = resolveRequestLocale()
+  const dir = localeDir(locale)
+
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang={locale} dir={dir} className="scroll-smooth">
       <body className={`${inter.className} antialiased bg-[#0a0b0d]`}>
-        <Providers>
-          <LangAttribute />
+        <Providers initialLocale={locale}>
           <SiteChrome>{children}</SiteChrome>
         </Providers>
       </body>
     </html>
   )
 }
-

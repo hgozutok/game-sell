@@ -113,7 +113,7 @@ export default function ProductCollection({ title, filter, viewAllLink }: Produc
           >
             <span>{t("home.viewAll")}</span>
             <svg
-              className="w-5 h-5 group-hover:translate-x-1 transition-transform"
+              className="w-5 h-5 group-hover:translate-x-1 transition-transform rtl:-scale-x-100"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

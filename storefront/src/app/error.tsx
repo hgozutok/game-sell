@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { useT } from '@/components/useT'
 
 export default function Error({
   error,
@@ -10,6 +11,8 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const t = useT()
+
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error('Uygulama hatasi:', error)
@@ -20,29 +23,26 @@ export default function Error({
       <div className="max-w-xl w-full text-center">
         <div className="text-8xl mb-4">🛠️</div>
         <div className="text-[#ff6b35] font-black text-6xl mb-2">500</div>
-        <h1 className="text-3xl md:text-4xl font-black text-white mb-3">Bir şeyler ters gitti</h1>
-        <p className="text-gray-400 mb-2">
-          Bu sayfa yüklenirken beklenmeyen bir hata oluştu. Tekrar deneyebilir ya da ana sayfaya
-          dönebilirsiniz.
-        </p>
+        <h1 className="text-3xl md:text-4xl font-black text-white mb-3">{t('error.title')}</h1>
+        <p className="text-gray-400 mb-2">{t('error.description')}</p>
         {error?.digest && (
-          <p className="text-xs text-gray-600 mb-6 font-mono">Hata kodu: {error.digest}</p>
+          <p className="text-xs text-gray-600 mb-6 font-mono">{t('error.code', { code: error.digest })}</p>
         )}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button onClick={() => reset()} className="btn-primary px-6 py-3">
-            Tekrar dene
+            {t('error.retry')}
           </button>
           <Link
             href="/"
             className="px-6 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition"
           >
-            Ana sayfa
+            {t('error.home')}
           </Link>
           <Link
             href="/products"
             className="px-6 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition"
           >
-            Tüm oyunlar
+            {t('error.allGames')}
           </Link>
         </div>
       </div>

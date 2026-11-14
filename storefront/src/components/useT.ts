@@ -1,10 +1,12 @@
 'use client'
 
-import { useLanguageStore } from '@/store/languageStore'
-import { translate, type Locale } from '@/lib/i18n'
+import { useTranslation } from '@/i18n/LocaleProvider'
+import type { TVars } from '@/i18n/types'
 
-/** t('nav.allGames') — aktif dile göre çeviri döndürür. */
-export function useT(): (key: string) => string {
-  const locale = useLanguageStore((state) => state.locale)
-  return (key: string) => translate(key, locale as Locale)
+/**
+ * t('anahtar') — aktif dile gore ceviri dondurur.
+ * t('Anahtar {count}', { count }) — cogul/yer tutucu destekli.
+ */
+export function useT(): (key: string, vars?: TVars) => string {
+  return useTranslation().t
 }

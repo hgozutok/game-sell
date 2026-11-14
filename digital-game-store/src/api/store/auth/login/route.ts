@@ -1,75 +1,119 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
+import { getAuthSettings, mintCustomerJwt, sanitizeCustomer } from '../../../../utils/auth-session'
 
-/**
- * POST /store/auth/login
- * Customer login endpoint
- */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const logger = req.scope.resolve('logger') as any
   try {
-    const { email, password } = req.body as { email: string; password: string }
-
+    const { email, password } = (req.body || {}) as Record<string, string>
     if (!email || !password) {
-      return res.status(400).json({
-        message: 'Email and password are required',
-      })
+      return res.status(400).json({ code: 'missing_fields', message: 'Email ve şifre gerekli' })
+    }
+    const normalizedEmail = String(email).toLowerCase().trim()
+
+    const authModule = req.scope.resolve(Modules.AUTH) as any
+    const customerModule = req.scope.resolve(Modules.CUSTOMER) as any
+    const customers = await customerModule.listCustomers({ email: normalizedEmail })
+    const customer = customers?.[0]
+
+    if (!customer || !customer.has_account) {
+      return res.status(401).json({ code: 'invalid_credentials', message: 'Geçersiz e-posta veya şifre' })
     }
 
-    // Get customer module
-    const customerModuleService = req.scope.resolve(Modules.CUSTOMER) as any
-
-    // Find customer by email
-    const customers = await customerModuleService.listCustomers({
-      email,
-    })
-
-    if (!customers || customers.length === 0) {
-      return res.status(401).json({
-        message: 'Invalid email or password',
-      })
-    }
-
-    const customer = customers[0]
-
-    // Check if customer has an account
-    if (!customer.has_account) {
-      return res.status(401).json({
-        message: 'Invalid email or password',
-      })
-    }
-
-    // Verify password (stored in metadata for development)
-    // In production, use bcrypt.compare()
-    const storedPassword = customer.metadata?.password_hash
-    if (!storedPassword || storedPassword !== password) {
-      return res.status(401).json({
-        message: 'Invalid email or password',
-      })
-    }
-
-    // Create a simple session token (in production, use JWT or proper session management)
-    const sessionToken = Buffer.from(`${customer.id}:${Date.now()}`).toString('base64')
-
-    res.json({
-      customer: {
-        id: customer.id,
+    // E-posta dogrulama kapisi
+    const settings = await getAuthSettings(req.scope)
+    if (settings.verificationRequired && customer.metadata?.email_verified === false) {
+      return res.status(403).json({
+        code: 'email_not_verified',
+        message: 'E-postanız doğrulanmamış. Gelen kutunuzdaki bağlantıya tıklayın.',
         email: customer.email,
-        first_name: customer.first_name,
-        last_name: customer.last_name,
-        phone: customer.phone,
-        has_account: customer.has_account,
-        created_at: customer.created_at,
-        updated_at: customer.updated_at,
-        metadata: customer.metadata,
-      },
-      token: sessionToken,
+      })
+    }
+
+    // 1) Medusa emailpass ile dene (hash'li sifre)
+    let authIdentityId: string | null = null
+    try {
+      const result = await authModule.authenticate('emailpass', {
+        url: req.url,
+        headers: req.headers,
+        query: {},
+        body: { email: normalizedEmail, password },
+        protocol: req.protocol,
+      })
+      if (result?.success && result.authIdentity) {
+        authIdentityId = result.authIdentity.id
+        // actor bagini garanti et
+        const linked = result.authIdentity.app_metadata?.customer_id
+        if (!linked) {
+          await authModule.updateAuthIdentities({
+            id: authIdentityId!,
+            app_metadata: { customer_id: customer.id },
+          })
+        } else if (linked !== customer.id) {
+          return res.status(401).json({ code: 'invalid_credentials', message: 'Geçersiz e-posta veya şifre' })
+        }
+      }
+    } catch {
+      /* emailpass denemesi basarisiz — legacy fallback asagida */
+    }
+
+    // 2) Legacy fallback: eski kayitlarda sifre metadata.password_hash'te (duz metin).
+    //    Eslesirse Medusa emailpass identity'sine tasi (hash'li) ve JWT uret.
+    if (!authIdentityId) {
+      const legacyPassword = customer.metadata?.password_hash
+      if (!legacyPassword || legacyPassword !== password) {
+        return res.status(401).json({ code: 'invalid_credentials', message: 'Geçersiz e-posta veya şifre' })
+      }
+      logger.info(`[auth] legacy sifre migrasyonu: ${normalizedEmail}`)
+      try {
+        const reg = await authModule.register('emailpass', {
+          url: req.url,
+          headers: req.headers,
+          query: {},
+          body: { email: normalizedEmail, password },
+          protocol: req.protocol,
+        })
+        if (reg?.success && reg.authIdentity) {
+          authIdentityId = reg.authIdentity.id
+        }
+      } catch (regErr: any) {
+        // identity zaten vardi (baska sifreyle) — list'den bul
+        try {
+          const identities = await authModule.listAuthIdentities(
+            { provider: 'emailpass', entity_id: normalizedEmail },
+            { take: 1 }
+          )
+          authIdentityId = identities?.[0]?.id || null
+        } catch {
+          authIdentityId = null
+        }
+      }
+      if (authIdentityId) {
+        await authModule
+          .updateAuthIdentities({ id: authIdentityId, app_metadata: { customer_id: customer.id } })
+          .catch(() => null)
+        // duz metin sifreyi metadata'dan temizle
+        await customerModule
+          .updateCustomers(customer.id, { metadata: { ...(customer.metadata || {}), password_hash: null } })
+          .catch(() => null)
+      }
+    }
+
+    if (!authIdentityId) {
+      // kimlik tasiyorumamadi — yine de oturum JWT'si uret (auth_identity yok ama actor biliniyor)
+      authIdentityId = ''
+    }
+
+    const token = mintCustomerJwt(req.scope, {
+      customerId: customer.id,
+      authIdentityId,
     })
+
+    res.json({ token, customer: sanitizeCustomer(customer) })
   } catch (error: any) {
-    console.error('Login error:', error)
-    res.status(500).json({
-      message: 'Login failed',
-      error: error.message,
-    })
+    logger.error(`[auth] login hatasi: ${error?.message}`)
+    res.status(500).json({ code: 'login_failed', message: 'Giriş yapılamadı' })
   }
 }
-

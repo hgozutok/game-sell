@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "i18n:check:rendered": "node scripts/check-rendered.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

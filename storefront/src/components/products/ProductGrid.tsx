@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import ProductCard from './ProductCard'
+import { useT } from '@/components/useT'
 
 export default function ProductGrid() {
+  const t = useT()
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(50)
 
@@ -58,13 +60,13 @@ export default function ProductGrid() {
     return (
       <div className="text-center py-16">
         <div className="text-6xl mb-4">😕</div>
-        <h3 className="text-2xl font-bold mb-2">Failed to load products</h3>
-        <p className="text-gray-600 mb-6">Please try again later or check your connection.</p>
+        <h3 className="text-2xl font-bold mb-2">{t('catalog.loadFailedTitle')}</h3>
+        <p className="text-gray-600 mb-6">{t('catalog.loadFailedDesc')}</p>
         <button 
           onClick={() => window.location.reload()} 
           className="btn-primary"
         >
-          Try Again
+          {t('catalog.tryAgain')}
         </button>
       </div>
     )
@@ -74,8 +76,8 @@ export default function ProductGrid() {
     return (
       <div className="text-center py-16">
         <div className="text-6xl mb-4">🎮</div>
-        <h3 className="text-2xl font-bold mb-2">No products available</h3>
-        <p className="text-gray-600 mb-6">Check back soon for new games!</p>
+        <h3 className="text-2xl font-bold mb-2">{t('catalog.noProductsAvailable')}</h3>
+        <p className="text-gray-600 mb-6">{t('catalog.checkBack')}</p>
       </div>
     )
   }
@@ -93,7 +95,7 @@ export default function ProductGrid() {
         <div className="mt-8 flex items-center justify-between bg-[#15171c] border border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <label htmlFor="productsPerPage" className="text-gray-400 text-sm">
-              Ürün sayısı:
+              {t('catalog.perPage')}
             </label>
             <select
               id="productsPerPage"
@@ -116,17 +118,17 @@ export default function ProductGrid() {
               disabled={page === 1}
               className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ← Önceki
+              {t('catalog.previous')}
             </button>
             <span className="text-white px-4">
-              Sayfa {page} / {totalPages}
+              {t('catalog.pageOf', { page, total: totalPages })}
             </span>
             <button
               onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
               disabled={page === totalPages}
               className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sonraki →
+              {t('catalog.next')}
             </button>
           </div>
         </div>

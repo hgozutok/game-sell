@@ -8,6 +8,7 @@ import "swiper/css"
 import "swiper/css/navigation"
 import "swiper/css/pagination"
 import "swiper/css/effect-fade"
+import { useT } from "@/components/useT"
 
 interface SlideItem {
   id: string
@@ -20,6 +21,7 @@ interface SlideItem {
 }
 
 export default function HomeSlider() {
+  const t = useT()
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -28,7 +30,7 @@ export default function HomeSlider() {
       try {
         const { api } = await import("@/lib/api")
         const response = await api.get("/store/slider")
-        
+
         if (response.data.slides && response.data.slides.length > 0) {
           const formattedSlides = response.data.slides.map((slide: any) => ({
             id: slide.id,
@@ -41,40 +43,40 @@ export default function HomeSlider() {
           }))
           setSlides(formattedSlides)
         } else {
-          // Fallback to default slides if API returns nothing
+          // API bos donerse varsayilan (cevrilebilir) slaytlar
           setSlides([
             {
               id: "1",
               type: "banner",
               image: "/slider-1.jpg",
-              title: "Huge Summer Sale",
-              subtitle: "Up to 80% off on selected games",
+              title: t("home.slider1Title"),
+              subtitle: t("home.slider1Subtitle"),
               link: "/deals",
-              buttonText: "Shop Now"
+              buttonText: t("home.sliderShopNow")
             },
             {
               id: "2",
               type: "banner",
               image: "/slider-2.jpg",
-              title: "New Releases",
-              subtitle: "Get the latest games instantly",
+              title: t("home.slider2Title"),
+              subtitle: t("home.slider2Subtitle"),
               link: "/products?filter=new",
-              buttonText: "Explore"
+              buttonText: t("home.explore")
             }
           ])
         }
       } catch (error) {
         console.error("Failed to fetch slider:", error)
-        // Use fallback slides on error
+        // Hata durumunda varsayilan slayt
         setSlides([
           {
             id: "1",
             type: "banner",
             image: "/slider-1.jpg",
-            title: "Huge Summer Sale",
-            subtitle: "Up to 80% off on selected games",
+            title: t("home.slider1Title"),
+            subtitle: t("home.slider1Subtitle"),
             link: "/deals",
-            buttonText: "Shop Now"
+            buttonText: t("home.sliderShopNow")
           }
         ])
       } finally {
@@ -83,6 +85,7 @@ export default function HomeSlider() {
     }
 
     fetchSlides()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (loading || slides.length === 0) {
@@ -94,7 +97,7 @@ export default function HomeSlider() {
   }
 
   return (
-    <div className="relative w-full h-[500px] md:h-[600px] mb-12 rounded-2xl overflow-hidden">
+    <div className="relative w-full h-[500px] md:h-[600px] mb-12 rounded-2xl overflow-hidden" dir="ltr">
       <Swiper
         modules={[Navigation, Pagination, Autoplay, EffectFade]}
         spaceBetween={0}
@@ -110,20 +113,20 @@ export default function HomeSlider() {
           <SwiperSlide key={slide.id}>
             <div className="relative w-full h-full">
               {/* Background Image */}
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center"
                 style={{
                   backgroundImage: `url(${slide.image})`,
                   filter: "brightness(0.6)"
                 }}
               />
-              
+
               {/* Gradient Overlay */}
               <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent"></div>
 
               {/* Content */}
               <div className="relative h-full container mx-auto px-4 flex items-center">
-                <div className="max-w-2xl">
+                <div className="max-w-2xl" dir="auto">
                   <h1 className="text-5xl md:text-7xl font-black text-white mb-4 leading-tight">
                     {slide.title}
                   </h1>
@@ -136,7 +139,7 @@ export default function HomeSlider() {
                     href={slide.link}
                     className="inline-block bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white px-10 py-4 rounded-lg font-bold text-lg hover:shadow-2xl hover:shadow-[#ff6b35]/50 transition-all transform hover:scale-105 uppercase tracking-wide"
                   >
-                    {slide.buttonText || "Learn More"}
+                    {slide.buttonText || t("home.learnMore")}
                   </Link>
                 </div>
               </div>
@@ -177,4 +180,3 @@ export default function HomeSlider() {
     </div>
   )
 }
-

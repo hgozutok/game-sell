@@ -232,6 +232,7 @@ export default async function autoFulfillPaidOrdersJob(container: MedusaContaine
         code === "READONLY" ||
         code === "NEGATIVE_MARGIN" ||
         code === "BALANCE" ||
+        code === "ORDER_LIMIT" ||
         e?.name === "KinguinOrderModeError" ||
         e?.name === "KinguinInsufficientBalanceError"
 

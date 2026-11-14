@@ -1,170 +1,141 @@
 import PolicyLayout from '@/components/layout/PolicyLayout'
 import Link from 'next/link'
+import { formatDate } from '@/i18n'
+import { getServerLocale, getServerT } from '@/i18n/server'
 
-export const metadata = {
-  title: 'Returns & Refunds Policy | HUPIPLAY',
-  description:
-    'Refund and cancellation rights for digital game keys bought from HUPIPLAY, including faulty keys and the 14-day consumer right to cancel.',
+export function generateMetadata() {
+  const t = getServerT()
+  return {
+    title: t('content.returns.metaTitle'),
+    description: t('content.returns.metaDescription'),
+  }
 }
 
 export default function ReturnsPage() {
+  const t = getServerT()
+  const locale = getServerLocale()
+
   return (
-    <PolicyLayout title="Returns & Refunds Policy" lastUpdated="13 November 2026">
+    <PolicyLayout
+      title={t('content.shared.returnsPolicy')}
+      lastUpdated={formatDate('2026-11-13', locale, { day: 'numeric', month: 'long', year: 'numeric' })}
+    >
       <div className="space-y-8 text-gray-300">
         <div className="bg-[#1a1d24] border border-[#ff6b35]/30 rounded-lg p-6">
-          <p className="text-lg">
-            This policy explains when you can cancel an order or obtain a refund for digital game keys. It sits
-            alongside your statutory rights and does not replace them.
-          </p>
+          <p className="text-lg">{t('content.returns.intro')}</p>
         </div>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">1. Your statutory rights</h2>
-          <p className="mb-3">
-            If you are a consumer in the UK, digital content must be of satisfactory quality, fit for purpose and
-            as described. If a key does not meet these standards, you may be entitled to a repair, replacement,
-            price reduction or refund under the Consumer Rights Act 2015.
-          </p>
-          <p>
-            Nothing in this policy excludes or limits those rights. If you are in the EU, equivalent mandatory
-            consumer protections apply.
-          </p>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s1Title')}</h2>
+          <p className="mb-3">{t('content.returns.s1p1')}</p>
+          <p>{t('content.returns.s1p2')}</p>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">2. 14-day right to cancel</h2>
-          <p className="mb-3">
-            Consumers in the UK and EU normally have 14 days from the day the contract is formed to cancel an
-            online purchase without giving a reason (Consumer Contracts Regulations 2013).
-          </p>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s2Title')}</h2>
+          <p className="mb-3">{t('content.returns.s2p1')}</p>
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-3">
             <p className="text-yellow-100">
-              <strong>Digital content exception:</strong> when you place an order and ask for immediate
-              delivery, you expressly consent to the digital content being supplied straight away and you
-              acknowledge that you lose the right to cancel once the key has been revealed, downloaded or
-              delivered. This exception does not apply if the key is faulty, not as described or not supplied.
+              <strong>{t('content.returns.s2WarnLabel')}</strong> {t('content.returns.s2WarnText')}
             </p>
           </div>
-          <p>
-            If you cancel before the key is revealed or delivered, we will refund the full amount paid using the
-            original payment method.
-          </p>
+          <p>{t('content.returns.s2p2')}</p>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">3. When we will refund or replace a key</h2>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s3Title')}</h2>
           <div className="space-y-3">
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-green-500 text-xl">✓</span>
               <div>
-                <strong className="text-white">Invalid or already-used key:</strong>
-                <p className="text-sm">
-                  The key cannot be activated, has already been redeemed, or is rejected by the platform.
-                </p>
+                <strong className="text-white">{t('content.returns.s3i1Label')}</strong>
+                <p className="text-sm">{t('content.returns.s3i1Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-green-500 text-xl">✓</span>
               <div>
-                <strong className="text-white">Wrong product or edition:</strong>
-                <p className="text-sm">We delivered a different game, platform or edition than you ordered.</p>
+                <strong className="text-white">{t('content.returns.s3i2Label')}</strong>
+                <p className="text-sm">{t('content.returns.s3i2Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-green-500 text-xl">✓</span>
               <div>
-                <strong className="text-white">Region restriction contrary to the listing:</strong>
-                <p className="text-sm">
-                  The key cannot be activated in the region stated on the product page at the time of purchase.
-                </p>
+                <strong className="text-white">{t('content.returns.s3i3Label')}</strong>
+                <p className="text-sm">{t('content.returns.s3i3Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-green-500 text-xl">✓</span>
               <div>
-                <strong className="text-white">Key not delivered:</strong>
-                <p className="text-sm">
-                  You paid but did not receive the key and we cannot resolve it within a reasonable time.
-                </p>
+                <strong className="text-white">{t('content.returns.s3i4Label')}</strong>
+                <p className="text-sm">{t('content.returns.s3i4Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-green-500 text-xl">✓</span>
               <div>
-                <strong className="text-white">Cancellation before delivery:</strong>
-                <p className="text-sm">You cancel before the key is revealed or delivered.</p>
+                <strong className="text-white">{t('content.returns.s3i5Label')}</strong>
+                <p className="text-sm">{t('content.returns.s3i5Text')}</p>
               </div>
             </div>
           </div>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">4. When a refund is not available</h2>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s4Title')}</h2>
           <div className="space-y-3">
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-red-500 text-xl">✗</span>
               <div>
-                <strong className="text-white">Key already revealed or activated:</strong>
-                <p className="text-sm">
-                  Once a key has been revealed, downloaded or redeemed, it cannot be returned simply because you
-                  changed your mind. This does not affect rights for faulty or misdescribed keys.
-                </p>
+                <strong className="text-white">{t('content.returns.s4i1Label')}</strong>
+                <p className="text-sm">{t('content.returns.s4i1Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-red-500 text-xl">✗</span>
               <div>
-                <strong className="text-white">Wrong region or platform chosen by mistake:</strong>
-                <p className="text-sm">
-                  Please check the platform and region on the product page before ordering. We may still help
-                  where the key is unused and the publisher permits a transfer, but this is not guaranteed.
-                </p>
+                <strong className="text-white">{t('content.returns.s4i2Label')}</strong>
+                <p className="text-sm">{t('content.returns.s4i2Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-red-500 text-xl">✗</span>
               <div>
-                <strong className="text-white">Device or system incompatibility:</strong>
-                <p className="text-sm">
-                  Your device does not meet the game&apos;s published requirements. This is not a defect in the
-                  key.
-                </p>
+                <strong className="text-white">{t('content.returns.s4i3Label')}</strong>
+                <p className="text-sm">{t('content.returns.s4i3Text')}</p>
               </div>
             </div>
             <div className="bg-[#1a1d24] border border-gray-800 rounded-lg p-4 flex items-start gap-3">
               <span className="text-red-500 text-xl">✗</span>
               <div>
-                <strong className="text-white">Abuse or breach of terms:</strong>
-                <p className="text-sm">
-                  The order was obtained through fraud, payment abuse or a breach of our Terms of Service.
-                </p>
+                <strong className="text-white">{t('content.returns.s4i4Label')}</strong>
+                <p className="text-sm">{t('content.returns.s4i4Text')}</p>
               </div>
             </div>
           </div>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">5. How to request a refund or replacement</h2>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s5Title')}</h2>
           <div className="space-y-4">
             <div className="bg-gradient-to-r from-[#ff6b35]/10 to-[#f7931e]/10 border border-[#ff6b35]/30 rounded-lg p-6">
-              <h3 className="text-xl font-bold text-white mb-3">Step 1: Gather your details</h3>
-              <ul className="list-disc pl-6 space-y-1 text-sm">
-                <li>Order number and the email address used at checkout</li>
-                <li>The key or a screenshot of the activation error</li>
-                <li>A short description of the problem and what you have tried</li>
-                <li>Confirmation that the key has not been used, where relevant</li>
+              <h3 className="text-xl font-bold text-white mb-3">{t('content.returns.step1Title')}</h3>
+              <ul className="list-disc ps-6 space-y-1 text-sm">
+                <li>{t('content.returns.step1b1')}</li>
+                <li>{t('content.returns.step1b2')}</li>
+                <li>{t('content.returns.step1b3')}</li>
+                <li>{t('content.returns.step1b4')}</li>
               </ul>
             </div>
 
             <div className="bg-gradient-to-r from-[#ff6b35]/10 to-[#f7931e]/10 border border-[#ff6b35]/30 rounded-lg p-6">
-              <h3 className="text-xl font-bold text-white mb-3">Step 2: Contact us</h3>
-              <p className="mb-4">
-                Use the contact form or email us. We aim to acknowledge requests within 2 business days and
-                resolve them within 14 days.
-              </p>
+              <h3 className="text-xl font-bold text-white mb-3">{t('content.returns.step2Title')}</h3>
+              <p className="mb-4">{t('content.returns.step2Text')}</p>
               <div className="flex flex-wrap gap-3">
                 <Link href="/contact" className="btn-secondary">
-                  Contact Form
+                  {t('content.shared.contactForm')}
                 </Link>
                 <a href="mailto:support@hupiplay.uk" className="btn-secondary">
                   support@hupiplay.uk
@@ -173,59 +144,44 @@ export default function ReturnsPage() {
             </div>
 
             <div className="bg-gradient-to-r from-[#ff6b35]/10 to-[#f7931e]/10 border border-[#ff6b35]/30 rounded-lg p-6">
-              <h3 className="text-xl font-bold text-white mb-3">Step 3: Review and remedy</h3>
-              <p>
-                We will investigate with the supplier and may ask for additional evidence. Where a defect is
-                confirmed, we will offer a replacement key first where available, then a refund if a replacement
-                is not possible or does not resolve the issue.
-              </p>
+              <h3 className="text-xl font-bold text-white mb-3">{t('content.returns.step3Title')}</h3>
+              <p>{t('content.returns.step3Text')}</p>
             </div>
           </div>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">6. Refund timing and method</h2>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>Refunds are made to the original payment method wherever possible.</li>
-            <li>We process approved refunds within 5 business days of approval.</li>
-            <li>
-              Card refunds usually appear within 3–5 business days; PayPal within 1–3 business days; bank
-              transfers may take 5–7 business days. Your provider may add further delay.
-            </li>
-            <li>We do not deduct fees for faulty or misdescribed digital content.</li>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s6Title')}</h2>
+          <ul className="list-disc ps-6 space-y-2">
+            <li>{t('content.returns.s6b1')}</li>
+            <li>{t('content.returns.s6b2')}</li>
+            <li>{t('content.returns.s6b3')}</li>
+            <li>{t('content.returns.s6b4')}</li>
           </ul>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">7. Chargebacks and payment disputes</h2>
-          <p className="mb-4">
-            Please contact us before opening a chargeback or payment dispute. We can usually resolve key and
-            delivery issues faster directly. If you open a dispute without contacting us, we may need to provide
-            the payment provider with order and delivery evidence, and your account may be temporarily limited
-            while the dispute is investigated.
-          </p>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s7Title')}</h2>
+          <p className="mb-4">{t('content.returns.s7p1')}</p>
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
             <p className="text-yellow-200">
-              <strong>Important:</strong> Opening a chargeback does not remove your statutory rights, but it can
-              lengthen the resolution process.
+              <strong>{t('content.returns.s7WarnLabel')}</strong> {t('content.returns.s7WarnText')}
             </p>
           </div>
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold text-white mb-4">8. Questions</h2>
-          <p className="mb-4">
-            If anything is unclear, contact us before ordering or as soon as a problem appears.
-          </p>
+          <h2 className="text-3xl font-bold text-white mb-4">{t('content.returns.s8Title')}</h2>
+          <p className="mb-4">{t('content.returns.s8p1')}</p>
           <div className="flex flex-wrap gap-4">
             <Link href="/contact" className="btn-primary">
-              Contact Support
+              {t('content.shared.contactSupport')}
             </Link>
             <Link href="/faq" className="btn-secondary">
-              Read FAQ
+              {t('content.shared.readFaq')}
             </Link>
             <Link href="/terms" className="btn-secondary">
-              Terms of Service
+              {t('content.shared.terms')}
             </Link>
           </div>
         </section>

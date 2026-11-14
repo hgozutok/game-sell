@@ -5,6 +5,9 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import toast, { Toaster } from 'react-hot-toast'
+import { useT } from '@/components/useT'
+import { useTranslation } from '@/i18n/LocaleProvider'
+import { formatCurrency, formatDate } from '@/i18n'
 
 interface OrderItem {
   id: string
@@ -43,6 +46,8 @@ interface Order {
 }
 
 export default function OrderDetailPage() {
+  const t = useT()
+  const { locale } = useTranslation()
   const params = useParams()
   const orderId = params.id as string
   const [order, setOrder] = useState<Order | null>(null)
@@ -56,7 +61,7 @@ export default function OrderDetailPage() {
         setOrder(response.data.order)
       } catch (error) {
         console.error('Failed to fetch order:', error)
-        toast.error('Failed to load order details')
+        toast.error(t('orderDetail.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -67,7 +72,7 @@ export default function OrderDetailPage() {
 
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key)
-    toast.success('Key copied to clipboard!', {
+    toast.success(t('orderDetail.keyCopied'), {
       icon: '📋',
       style: {
         background: '#15171c',
@@ -93,9 +98,9 @@ export default function OrderDetailPage() {
     return (
       <div className="min-h-screen bg-[#0a0b0d] flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-black text-white mb-4">Order Not Found</h1>
+          <h1 className="text-4xl font-black text-white mb-4">{t('orderDetail.notFound')}</h1>
           <Link href="/account/orders" className="btn-primary">
-            Back to Orders
+            {t('orderDetail.backToOrders')}
           </Link>
         </div>
       </div>
@@ -119,6 +124,12 @@ export default function OrderDetailPage() {
     }
   }
 
+  const statusLabel = (status: string) => {
+    const key = `status.${status.toLowerCase()}`
+    const value = t(key)
+    return value === key ? status.toUpperCase() : value
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
       <Toaster position="top-right" />
@@ -128,18 +139,18 @@ export default function OrderDetailPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
             <Link href="/" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Home
+              {t('common.home')}
             </Link>
             <span className="text-gray-600">/</span>
             <Link href="/account" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Account
+              {t('account.accountBreadcrumb')}
             </Link>
             <span className="text-gray-600">/</span>
             <Link href="/account/orders" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Orders
+              {t('account.ordersBreadcrumb')}
             </Link>
             <span className="text-gray-600">/</span>
-            <span className="text-white font-semibold">Order #{order.display_id}</span>
+            <span className="text-white font-semibold">{t('success.orderNumber', { id: order.display_id })}</span>
           </div>
         </div>
       </div>
@@ -150,31 +161,31 @@ export default function OrderDetailPage() {
           <div className="gaming-card p-8 mb-6">
             <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-4xl font-black text-white mb-4">Order #{order.display_id}</h1>
+                <h1 className="text-4xl font-black text-white mb-4">{t('success.orderNumber', { id: order.display_id })}</h1>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
-                    {order.status.toUpperCase()}
+                    {statusLabel(order.status)}
                   </span>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(
                       order.payment_status
                     )}`}
                   >
-                    PAYMENT: {order.payment_status.toUpperCase()}
+                    {t('orderDetail.payment')}: {statusLabel(order.payment_status)}
                   </span>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(
                       order.fulfillment_status
                     )}`}
                   >
-                    DELIVERY: {order.fulfillment_status.toUpperCase()}
+                    {t('orderDetail.delivery')}: {statusLabel(order.fulfillment_status)}
                   </span>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-gray-500 mb-1">Order Date</div>
+                <div className="text-sm text-gray-500 mb-1">{t('orderDetail.orderDate')}</div>
                 <div className="text-white font-bold">
-                  {new Date(order.created_at).toLocaleDateString('en-US', {
+                  {formatDate(order.created_at, locale, {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -186,11 +197,11 @@ export default function OrderDetailPage() {
             <div className="bg-[#1a1d24] rounded-lg p-4">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm text-gray-500 mb-2">CUSTOMER EMAIL</h3>
+                  <h3 className="text-sm text-gray-500 mb-2">{t('orderDetail.customerEmail')}</h3>
                   <p className="text-white font-semibold">{order.email}</p>
                 </div>
                 <div>
-                  <h3 className="text-sm text-gray-500 mb-2">BILLING ADDRESS</h3>
+                  <h3 className="text-sm text-gray-500 mb-2">{t('orderDetail.billingAddress')}</h3>
                   <p className="text-white font-semibold">
                     {order.billing_address.first_name} {order.billing_address.last_name}
                     <br />
@@ -207,7 +218,7 @@ export default function OrderDetailPage() {
 
           {/* Order Items with Keys */}
           <div className="gaming-card p-8 mb-6">
-            <h2 className="text-2xl font-black text-white mb-6">🎮 YOUR GAME KEYS</h2>
+            <h2 className="text-2xl font-black text-white mb-6">{t('orderDetail.yourKeys')}</h2>
             <div className="space-y-4">
               {order.items.map((item) => {
                 const isRevealed = revealedKeys.has(item.id)
@@ -238,11 +249,10 @@ export default function OrderDetailPage() {
                           )}
                         </div>
                         <p className="text-gray-400 text-sm">
-                          Quantity: {item.quantity} • {' '}
-                          {new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: order.currency_code,
-                          }).format(item.unit_price / 100)}
+                          {t('orderDetail.quantityPrice', {
+                            count: item.quantity,
+                            price: formatCurrency(item.unit_price / 100, order.currency_code, locale),
+                          })}
                         </p>
                       </div>
                     </div>
@@ -250,8 +260,8 @@ export default function OrderDetailPage() {
                     {hasKey ? (
                       <div className="bg-[#0a0b0d] border-2 border-[#ff6b35]/30 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-bold text-[#ff6b35]">🔑 GAME KEY</span>
-                          <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">AVAILABLE</span>
+                          <span className="text-sm font-bold text-[#ff6b35]">{t('orderDetail.gameKey')}</span>
+                          <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">{t('orderDetail.available')}</span>
                         </div>
 
                         {isRevealed ? (
@@ -265,7 +275,7 @@ export default function OrderDetailPage() {
                               onClick={() => handleCopyKey(item.metadata?.digital_key || '')}
                               className="w-full btn-secondary"
                             >
-                              📋 COPY KEY
+                              {t('orderDetail.copyKey')}
                             </button>
                           </div>
                         ) : (
@@ -273,14 +283,14 @@ export default function OrderDetailPage() {
                             onClick={() => handleRevealKey(item.id)}
                             className="w-full btn-primary"
                           >
-                            👁️ REVEAL KEY
+                            {t('orderDetail.revealKey')}
                           </button>
                         )}
                       </div>
                     ) : (
                       <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-center">
-                        <p className="text-yellow-500 font-semibold">⏳ Key will be available shortly</p>
-                        <p className="text-gray-400 text-sm mt-1">Processing your order...</p>
+                        <p className="text-yellow-500 font-semibold">{t('orderDetail.keySoon')}</p>
+                        <p className="text-gray-400 text-sm mt-1">{t('orderDetail.processingOrder')}</p>
                       </div>
                     )}
                   </div>
@@ -291,33 +301,24 @@ export default function OrderDetailPage() {
 
           {/* Order Summary */}
           <div className="gaming-card p-8">
-            <h2 className="text-2xl font-black text-white mb-6">💰 ORDER SUMMARY</h2>
+            <h2 className="text-2xl font-black text-white mb-6">{t('orderDetail.summary')}</h2>
             <div className="space-y-3">
               <div className="flex justify-between text-gray-400">
-                <span>Subtotal:</span>
+                <span>{t('orderDetail.subtotal')}</span>
                 <span>
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: order.currency_code,
-                  }).format(order.subtotal / 100)}
+                  {formatCurrency(order.subtotal / 100, order.currency_code, locale)}
                 </span>
               </div>
               <div className="flex justify-between text-gray-400">
-                <span>Tax:</span>
+                <span>{t('orderDetail.tax')}</span>
                 <span>
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: order.currency_code,
-                  }).format(order.tax_total / 100)}
+                  {formatCurrency(order.tax_total / 100, order.currency_code, locale)}
                 </span>
               </div>
               <div className="border-t border-gray-700 pt-3 flex justify-between text-white font-bold text-2xl">
-                <span>Total:</span>
+                <span>{t('orderDetail.total')}</span>
                 <span>
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: order.currency_code,
-                  }).format(order.total / 100)}
+                  {formatCurrency(order.total / 100, order.currency_code, locale)}
                 </span>
               </div>
             </div>
@@ -326,11 +327,11 @@ export default function OrderDetailPage() {
           {/* Actions */}
           <div className="mt-8 flex flex-wrap gap-4 justify-center">
             <Link href="/account/orders" className="btn-secondary">
-              ← BACK TO ORDERS
+              {t('orderDetail.backToOrdersCta')}
             </Link>
-            <button className="btn-secondary">📄 DOWNLOAD INVOICE</button>
+            <button className="btn-secondary">📄 {t('account.downloadInvoice')}</button>
             <Link href="/contact" className="btn-secondary">
-              🆘 NEED HELP?
+              {t('orderDetail.needHelp')}
             </Link>
           </div>
         </div>

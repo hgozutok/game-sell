@@ -1,9 +1,10 @@
 import { Module } from "@medusajs/framework/utils"
 import KinguinService from "./service"
 
-export const KINGUIN_MODULE = "kinguin"
+// Ayri kayit adi: ana kinguin moduluyle (src/modules/kinguin) cakismasin.
+export const KEY_PROVIDER_KINGUIN_MODULE = "keyProviderKinguin"
 
-export default Module(KINGUIN_MODULE, {
+export default Module(KEY_PROVIDER_KINGUIN_MODULE, {
   service: KinguinService,
 })
 

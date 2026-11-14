@@ -16,6 +16,13 @@ interface Collection {
   updated_at: string
 }
 
+interface ResolvedCategory {
+  id: string
+  title: string
+  handle: string
+  kind: 'collection' | 'category'
+}
+
 interface Product {
   id: string
   title: string
@@ -45,7 +52,7 @@ export default function CategoryPage() {
   const searchParams = useSearchParams()
   const slug = params.slug as string
 
-  const [collection, setCollection] = useState<Collection | null>(null)
+  const [category, setCategory] = useState<ResolvedCategory | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState('featured')
@@ -54,17 +61,17 @@ export default function CategoryPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // First, get all collections to find the one with matching handle
-        const collectionsResponse = await api.get('/store/collections')
+        // Slug can be a platform collection OR a genre product category;
+        // resolve collections first, fall back to product categories.
+        const collectionsResponse = await api.get('/store/collections', { params: { limit: 100 } })
         const collections = collectionsResponse.data.collections || []
-        
-        // Find collection by handle
+
         const foundCollection = collections.find((col: Collection) => col.handle === slug)
-        
+
         if (foundCollection) {
           console.log('Found collection:', foundCollection)
-          setCollection(foundCollection)
-          
+          setCategory({ id: foundCollection.id, title: foundCollection.title, handle: foundCollection.handle, kind: 'collection' })
+
           // Fetch products in this collection
           const productsResponse = await api.get(`/store/collections/${foundCollection.id}/products`, {
             params: {
@@ -79,11 +86,40 @@ export default function CategoryPage() {
             console.log('Setting products:', productsResponse.data.products.length)
             setProducts(productsResponse.data.products)
           }
-        } else {
-          console.warn('Collection not found for slug:', slug)
+          return
         }
+
+        // Fall back to Medusa product categories (genres)
+        const categoriesResponse = await api
+          .get('/store/product-categories', { params: { limit: 200 } })
+          .catch(() => null)
+        const allCategories = categoriesResponse?.data?.product_categories || []
+        const foundCategory = allCategories.find((cat: any) => cat.handle === slug)
+
+        if (foundCategory) {
+          console.log('Found product category:', foundCategory)
+          setCategory({ id: foundCategory.id, title: foundCategory.name, handle: foundCategory.handle, kind: 'category' })
+
+          // Standart /store/products bilinmeyen parametreleri 400 ile reddeder;
+          // hideZero* yalnizca custom collections/products route'unda var.
+          const productsResponse = await api.get('/store/products', {
+            params: {
+              category_id: foundCategory.id,
+              limit: 50,
+            },
+          })
+
+          console.log('Products response:', productsResponse.data)
+          if (productsResponse.data.products) {
+            console.log('Setting products:', productsResponse.data.products.length)
+            setProducts(productsResponse.data.products)
+          }
+          return
+        }
+
+        console.warn('No collection or category found for slug:', slug)
       } catch (error) {
-        console.error('Failed to fetch collection data:', error)
+        console.error('Failed to fetch category data:', error)
       } finally {
         setLoading(false)
       }
@@ -142,7 +178,7 @@ export default function CategoryPage() {
               {t('catalog.categories')}
             </Link>
             <span className="text-gray-600">/</span>
-            <span className="text-white font-semibold">{collection?.title || slug}</span>
+            <span className="text-white font-semibold">{category?.title || slug}</span>
           </div>
         </div>
       </div>
@@ -152,9 +188,11 @@ export default function CategoryPage() {
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-6xl font-black text-white mb-4">
-              {collection?.title || slug.toUpperCase()}
+              {category?.title || slug.toUpperCase()}
             </h1>
-            <p className="text-xl text-gray-400">{t('catalog.exploreCollection')}</p>
+            <p className="text-xl text-gray-400">
+              {category?.kind === 'category' ? t('catalog.exploreGenre') : t('catalog.exploreCollection')}
+            </p>
             <div className="mt-6">
               <span className="text-[#ff6b35] font-bold text-lg">
                 {products.length} {t('catalog.gamesAvailable')}

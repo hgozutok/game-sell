@@ -252,29 +252,29 @@ export default function ProductDetailPage() {
     metadataImage && product.metadata?.provider === 'kinguin'
       ? [{ url: metadataImage, id: 'provider-image' }, ...baseImages.filter((img) => img.url !== metadataImage)]
       : baseImages
-  const regionMap: Record<string, string> = {
-    'global': 'Global',
-    'region free': 'Global',
-    'region-free': 'Global',
-    'worldwide': 'Worldwide',
-    '1': 'Region 1 (US / Canada)',
-    'region 1': 'Region 1 (US / Canada)',
-    '2': 'Region 2 (Europe / Japan / Middle East)',
-    'region 2': 'Region 2 (Europe / Japan / Middle East)',
-    '3': 'Region 3 (Southeast Asia)',
-    'region 3': 'Region 3 (Southeast Asia)',
-    '4': 'Region 4 (Australia / New Zealand)',
-    'region 4': 'Region 4 (Australia / New Zealand)',
-    '5': 'Region 5 (South America / Africa / Russia)',
-    'region 5': 'Region 5 (South America / Africa / Russia)',
+  const regionKeyMap: Record<string, string> = {
+    'global': 'product.region.global',
+    'region free': 'product.region.global',
+    'region-free': 'product.region.global',
+    'worldwide': 'product.region.worldwide',
+    '1': 'product.region.1',
+    'region 1': 'product.region.1',
+    '2': 'product.region.2',
+    'region 2': 'product.region.2',
+    '3': 'product.region.3',
+    'region 3': 'product.region.3',
+    '4': 'product.region.4',
+    'region 4': 'product.region.4',
+    '5': 'product.region.5',
+    'region 5': 'product.region.5',
   }
 
   const getReadableRegion = (region?: string) => {
     if (!region || typeof region !== 'string') {
       return region
     }
-    const normalized = region.toLowerCase()
-    return regionMap[normalized] || region
+    const key = regionKeyMap[region.toLowerCase()]
+    return key ? t(key) : region
   }
 
   return (
@@ -287,11 +287,11 @@ export default function ProductDetailPage() {
           <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 text-sm text-gray-400">
               <Link href="/" className="hover:text-[#ff6b35] transition">
-                Home
+                {t('common.home')}
               </Link>
               <span className="text-gray-600">/</span>
               <Link href="/products" className="hover:text-[#ff6b35] transition">
-                Products
+                {t('product.breadcrumbProducts')}
               </Link>
               {product.collection && (
                 <>
@@ -429,7 +429,7 @@ export default function ProductDetailPage() {
                             : 'bg-[#1a1d24] text-gray-300 hover:bg-[#ff6b35]/20'
                         }`}
                       >
-                        {variant.title || `Option ${index + 1}`}
+                        {variant.title || t('product.option', { n: index + 1 })}
                       </button>
                     ))}
                   </div>
@@ -439,7 +439,7 @@ export default function ProductDetailPage() {
               {/* Add to Cart Button */}
               {isOverCap(product) ? (
                 <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
-                  Bu ürün, mağazanın listeleme fiyat limitinin üzerinde olduğu için satışa kapalıdır.
+                  {t('product.priceCapNotice')}
                 </div>
               ) : (
                 <button onClick={handleAddToCart} className="w-full btn-primary text-lg py-4">
@@ -487,7 +487,7 @@ export default function ProductDetailPage() {
 
                   {product.metadata?.badges && product.metadata.badges.length > 0 && (
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">Badges</div>
+                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">{t('product.badges')}</div>
                       <div className="flex flex-wrap gap-2">
                         {product.metadata.badges.map((badge: string) => (
                           <span key={badge} className="px-3 py-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white rounded-full text-xs font-bold">
@@ -500,7 +500,7 @@ export default function ProductDetailPage() {
 
                   {product.metadata?.tags && product.metadata.tags.length > 0 && (
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">Tags</div>
+                      <div className="text-gray-500 uppercase tracking-wider text-xs mb-1">{t('product.tags')}</div>
                       <div className="flex flex-wrap gap-2">
                         {product.metadata.tags.map((tag: string) => (
                           <span key={tag} className="px-3 py-1 bg-[#15171c] border border-gray-700 text-gray-300 rounded-full text-xs font-semibold">

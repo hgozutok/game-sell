@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -13,27 +13,34 @@ import toast, { Toaster } from 'react-hot-toast'
 import { api } from '@/lib/api'
 import { formatMoney, convertAmount } from '@/utils/currency'
 import { useT } from '@/components/useT'
+import { useTranslation } from '@/i18n/LocaleProvider'
 import StripePaymentModal from '@/components/StripePaymentModal'
 
-const checkoutSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  firstName: z.string().min(2, 'First name is required'),
-  lastName: z.string().min(2, 'Last name is required'),
-  address: z.string().min(5, 'Address is required'),
-  city: z.string().min(2, 'City is required'),
-  postalCode: z.string().min(3, 'Postal code is required'),
-  country: z.string().min(2, 'Country is required'),
-  paymentMethod: z.enum(['stripe', 'paypal', 'mollie', 'bank-transfer', 'bank_transfer'], {
-    error: 'Please select a payment method',
-  }),
-})
+const createCheckoutSchema = (t: (key: string) => string) =>
+  z.object({
+    email: z.string().email(t('checkout.validation.email')),
+    firstName: z.string().min(2, t('checkout.validation.firstName')),
+    lastName: z.string().min(2, t('checkout.validation.lastName')),
+    address: z.string().min(5, t('checkout.validation.address')),
+    city: z.string().min(2, t('checkout.validation.city')),
+    postalCode: z.string().min(3, t('checkout.validation.postalCode')),
+    country: z.string().min(2, t('checkout.validation.country')),
+    paymentMethod: z.enum(['stripe', 'paypal', 'mollie', 'bank-transfer', 'bank_transfer'], {
+      error: t('checkout.validation.paymentMethod'),
+    }),
+  })
 
-type CheckoutFormData = z.infer<typeof checkoutSchema>
+type CheckoutFormData = z.infer<ReturnType<typeof createCheckoutSchema>>
+
+const COUNTRY_CODES = ['GB', 'US', 'CA', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'AU']
 
 export default function CheckoutPage() {
   const t = useT()
+  const { intlLocale } = useTranslation()
+  const checkoutSchema = useMemo(() => createCheckoutSchema(t), [t])
+  const regionNames = useMemo(() => new Intl.DisplayNames([intlLocale], { type: 'region' }), [intlLocale])
   const router = useRouter()
-  const { items, getTotalPrice, clearCart } = useCartStore()
+  const { items, getTotalPrice, clearCart, hydrateFromServer } = useCartStore()
   const { selectedCurrency, currencies } = useCurrencyStore()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'info' | 'payment'>('info')
@@ -79,6 +86,12 @@ export default function CheckoutPage() {
       setSelectedCountry(formCountry.toLowerCase())
     }
   }, [formCountry])
+
+  // Sunucu sepetiyle senkronize et (adet/fiyat backend'den doğrulanır)
+  useEffect(() => {
+    void hydrateFromServer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Load default tax rate from public settings for fallback cases
   useEffect(() => {
@@ -158,12 +171,11 @@ export default function CheckoutPage() {
     const fetchPreview = async () => {
       try {
         setPreviewLoading(true)
+        // Fiyat sunucuda cozumlenir — istemci price/currency gönderilmez
         const response = await api.post('/store/cart/preview', {
           items: items.map((item) => ({
             variant_id: item.variantId,
             quantity: item.quantity,
-            price: item.price,
-            currency: item.currency,
           })),
           currency_code: selectedCurrency.code,
           country_code: selectedCountry,
@@ -254,7 +266,7 @@ export default function CheckoutPage() {
         // Redirect to success page
         router.push(`/checkout/success?order_id=${orderId}&method=${encodeURIComponent(data.paymentMethod)}`)
 
-        toast.success('Order placed successfully!', {
+        toast.success(t('checkout.orderPlaced'), {
           style: {
             background: '#15171c',
             color: '#fff',
@@ -269,7 +281,7 @@ export default function CheckoutPage() {
         response: error.response?.data,
         status: error.response?.status
       })
-      toast.error(error.response?.data?.message || 'Failed to process order. Please try again.', {
+      toast.error(error.response?.data?.message || t('checkout.orderFailed'), {
         style: {
           background: '#15171c',
           color: '#fff',
@@ -319,11 +331,11 @@ export default function CheckoutPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
             <Link href="/" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Home
+              {t('common.home')}
             </Link>
             <span className="text-gray-600">/</span>
             <Link href="/cart" className="text-gray-400 hover:text-[#ff6b35] transition">
-              Cart
+              {t('nav.cart')}
             </Link>
             <span className="text-gray-600">/</span>
             <span className="text-white font-semibold">{t('checkout.title')}</span>
@@ -345,7 +357,7 @@ export default function CheckoutPage() {
               >
                 {step === 'payment' ? '✓' : '1'}
               </div>
-              <span className="ml-3 font-semibold text-white">Billing Info</span>
+              <span className="ms-3 font-semibold text-white">{t('checkout.stepBilling')}</span>
             </div>
             <div className="w-20 h-1 bg-gray-700"></div>
             <div className="flex items-center">
@@ -358,8 +370,8 @@ export default function CheckoutPage() {
               >
                 2
               </div>
-              <span className={`ml-3 font-semibold ${step === 'payment' ? 'text-white' : 'text-gray-500'}`}>
-                Payment
+              <span className={`ms-3 font-semibold ${step === 'payment' ? 'text-white' : 'text-gray-500'}`}>
+                {t('checkout.stepPayment')}
               </span>
             </div>
           </div>
@@ -371,7 +383,7 @@ export default function CheckoutPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Billing Information */}
               <div className="gaming-card p-8">
-                <h2 className="text-2xl font-black text-white mb-6">📋 BILLING INFORMATION</h2>
+                <h2 className="text-2xl font-black text-white mb-6">{t('checkout.billingInfo')}</h2>
 
                 <div className="space-y-4">
                   <div>
@@ -409,7 +421,7 @@ export default function CheckoutPage() {
                   </div>
 
                   <div>
-                    <label className="block text-white font-semibold mb-2">Address *</label>
+                    <label className="block text-white font-semibold mb-2">{t('checkout.address')} *</label>
                     <input
                       type="text"
                       {...register('address')}
@@ -421,7 +433,7 @@ export default function CheckoutPage() {
 
                   <div className="grid md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-white font-semibold mb-2">City *</label>
+                      <label className="block text-white font-semibold mb-2">{t('checkout.city')} *</label>
                       <input
                         type="text"
                         {...register('city')}
@@ -431,7 +443,7 @@ export default function CheckoutPage() {
                       {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city.message}</p>}
                     </div>
                     <div>
-                      <label className="block text-white font-semibold mb-2">Postal Code *</label>
+                      <label className="block text-white font-semibold mb-2">{t('checkout.postalCode')} *</label>
                       <input
                         type="text"
                         {...register('postalCode')}
@@ -441,22 +453,17 @@ export default function CheckoutPage() {
                       {errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode.message}</p>}
                     </div>
                     <div>
-                      <label className="block text-white font-semibold mb-2">Country *</label>
+                      <label className="block text-white font-semibold mb-2">{t('checkout.country')} *</label>
                       <select
                         {...register('country')}
                         className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                       >
-                        <option value="">Select...</option>
-                        <option value="GB">United Kingdom</option>
-                        <option value="US">United States</option>
-                        <option value="CA">Canada</option>
-                        <option value="DE">Germany</option>
-                        <option value="FR">France</option>
-                        <option value="ES">Spain</option>
-                        <option value="IT">Italy</option>
-                        <option value="NL">Netherlands</option>
-                        <option value="BE">Belgium</option>
-                        <option value="AU">Australia</option>
+                        <option value="">{t('checkout.select')}</option>
+                        {COUNTRY_CODES.map((code) => (
+                          <option key={code} value={code}>
+                            {regionNames.of(code) || code}
+                          </option>
+                        ))}
                       </select>
                       {errors.country && <p className="text-red-500 text-sm mt-1">{errors.country.message}</p>}
                     </div>
@@ -474,8 +481,8 @@ export default function CheckoutPage() {
                   </div>
                 ) : availableMethods.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-400">Aktif ödeme yöntemi bulunamadı.</p>
-                    <p className="text-sm text-gray-500 mt-2">Lütfen admin panelden ödeme sistemlerini yapılandırın.</p>
+                    <p className="text-gray-400">{t('checkout.noMethods')}</p>
+                    <p className="text-sm text-gray-500 mt-2">{t('checkout.noMethodsHint')}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -489,11 +496,11 @@ export default function CheckoutPage() {
                         bank_transfer: '🏦',
                       }
                       const descriptions: Record<string, string> = {
-                        paypal: 'Pay with your PayPal account',
-                        mollie: 'iDEAL, Bancontact, and more',
-                        stripe: 'Visa, Mastercard — 3D Secure ile güvenli ödeme',
-                        'bank-transfer': 'Manual bank transfer - requires approval',
-                        bank_transfer: 'Manual bank transfer - requires approval',
+                        paypal: t('checkout.pay.paypal'),
+                        mollie: t('checkout.pay.mollie'),
+                        stripe: t('checkout.pay.stripe'),
+                        'bank-transfer': t('checkout.pay.bankTransfer'),
+                        bank_transfer: t('checkout.pay.bankTransfer'),
                       }
 
                       return (
@@ -523,17 +530,17 @@ export default function CheckoutPage() {
 
               {/* Submit Button */}
               <button type="submit" disabled={loading} className="w-full btn-primary text-lg py-4">
-                {loading ? 'PROCESSING...' : `${t('checkout.placeOrder')} - ${formattedTotal}`}
+                {loading ? t('checkout.processing') : `${t('checkout.placeOrder')} - ${formattedTotal}`}
               </button>
 
               <p className="text-center text-sm text-gray-500">
-                By placing this order, you agree to our{' '}
+                {t('checkout.agreePrefix')}{' '}
                 <Link href="/terms" className="text-[#ff6b35] hover:underline">
-                  Terms of Service
+                  {t('footer.terms')}
                 </Link>{' '}
-                and{' '}
+                {t('checkout.agreeAnd')}{' '}
                 <Link href="/privacy" className="text-[#ff6b35] hover:underline">
-                  Privacy Policy
+                  {t('footer.privacy')}
                 </Link>
               </p>
             </form>
@@ -542,7 +549,7 @@ export default function CheckoutPage() {
           {/* Order Summary */}
           <div className="lg:col-span-1">
             <div className="gaming-card p-6 sticky top-4">
-              <h3 className="text-xl font-black text-white mb-4">📦 ORDER SUMMARY</h3>
+              <h3 className="text-xl font-black text-white mb-4">{t('checkout.orderSummary')}</h3>
 
               <div className="space-y-4 mb-6">
                 {items.map((item) => (
@@ -556,7 +563,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-white font-semibold text-sm truncate">{item.title}</div>
-                      <div className="text-gray-400 text-xs">Qty: {item.quantity}</div>
+                      <div className="text-gray-400 text-xs">{t('checkout.qty', { count: item.quantity })}</div>
                       <div className="text-[#ff6b35] font-bold text-sm">
                         {selectedCurrency.symbol}{((item.price * item.quantity) / 100).toFixed(2)}
                       </div>
@@ -567,25 +574,25 @@ export default function CheckoutPage() {
 
               <div className="border-t border-gray-700 pt-4 space-y-2">
                 <div className="flex justify-between text-gray-400">
-                  <span>Subtotal:</span>
-                  <span>{previewLoading ? 'Calculating...' : formattedSubtotal}</span>
+                  <span>{t('checkout.subtotal')}</span>
+                  <span>{previewLoading ? t('cart.calculating') : formattedSubtotal}</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
-                  <span>VAT{previewTotals.tax_rate ? ` (${previewTotals.tax_rate.toFixed(2)}%)` : ''}:</span>
-                  <span>{previewLoading ? 'Calculating...' : formattedTax}</span>
+                  <span>{t('checkout.vat')}{previewTotals.tax_rate ? ` (${previewTotals.tax_rate.toFixed(2)}%)` : ''}:</span>
+                  <span>{previewLoading ? t('cart.calculating') : formattedTax}</span>
                 </div>
                 <div className="border-t border-gray-700 pt-2 flex justify-between text-white font-bold text-xl">
-                  <span>Total:</span>
-                  <span>{previewLoading ? 'Calculating...' : formattedTotal}</span>
+                  <span>{t('checkout.total')}</span>
+                  <span>{previewLoading ? t('cart.calculating') : formattedTotal}</span>
                 </div>
               </div>
 
               <div className="mt-6 bg-green-500/10 border border-green-500/30 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-green-500 font-semibold mb-2">
                   <span>✓</span>
-                  <span>Instant Delivery</span>
+                  <span>{t('checkout.instantDelivery')}</span>
                 </div>
-                <p className="text-sm text-gray-400">Your keys will be delivered to your email immediately</p>
+                <p className="text-sm text-gray-400">{t('checkout.deliveryNote')}</p>
               </div>
             </div>
           </div>

@@ -73,6 +73,7 @@ export default function EmailSettingsPage() {
   const [smtpLoading, setSmtpLoading] = useState(true)
   const [smtpSaving, setSmtpSaving] = useState(false)
   const [smtpMessage, setSmtpMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const [languageStatus, setLanguageStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [draft, setDraft] = useState<EmailTemplate>(emptyTemplate)
@@ -135,6 +136,23 @@ export default function EmailSettingsPage() {
   useEffect(() => {
     loadTemplates()
   }, [loadTemplates])
+
+  const changeLanguage = async (next: 'tr' | 'en') => {
+    setSmtp((prev) => ({ ...prev, language: next }))
+    setLanguageStatus('saving')
+    try {
+      // Dil secimi SMTP alanlarindan bagimsiz kaydedilir
+      await adminApi.post('/admin/settings', {
+        key: 'email.language',
+        value: next,
+        category: 'email',
+      })
+      setLanguageStatus('saved')
+      setTimeout(() => setLanguageStatus('idle'), 2500)
+    } catch {
+      setLanguageStatus('error')
+    }
+  }
 
   const saveSmtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -440,7 +458,7 @@ export default function EmailSettingsPage() {
                   <select
                     value={smtp.language}
                     onChange={(e) =>
-                      setSmtp({ ...smtp, language: e.target.value === 'en' ? 'en' : 'tr' })
+                      changeLanguage(e.target.value === 'en' ? 'en' : 'tr')
                     }
                     className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                   >
@@ -448,7 +466,17 @@ export default function EmailSettingsPage() {
                     <option value="en">English (EN)</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Müşteriye giden otomatik e-postalarda kullanılır.
+                    Müşteriye giden otomatik e-postalarda kullanılır. Değişiklik anında kaydedilir.
+                  </p>
+                  <p
+                    className={`text-xs mt-1 ${
+                      languageStatus === 'error' ? 'text-red-400' : 'text-green-400'
+                    }`}
+                    aria-live="polite"
+                  >
+                    {languageStatus === 'saving' && 'Kaydediliyor…'}
+                    {languageStatus === 'saved' && '✓ Dil kaydedildi'}
+                    {languageStatus === 'error' && 'Dil kaydedilemedi, tekrar deneyin'}
                   </p>
                 </div>
               </div>

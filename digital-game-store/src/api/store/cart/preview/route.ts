@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/currency'
 import { calculateTaxAmount } from '../../../../utils/pricing'
+import { resolveVariantUnitPrice } from '../../../../utils/variant-pricing'
 
 const COUNTRY_TAX_RATES: Record<string, number> = {
   us: 8,
@@ -26,7 +27,11 @@ export const AUTHENTICATE = false
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const originHeader = req.headers.origin
   const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
-  if (origin) {
+  const allowedOrigins = String(process.env.STORE_CORS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+  if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Access-Control-Allow-Credentials', 'true')
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
@@ -42,7 +47,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
 
-    const productModule = req.scope.resolve(Modules.PRODUCT) as any
     const storeSettings = req.scope.resolve('storeSettings') as any
 
     const currencyRates = await getCurrencyRates(storeSettings)
@@ -69,48 +73,40 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const displayCurrency = String(requestedCurrency).toLowerCase()
 
     const lineItems: any[] = []
-    let subtotal = 0
+    let subtotalMinor = 0
 
     for (const item of items) {
       const variantId = item.variant_id
-      const quantity = Math.max(1, parseInt(item.quantity, 10) || 1)
+      const quantity = Math.max(1, Math.min(99, parseInt(item.quantity, 10) || 1))
 
       if (!variantId) {
         continue
       }
 
-      const variants = await productModule.listProductVariants({ id: variantId })
-      const variant = variants?.[0]
+      // Fiyat HER ZAMAN sunucuda cozumlenir — istemci price/currency alani yok sayilir.
+      // Response MINOR unit (kurus) döner; storefront formatMoney(minor) ile basar.
+      const resolved = await resolveVariantUnitPrice(
+        req.scope,
+        variantId,
+        displayCurrency,
+        currencyRates
+      )
 
-      if (!variant) {
-        continue
-      }
-
-      // Determine unit price:
-      // - Prefer client-provided price (converted to display currency if needed)
-      // - Otherwise fallback to 0 (no price available)
-      let unitPrice = 0
-      if (typeof item.price === 'number' && item.price > 0) {
-        const fromCurrency = (item.currency || displayCurrency).toLowerCase()
-        const toCurrency = (displayCurrency || 'usd').toLowerCase()
-        unitPrice =
-          fromCurrency === toCurrency
-            ? item.price
-            : convertCurrencyAmount(item.price, fromCurrency, toCurrency, currencyRates)
-      }
+      const unitPrice = resolved.unitPriceMinor
       const lineSubtotal = unitPrice * quantity
-      subtotal += lineSubtotal
+      subtotalMinor += unitPrice * quantity
 
       lineItems.push({
         variant_id: variantId,
         quantity,
         unit_price: unitPrice,
         line_subtotal: lineSubtotal,
-        product_id: variant.product_id,
-        title: variant.title,
+        product_id: item.product_id,
+        title: resolved.title,
       })
     }
 
+    const subtotal = subtotalMinor
     const taxTotal = calculateTaxAmount(subtotal, countryTaxRate)
     const total = subtotal + taxTotal
 
@@ -132,3 +128,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 }
 
+export const OPTIONS = async (req: MedusaRequest, res: MedusaResponse) => {
+  const originHeader = req.headers.origin
+  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
+  const allowedOrigins = String(process.env.STORE_CORS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
+  }
+  res.status(204).end()
+}

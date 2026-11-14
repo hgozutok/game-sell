@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useT } from '@/components/useT'
+import { useTranslation } from '@/i18n/LocaleProvider'
+import { formatCurrency, formatDate } from '@/i18n'
 
 interface Order {
   id: string
@@ -22,6 +24,7 @@ interface Order {
 
 export default function OrdersPage() {
   const t = useT()
+  const { locale } = useTranslation()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +62,12 @@ export default function OrdersPage() {
       default:
         return 'bg-gray-500/10 border-gray-500/30 text-gray-500'
     }
+  }
+
+  const statusLabel = (status: string) => {
+    const key = `status.${status.toLowerCase()}`
+    const value = t(key)
+    return value === key ? status.toUpperCase() : value
   }
 
   if (loading) {
@@ -131,11 +140,11 @@ export default function OrdersPage() {
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}
                         >
-                          {order.status.toUpperCase()}
+                          {statusLabel(order.status)}
                         </span>
                       </div>
                       <p className="text-gray-400 text-sm">
-                        {new Date(order.created_at).toLocaleDateString('en-US', {
+                        {formatDate(order.created_at, locale, {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
@@ -147,10 +156,7 @@ export default function OrdersPage() {
                     <div className="text-right">
                       <div className="text-sm text-gray-500 mb-1">{t('account.total')}</div>
                       <div className="text-2xl font-black text-white">
-                        {new Intl.NumberFormat('en-US', {
-                          style: 'currency',
-                          currency: order.currency_code,
-                        }).format(order.total / 100)}
+                        {formatCurrency(order.total / 100, order.currency_code, locale)}
                       </div>
                     </div>
                   </div>

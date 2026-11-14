@@ -13,7 +13,7 @@ import { useT } from '@/components/useT'
 export default function CartPage() {
   const t = useT()
   const router = useRouter()
-  const { items, removeItem, updateQuantity } = useCartStore()
+  const { items, removeItem, updateQuantity, hydrateFromServer } = useCartStore()
   const { selectedCurrency, currencies } = useCurrencyStore()
   const { countryName: adminCountryName, vatRate: adminVatRate } = useTaxSettingsStore()
   const [selectedCountry, setSelectedCountry] = useState('us')
@@ -89,6 +89,12 @@ export default function CartPage() {
     }, 0)
   }
 
+  // Sunucu sepetiyle senkronize et (adet/fiyat backend'den doğrulanır)
+  useEffect(() => {
+    void hydrateFromServer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!items.length) {
       setPreviewTotals({
@@ -104,13 +110,11 @@ export default function CartPage() {
     const fetchPreview = async () => {
       try {
         setPreviewLoading(true)
+        // Fiyat sunucuda cozumlenir — istemci price/currency gönderilmez
         const response = await api.post('/store/cart/preview', {
           items: items.map((item) => ({
             variant_id: item.variantId,
             quantity: item.quantity,
-            // send client-known price and currency in minor units
-            price: item.price,
-            currency: item.currency,
           })),
           currency_code: selectedCurrency.code,
           country_code: selectedCountry,
@@ -176,7 +180,7 @@ export default function CartPage() {
         <div className="bg-[#15171c] border-b border-gray-800">
           <div className="container mx-auto px-4 py-12">
             <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-              SHOPPING CART
+              {t('cart.title')}
             </h1>
             <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e]"></div>
           </div>
@@ -190,10 +194,10 @@ export default function CartPage() {
               </div>
               <h2 className="text-3xl font-black text-white mb-4">{t('cart.empty')}</h2>
               <p className="text-gray-400 mb-8 text-lg">
-                Start shopping and add some amazing games to your cart!
+                {t('cart.emptyDesc')}
               </p>
               <Link href="/products" className="btn-primary inline-block">
-                BROWSE GAMES
+                {t('common.browseGames')}
               </Link>
             </div>
           </div>
@@ -209,11 +213,11 @@ export default function CartPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-                SHOPPING CART
+                {t('cart.title')}
               </h1>
               <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e]"></div>
             </div>
-            <p className="text-xl text-gray-400">{items.length} {items.length === 1 ? 'item' : 'items'}</p>
+            <p className="text-xl text-gray-400">{t('common.item', { count: items.length })}</p>
           </div>
         </div>
       </div>
@@ -263,7 +267,7 @@ export default function CartPage() {
                       <button
                         onClick={() => removeItem(item.variantId)}
                         className="text-gray-400 hover:text-red-500 transition-colors"
-                        title="Remove from cart"
+                        title={t('cart.remove')}
                       >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -274,7 +278,7 @@ export default function CartPage() {
                     <div className="flex items-center justify-between">
                       {/* Quantity Controls */}
                       <div className="flex items-center gap-4">
-                        <label className="text-gray-400 font-semibold">Quantity:</label>
+                        <label className="text-gray-400 font-semibold">{t('cart.quantity')}</label>
                         <div className="flex items-center border border-gray-700 rounded-lg overflow-hidden">
                           <button
                             onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
@@ -301,10 +305,12 @@ export default function CartPage() {
                         )}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {formatPrice(
-                          convertForCurrency(item.price, item.currency, currencyCodeForDisplay),
-                          currencyCodeForDisplay
-                        )} each
+                        {t('cart.each', {
+                          price: formatPrice(
+                            convertForCurrency(item.price, item.currency, currencyCodeForDisplay),
+                            currencyCodeForDisplay
+                          ),
+                        })}
                       </div>
                       </div>
                     </div>
@@ -317,24 +323,24 @@ export default function CartPage() {
           {/* Order Summary */}
           <div className="lg:col-span-1">
             <div className="gaming-card p-8 sticky top-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Order Summary</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">{t('cart.orderSummary')}</h2>
               
             <div className="space-y-4 mb-6">
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-400">{t('cart.subtotal')}</span>
                   <span className="text-white font-semibold">
-                    {previewLoading ? 'Calculating...' : formatPrice(previewTotals.subtotal)}
+                    {previewLoading ? t('cart.calculating') : formatPrice(previewTotals.subtotal)}
                   </span>
                 </div>
                 <div className="border-t border-gray-800 pt-4">
                   <div className="flex justify-between text-2xl font-bold">
-                    <span className="text-white">Total</span>
+                    <span className="text-white">{t('cart.total')}</span>
                     <span className="text-[#ff6b35]">
-                      {previewLoading ? 'Calculating...' : formatPrice(previewTotals.subtotal)}
+                      {previewLoading ? t('cart.calculating') : formatPrice(previewTotals.subtotal)}
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    Taxes calculated at checkout.
+                    {t('cart.taxesAtCheckout')}
                   </p>
                 </div>
               </div>
@@ -354,25 +360,25 @@ export default function CartPage() {
               </Link>
 
               <div className="mt-8 pt-8 border-t border-gray-800">
-                <h3 className="font-bold text-white mb-3">Secure Checkout</h3>
+                <h3 className="font-bold text-white mb-3">{t('cart.secureCheckout')}</h3>
                 <div className="space-y-2 text-sm text-gray-400">
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span>SSL Encrypted Payment</span>
+                    <span>{t('cart.sslPayment')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span>Instant Digital Delivery</span>
+                    <span>{t('cart.instantDelivery')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span>24/7 Support</span>
+                    <span>{t('cart.support')}</span>
                   </div>
                 </div>
               </div>

@@ -29,7 +29,7 @@ function layout(locale: Locale, title: string, content: string): string {
           <tr>
             <td style="background:#15171c;padding:24px 28px;">
               <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:.3px;">{{store_name}}</div>
-              <div style="font-size:12px;color:#ff6b35;font-weight:700;margin-top:4px;">DİJİTAL OYUN MAĞAZASI</div>
+              <div style="font-size:12px;color:#ff6b35;font-weight:700;margin-top:4px;">DIGITAL GAME STORE</div>
             </td>
           </tr>
           <tr>

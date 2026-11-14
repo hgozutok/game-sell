@@ -1,15 +1,45 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { formatDate } from '@/i18n'
+import { getServerLocale, getServerT } from '@/i18n/server'
 import { BLOG_POSTS } from '@/lib/blog-posts'
 
-export const metadata: Metadata = {
-  title: 'Blog | HUPIPLAY',
-  description:
-    'GTA 6 news, launch guides, game recommendations and practical advice for buying digital game keys.',
+export function generateMetadata(): Metadata {
+  const t = getServerT()
+  return {
+    title: t('content.blog.metaTitle'),
+    description: t('content.blog.metaDescription'),
+  }
 }
 
 export default function BlogIndexPage() {
+  const t = getServerT()
+  const locale = getServerLocale()
   const [featured, ...rest] = BLOG_POSTS
+
+  // Ceviri yoksa Ingilizce kaynak metne don.
+  const translateOr = (key: string, fallback: string) => {
+    const value = t(key)
+    return value === key ? fallback : value
+  }
+
+  const categoryLabel = (category: string) => {
+    const slug = category
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    return translateOr(`content.blog.category.${slug}`, category)
+  }
+
+  const readingTimeLabel = (readingTime: string) => {
+    const minutes = Number.parseInt(readingTime, 10)
+    return Number.isFinite(minutes) && minutes > 0
+      ? t('content.blog.readingTime', { count: minutes })
+      : readingTime
+  }
+
+  const dateLabel = (date: string) =>
+    formatDate(date, locale, { day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
@@ -17,15 +47,12 @@ export default function BlogIndexPage() {
         <div className="container mx-auto px-4 py-14">
           <div className="max-w-4xl">
             <div className="inline-block mb-4 px-3 py-1 bg-[#ff6b35]/15 border border-[#ff6b35]/40 rounded-full text-xs font-bold text-[#ff6b35] uppercase tracking-wide">
-              HUPIPLAY Blog
+              {t('content.blog.badge')}
             </div>
             <h1 className="text-5xl md:text-6xl font-black text-white mb-4">
-              GTA 6, game guides and key buying advice
+              {t('content.blog.heroTitle')}
             </h1>
-            <p className="text-xl text-gray-400 max-w-2xl">
-              Straight answers about the biggest releases, platform and region compatibility, and getting the
-              most out of your digital games.
-            </p>
+            <p className="text-xl text-gray-400 max-w-2xl">{t('content.blog.heroDesc')}</p>
           </div>
         </div>
       </div>
@@ -44,24 +71,28 @@ export default function BlogIndexPage() {
                     'radial-gradient(circle at 20% 20%, rgba(255,255,255,.35), transparent 35%), radial-gradient(circle at 80% 70%, rgba(0,0,0,.5), transparent 45%)',
                 }} />
                 <div className="relative z-10">
-                  <div className="text-white/80 text-xs font-bold uppercase tracking-widest mb-2">Featured</div>
+                  <div className="text-white/80 text-xs font-bold uppercase tracking-widest mb-2">
+                    {t('content.blog.featured')}
+                  </div>
                   <div className="text-3xl md:text-4xl font-black text-white leading-tight">
-                    {featured.title}
+                    {translateOr(`content.blog.post.${featured.slug}.title`, featured.title)}
                   </div>
                 </div>
               </div>
               <div className="p-8">
                 <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mb-4">
                   <span className="px-2 py-1 rounded bg-[#ff6b35]/15 border border-[#ff6b35]/40 text-[#ff6b35] font-bold">
-                    {featured.category}
+                    {categoryLabel(featured.category)}
                   </span>
-                  <span>{featured.displayDate}</span>
+                  <span>{dateLabel(featured.date)}</span>
                   <span>·</span>
-                  <span>{featured.readingTime}</span>
+                  <span>{readingTimeLabel(featured.readingTime)}</span>
                 </div>
-                <p className="text-gray-300 leading-relaxed mb-6">{featured.excerpt}</p>
+                <p className="text-gray-300 leading-relaxed mb-6">
+                  {translateOr(`content.blog.post.${featured.slug}.excerpt`, featured.excerpt)}
+                </p>
                 <span className="text-[#ff6b35] font-bold inline-flex items-center gap-2 group-hover:gap-4 transition-all">
-                  Read article <span>→</span>
+                  {t('content.blog.readArticle')} <span className="inline-block rtl:rotate-180">→</span>
                 </span>
               </div>
             </div>
@@ -79,17 +110,19 @@ export default function BlogIndexPage() {
               <div className="p-6 flex flex-col flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 mb-3">
                   <span className="px-2 py-1 rounded bg-[#1a1d24] border border-gray-700 text-gray-300 font-bold">
-                    {post.category}
+                    {categoryLabel(post.category)}
                   </span>
-                  <span>{post.displayDate}</span>
+                  <span>{dateLabel(post.date)}</span>
                 </div>
                 <h2 className="text-xl font-black text-white mb-3 group-hover:text-[#ff6b35] transition-colors">
-                  {post.title}
+                  {translateOr(`content.blog.post.${post.slug}.title`, post.title)}
                 </h2>
-                <p className="text-sm text-gray-400 leading-relaxed mb-5 flex-1">{post.excerpt}</p>
+                <p className="text-sm text-gray-400 leading-relaxed mb-5 flex-1">
+                  {translateOr(`content.blog.post.${post.slug}.excerpt`, post.excerpt)}
+                </p>
                 <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>{post.readingTime}</span>
-                  <span className="text-[#ff6b35] font-bold group-hover:translate-x-1 transition-transform">
+                  <span>{readingTimeLabel(post.readingTime)}</span>
+                  <span className="text-[#ff6b35] font-bold group-hover:translate-x-1 transition-transform inline-block rtl:rotate-180">
                     →
                   </span>
                 </div>

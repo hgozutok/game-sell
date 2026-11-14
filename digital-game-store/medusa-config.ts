@@ -30,15 +30,21 @@ export default defineConfig({
   },
   admin: {
     backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
+    // Medusa hook'un dondurdugu config'i mergeConfig(base, custom) ile birlestirir;
+    // ayni obje donderilirse plugins dizisi kopyalanir ve react() iki kez eklenir ->
+    // admin dev'de "inWebWorker has already been declared" hatasi. Sadece delta dondur.
     vite: (config) => {
-      if (fs.existsSync(dashboardReactQuery)) {
-        config.resolve = config.resolve || {}
-        config.resolve.alias = {
-          ...(config.resolve.alias as Record<string, string> | undefined),
-          "@tanstack/react-query": dashboardReactQuery,
-        }
+      if (!fs.existsSync(dashboardReactQuery)) {
+        return {}
       }
-      return config
+      return {
+        resolve: {
+          alias: {
+            ...((config.resolve?.alias ?? {}) as Record<string, string>),
+            "@tanstack/react-query": dashboardReactQuery,
+          },
+        },
+      }
     },
   },
   modules: {

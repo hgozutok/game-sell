@@ -16,6 +16,7 @@ import {
   KinguinError,
   KinguinInsufficientBalanceError,
   KinguinNotFoundError,
+  KinguinNoKeysToReturnError,
   KinguinOrderModeError,
   KinguinProductData,
   KinguinProductUnavailableError,
@@ -99,8 +100,12 @@ class KinguinService extends MedusaService({
     if (kind === "InsufficientBalance") {
       return new KinguinInsufficientBalanceError(data?.detail)
     }
-    if (kind === "ProductUnavailable" || kind === "NoKeysToReturn") {
+    if (kind === "ProductUnavailable" || kind === "NoOffers") {
       return new KinguinProductUnavailableError(data?.detail)
+    }
+    if (kind === "NoKeysToReturn") {
+      // ESA guide §14: iade kriterlerine uyan key yok
+      return new KinguinNoKeysToReturnError(data?.detail)
     }
     return new KinguinError(
       `Kinguin request failed: ${data?.detail || err.message}`,
@@ -383,15 +388,32 @@ class KinguinService extends MedusaService({
       }
     }
 
-    const body = {
+    const body: Record<string, any> = {
       products: items.map((i) => ({
         productId: i.productId,
         qty: i.qty,
         price: i.price,
       })),
     }
+    // ESA guide: timeout sonrasi kurtarma icin benzersiz orderExternalId sart
+    // (409 OrderExternalNotUnique -> asagida ayni referansla siparis bulunur)
+    if (medusaOrderId) body.orderExternalId = medusaOrderId
 
-    const data = await this.request<KinguinApiOrder>("post", "/v2/order", { body })
+    let data: KinguinApiOrder
+    try {
+      data = await this.request<KinguinApiOrder>("post", "/v2/order", { body })
+    } catch (e: any) {
+      // Onceki deneme aslnda siparisi olusturmus olabilir — ayni referansla bul
+      if (e?.status !== 409 || !medusaOrderId) throw e
+      const remote = await this.request<{ results?: KinguinApiOrder[] }>(
+        "get",
+        "/v1/order",
+        { params: { orderExternalId: medusaOrderId, limit: 1 } }
+      ).catch(() => null)
+      const first = remote?.results?.[0]
+      if (!first) throw e
+      data = first
+    }
 
     const order = await this.createKinguinOrders({
       order_id: data.orderId,
@@ -445,7 +467,7 @@ class KinguinService extends MedusaService({
 
   // Yerel kinguin_order kayitlarini guncelle (workflow/webhook kullanir)
   async updateLocalOrderStatus(orderId: string, patch: Partial<{
-    status: "pending" | "processing" | "completed" | "canceled" | "failed"
+    status: "pending" | "processing" | "completed" | "canceled" | "failed" | "refunded"
     keys_encrypted: any
     keys_delivered_at: Date | null
     error: string | null

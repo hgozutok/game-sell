@@ -70,14 +70,17 @@ async function markFulfillmentState(
   const orderModule = container.resolve("order") as any
   const order = await orderModule.retrieveOrder(orderId).catch(() => null)
   if (!order) return
-  await orderModule.updateOrder(orderId, {
-    metadata: {
-      ...(order.metadata || {}),
-      fulfillment_state: state,
-      fulfillment_updated_at: new Date().toISOString(),
-      ...extra,
+  await orderModule.updateOrders([
+    {
+      id: orderId,
+      metadata: {
+        ...(order.metadata || {}),
+        fulfillment_state: state,
+        fulfillment_updated_at: new Date().toISOString(),
+        ...extra,
+      },
     },
-  })
+  ])
 }
 
 // ===================== 1) Hazirlik + guard'lar =====================
@@ -314,6 +317,25 @@ const placeKinguinOrderStep = createStep(
       price: Number((m.line.costUsdMinor / 100).toFixed(2)),
     }))
 
+    // ESA guide §8: siparis basina 1-10 kalem, normal satislarda adet 1-9
+    if (items.length < 1 || items.length > 10) {
+      await markFulfillmentState(container, input.orderId, "awaiting_approval", {
+        fulfillment_error: `Kinguin siparis limiti: siparis basina 1-10 kalem olmali (istek: ${items.length}) — bolunmus gonderim gerekli`,
+      })
+      throw new GuardError(
+        "ORDER_LIMIT",
+        `Kinguin siparis limiti asildi: ${items.length} kalem`
+      )
+    }
+    for (const item of items) {
+      if (item.qty < 1 || item.qty > 9) {
+        await markFulfillmentState(container, input.orderId, "awaiting_approval", {
+          fulfillment_error: `Kinguin adet limiti: normal satislarda adet 1-9 (istek: qty=${item.qty})`,
+        })
+        throw new GuardError("ORDER_LIMIT", `Kinguin adet limiti: qty=${item.qty}`)
+      }
+    }
+
     const orderRow = await kinguin.createOrder(items, input.orderId)
     await markFulfillmentState(container, input.orderId, "provider_order_placed", {
       kinguin_order_id: orderRow.order_id,
@@ -479,15 +501,18 @@ const deliverKeysStep = createStep(
     // Siparisi fulfilled + delivered isaretle
     try {
       const order = await orderModule.retrieveOrder(input.orderId).catch(() => null)
-      await orderModule.updateOrder(input.orderId, {
-        metadata: {
-          ...(order?.metadata || {}),
-          fulfillment_state: "delivered",
-          digital_fulfilled: true,
-          digital_fulfilled_at: new Date().toISOString(),
-          fulfillment_error: null,
+      await orderModule.updateOrders([
+        {
+          id: input.orderId,
+          metadata: {
+            ...(order?.metadata || {}),
+            fulfillment_state: "delivered",
+            digital_fulfilled: true,
+            digital_fulfilled_at: new Date().toISOString(),
+            fulfillment_error: null,
+          },
         },
-      })
+      ])
     } catch (e: any) {
       logger.warn(`[fulfill-kinguin] siparis guncelleme hatasi: ${e?.message}`)
     }

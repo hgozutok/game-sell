@@ -21,9 +21,12 @@ export default async function retryFulfillmentsJob(container: MedusaContainer) {
   for (const order of orders || []) {
     const attempts = Number(order.metadata?.fulfillment_attempts || 0)
     if (attempts >= max) {
-      await orderModule.updateOrder(order.id, {
-        metadata: { ...order.metadata, fulfillment_state: "failed" },
-      })
+      await orderModule.updateOrders([
+        {
+          id: order.id,
+          metadata: { ...order.metadata, fulfillment_state: "failed" },
+        },
+      ])
       failed++
       continue
     }
@@ -37,20 +40,26 @@ export default async function retryFulfillmentsJob(container: MedusaContainer) {
       await fulfillKinguinOrderWorkflow(container).run({
         input: { orderId: order.id, customerId: order.customer_id, email: order.email },
       })
-      await orderModule.updateOrder(order.id, {
-        metadata: { ...order.metadata, fulfillment_attempts: attempts + 1 },
-      })
+      await orderModule.updateOrders([
+        {
+          id: order.id,
+          metadata: { ...order.metadata, fulfillment_attempts: attempts + 1 },
+        },
+      ])
     } catch (e: any) {
       const newAttempts = attempts + 1
-      await orderModule.updateOrder(order.id, {
-        metadata: {
-          ...order.metadata,
-          fulfillment_attempts: newAttempts,
-          fulfillment_state: newAttempts >= max ? "failed" : "retrying",
-          fulfillment_error: String(e?.message || e),
-          fulfillment_updated_at: new Date().toISOString(),
+      await orderModule.updateOrders([
+        {
+          id: order.id,
+          metadata: {
+            ...order.metadata,
+            fulfillment_attempts: newAttempts,
+            fulfillment_state: newAttempts >= max ? "failed" : "retrying",
+            fulfillment_error: String(e?.message || e),
+            fulfillment_updated_at: new Date().toISOString(),
+          },
         },
-      })
+      ])
     }
   }
 

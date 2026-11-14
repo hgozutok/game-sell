@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { useCartStore } from '@/store/cartStore'
 import { getCurrencySymbol, convertAmount } from '@/utils/currency'
+import { useT } from '@/components/useT'
 
 interface ProductCardProps {
   product: {
@@ -41,6 +42,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const t = useT()
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
   const currencies = useCurrencyStore((state) => state.currencies)
   const addItem = useCartStore((state) => state.addItem)
@@ -106,7 +108,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     e.stopPropagation()
     
     if (!variantId) {
-      alert('Bu ürün sepete eklenemiyor')
+      alert(t('productCard.cannotAdd'))
       return
     }
 
@@ -146,7 +148,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="text-7xl mb-2 opacity-50">🎮</div>
-                <p className="text-gray-600 text-sm">No Image Available</p>
+                <p className="text-gray-600 text-sm">{t('productCard.noImage')}</p>
               </div>
             </div>
           )}
@@ -155,15 +157,15 @@ export default function ProductCard({ product }: ProductCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-[#15171c] via-transparent to-transparent opacity-60"></div>
           
           {/* Badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-2">
+          <div className="absolute top-3 start-3 flex flex-col gap-2">
             <span className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-              INSTANT DELIVERY
+              {t('productCard.instantDelivery')}
             </span>
           </div>
           
           {/* Platform Badge */}
           {product.metadata?.platform && (
-            <div className="absolute top-3 right-3">
+            <div className="absolute top-3 end-3">
               <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold bg-black/80 backdrop-blur-sm text-white border border-white/20 shadow-lg">
                 {product.metadata.platform}
               </span>
@@ -179,7 +181,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </h3>
           
           <p className="text-sm text-gray-400 mb-4 line-clamp-2 min-h-[40px] leading-relaxed">
-            {product.description || "Digital game key delivered instantly"}
+            {product.description || t('productCard.defaultDescription')}
           </p>
 
           {/* Price and Action */}
@@ -197,7 +199,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                   </div>
                 </>
               ) : (
-                <span className="text-gray-500 text-sm">Price not available</span>
+                <span className="text-gray-500 text-sm">{t('productCard.priceUnavailable')}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -210,7 +212,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                     ? 'bg-green-500 scale-95 cursor-wait'
                     : 'bg-gradient-to-r from-[#ff6b35] to-[#f7931e] hover:scale-110'
                 }`}
-                title={addingToCart ? 'Ekleniyor...' : 'Sepete ekle'}
+                title={addingToCart ? t('productCard.adding') : t('productCard.addToCart')}
               >
                 {addingToCart ? (
                   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -224,7 +226,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                 )}
               </button>
               <button className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white px-5 py-2 rounded-md text-sm font-bold hover:shadow-lg hover:shadow-[#ff6b35]/50 transition-all uppercase group-hover:scale-105">
-                BUY NOW
+                {t('productCard.buyNow')}
               </button>
             </div>
           </div>

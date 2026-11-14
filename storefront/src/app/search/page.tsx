@@ -7,8 +7,10 @@ import { api } from '@/lib/api'
 import ProductCard from '@/components/products/ProductCard'
 import { usePriceCap } from '@/hooks/usePriceCap'
 import Link from 'next/link'
+import { useT } from '@/components/useT'
 
 function SearchPageContent() {
+  const t = useT()
   const searchParams = useSearchParams()
   const { cap, ready: priceCapReady, isOverCap } = usePriceCap()
   const query = searchParams.get('q') || ''
@@ -73,16 +75,16 @@ function SearchPageContent() {
       <div className="bg-gradient-to-r from-[#1a1d24] to-[#15171c] border-b border-gray-800">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl md:text-5xl font-black text-white mb-3">
-            SEARCH RESULTS
+            {t('search.title')}
           </h1>
           <div className="w-20 h-1 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] mb-4"></div>
           {query && (
             <p className="text-gray-400 text-lg">
-              Results for: <span className="text-[#ff6b35] font-bold">{query}</span>
+              {t('search.resultsFor')} <span className="text-[#ff6b35] font-bold">{query}</span>
             </p>
           )}
           {!query && (
-            <p className="text-gray-400 text-lg">Enter a search term to find games</p>
+            <p className="text-gray-400 text-lg">{t('search.enterTerm')}</p>
           )}
         </div>
       </div>
@@ -92,8 +94,8 @@ function SearchPageContent() {
         {query.length < 2 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-2xl font-bold text-white mb-2">Enter at least 2 characters</h3>
-            <p className="text-gray-400 mb-6">Type in the search bar to find games</p>
+            <h3 className="text-2xl font-bold text-white mb-2">{t('search.minCharsTitle')}</h3>
+            <p className="text-gray-400 mb-6">{t('search.minCharsDesc')}</p>
           </div>
         ) : isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -111,30 +113,30 @@ function SearchPageContent() {
         ) : error ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">😕</div>
-            <h3 className="text-2xl font-bold text-white mb-2">Failed to load results</h3>
-            <p className="text-gray-400 mb-6">Please try again later</p>
+            <h3 className="text-2xl font-bold text-white mb-2">{t('search.failedTitle')}</h3>
+            <p className="text-gray-400 mb-6">{t('search.failedDesc')}</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn-primary"
             >
-              Try Again
+              {t('catalog.tryAgain')}
             </button>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-2xl font-bold text-white mb-2">No results found</h3>
+            <h3 className="text-2xl font-bold text-white mb-2">{t('search.noResults')}</h3>
             <p className="text-gray-400 mb-6">
-              We couldn't find any games matching "{query}"
+              {t('search.noResultsDesc', { query })}
             </p>
             <Link href="/products" className="btn-primary">
-              Browse All Games
+              {t('search.browseAll')}
             </Link>
           </div>
         ) : (
           <>
             <div className="mb-6 text-gray-400">
-              Found <span className="text-[#ff6b35] font-bold">{count}</span> result{count !== 1 ? 's' : ''}
+              {t('search.found', { count })}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {products.map((product: any) => (

@@ -119,22 +119,18 @@ export default function Home() {
       {/* Stats Banner */}
       <section className="container mx-auto px-4 py-12">
         <div className="bg-[#15171c] border border-gray-800 rounded-2xl p-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             <div>
-              <div className="text-4xl font-black text-[#ff6b35] mb-2">100K+</div>
+              <div className="text-4xl font-black text-[#ff6b35] mb-2">{t('home.statsGamesValue')}</div>
               <div className="text-sm text-gray-500 uppercase">{t('home.statsGames')}</div>
             </div>
             <div>
-              <div className="text-4xl font-black text-[#ff6b35] mb-2">500K+</div>
+              <div className="text-4xl font-black text-[#ff6b35] mb-2">{t('home.statsCustomersValue')}</div>
               <div className="text-sm text-gray-500 uppercase">{t('home.statsCustomers')}</div>
             </div>
             <div>
               <div className="text-4xl font-black text-[#ff6b35] mb-2">24/7</div>
               <div className="text-sm text-gray-500 uppercase">{t('home.statsSupport')}</div>
-            </div>
-            <div>
-              <div className="text-4xl font-black text-[#ff6b35] mb-2">4.8★</div>
-              <div className="text-sm text-gray-500 uppercase">{t('home.statsRating')}</div>
             </div>
           </div>
         </div>

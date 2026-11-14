@@ -70,7 +70,8 @@ const fetchKeysFromProviderStep = createStep(
   async (input: { orderId: string; customerId: string; missingItems: any[] }, { container }) => {
     const keyInventoryService = container.resolve("keyInventory") as KeyInventoryService
     const codesWholesaleService = container.resolve("codesWholesale") as any
-    const kinguinService = container.resolve("kinguin") as any
+    // fetchKey sadece key-provider modulunde var; ana kinguin modulu degil.
+    const kinguinService = container.resolve("keyProviderKinguin") as any
     const logger = container.resolve("logger") as any
 
     const fetchedKeys: any[] = []

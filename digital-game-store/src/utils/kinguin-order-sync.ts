@@ -13,6 +13,7 @@ export interface OrderSyncSummary {
   completed: number
   keysFetched: number
   canceled: number
+  refunded: number
   errors: string[]
 }
 
@@ -60,10 +61,53 @@ export async function syncOneKinguinOrder(
     return { status: "canceled", keysFetched: 0 }
   }
 
+  // ESA guide §8: key'ler iade edildiginde siparis refunded olur —
+  // teslimat tetiklenmez, medusa siparisi manuel kuyruga alinir.
+  if (remoteStatus === "refunded") {
+    await kinguin.updateLocalOrderStatus(orderRow.order_id, {
+      status: "refunded",
+      error: "Kinguin siparisi refunded — key'ler iade edildi, bakiye geri verildi",
+    })
+    if (orderRow.medusa_order_id) {
+      await pauseLinkedOrderForRefund(container, orderRow.medusa_order_id)
+    }
+    return { status: "refunded", keysFetched: 0 }
+  }
+
   await kinguin.updateLocalOrderStatus(orderRow.order_id, {
     status: remoteStatus === "completed" ? "completed" : "processing",
   })
   return { status: remoteStatus, keysFetched: 0 }
+}
+
+/** refunded Kinguin siparisinin medusa karsiligini manuel kuyruga alir. */
+async function pauseLinkedOrderForRefund(
+  container: any,
+  medusaOrderId: string
+): Promise<void> {
+  const scope = container.scope ?? container
+  const orderModule = scope.resolve("order") as any
+  const logger = scope.resolve("logger") as any
+  const order = await orderModule.retrieveOrder(medusaOrderId).catch(() => null)
+  if (!order) return
+  const state = (order.metadata as any)?.fulfillment_state
+  if (state === "delivered") return // key'ler musteriye gitmis — manuel inceleme
+  try {
+    await orderModule.updateOrders([
+      {
+        id: medusaOrderId,
+        metadata: {
+          ...(order.metadata || {}),
+          fulfillment_state: "awaiting_approval",
+          fulfillment_error:
+            "Kinguin siparisi iade edildi (refunded) — farkli saglayici veya iade sureci gerekli",
+          fulfillment_updated_at: new Date().toISOString(),
+        },
+      },
+    ])
+  } catch (e: any) {
+    logger.warn(`[kinguin-order-sync] refunded ${medusaOrderId}: ${e?.message}`)
+  }
 }
 
 /**
@@ -107,6 +151,7 @@ export async function syncPendingKinguinOrders(
     completed: 0,
     keysFetched: 0,
     canceled: 0,
+    refunded: 0,
     errors: [],
   }
 
@@ -124,6 +169,8 @@ export async function syncPendingKinguinOrders(
         summary.keysFetched += result.keysFetched
       } else if (result.status === "canceled") {
         summary.canceled++
+      } else if (result.status === "refunded") {
+        summary.refunded++
       }
     } catch (e: any) {
       summary.errors.push(`${orderRow.order_id}: ${e?.message}`)

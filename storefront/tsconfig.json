@@ -19,7 +19,7 @@
     "incremental": true,
     "plugins": [
       {
-        "name": "next" 
+        "name": "next"
       }
     ],
     "paths": {
@@ -32,7 +32,8 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next-test/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -7,7 +7,7 @@ const KinguinOrder = model.define("kinguin_order", {
   order_id: model.text().unique(), // Kinguin tarafindan donen orderId
   external_id: model.text().nullable(), // bize gonderdigmiz orderExternalId
   status: model
-    .enum(["pending", "processing", "completed", "canceled", "failed"])
+    .enum(["pending", "processing", "completed", "canceled", "failed", "refunded"])
     .default("pending"),
   total_price: model.number().default(0),
   currency: model.text().default("eur"),
