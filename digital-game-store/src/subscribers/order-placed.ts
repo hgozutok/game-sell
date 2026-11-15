@@ -9,6 +9,7 @@ import {
   resolveEmailLocale,
 } from "../utils/email"
 import { evaluatePurchaseVelocity } from "../utils/velocity-guard"
+import { convertOrderTotalToCurrency } from "../utils/currency"
 
 /**
  * order.placed — odenen dijital siparisleri fulfillment kuyruguna alir.
@@ -164,6 +165,33 @@ export default async function orderPlacedHandler({
       `[order-placed] ${orderId}: hiz alarmi (${velocity.count}/${velocity.maxOrders} siparis, ${velocity.windowMinutes}dk) — manuel kuyruk`
     )
     return
+  }
+
+  // -0.5) Tutar esigi: siparis tutari esigi (EUR) uzerindeyse otomatik
+  // teslimat kapanir, admin onayina dusar. 0/esik yok = kontrol kapali.
+  const maxTotalEur = Number(
+    (await storeSettings
+      .getSettingValue("orders.auto_fulfill_max_total_eur", 0)
+      .catch(() => 0)) ?? 0
+  )
+  if (maxTotalEur > 0) {
+    const totalEur = await convertOrderTotalToCurrency(
+      storeSettings,
+      order.total,
+      order.currency_code,
+      "eur"
+    )
+    if (totalEur >= maxTotalEur) {
+      await setState("awaiting_approval", {
+        fulfillment_error: `Siparis tutari esigi asildi (${totalEur.toFixed(2)} EUR >= ${maxTotalEur} EUR) — manuel onay gerekli`,
+        amount_threshold_triggered: true,
+        order_total_eur: Number(totalEur.toFixed(2)),
+      })
+      logger.warn(
+        `[order-placed] ${orderId}: tutar esigi (${totalEur.toFixed(2)} EUR >= ${maxTotalEur} EUR) — manuel kuyruk`
+      )
+      return
+    }
   }
 
   // 0) Ödeme onayı olmadan otomatik teslimat yok

@@ -157,6 +157,9 @@ export default defineConfig({
     kinguin: {
       resolve: "./src/modules/kinguin",
     },
+    keyProviderKinguin: {
+      resolve: "./src/modules/key-provider-kinguin",
+    },
     auditLog: {
       resolve: "./src/modules/audit-log",
     },

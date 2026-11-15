@@ -120,6 +120,12 @@ export default function AdminOrdersControlPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [autoFulfill, setAutoFulfill] = useState<boolean>(false)
+  // Fulfillment guard ayarlari: hiz limiti (pestepe alim) + tutar esigi (TRY)
+  const [velocityWindow, setVelocityWindow] = useState<number>(30)
+  const [velocityMax, setVelocityMax] = useState<number>(5)
+  const [maxTotalEur, setMaxTotalEur] = useState<number>(0)
+  const [guardTriggeredAt, setGuardTriggeredAt] = useState<string | null>(null)
+  const [settingsSaving, setSettingsSaving] = useState(false)
   const [sandboxBusy, setSandboxBusy] = useState(false)
   const [sandboxResult, setSandboxResult] = useState<any>(null)
   const [returnBusy, setReturnBusy] = useState(false)
@@ -158,10 +164,15 @@ export default function AdminOrdersControlPage() {
 
   const loadSetting = useCallback(async () => {
     try {
-      const res = await adminApi.get('/admin/settings', { params: { category: 'general' } })
+      // Guard ayarlari farkli kategorilere yazabilir — tum ayarlari oku
+      const res = await adminApi.get('/admin/settings')
       const list: Array<{ key: string; value: any }> = res.data?.settings || []
-      const found = list.find((s) => s.key === 'orders.auto_fulfillment_enabled')
-      setAutoFulfill(found?.value === true)
+      const find = (key: string) => list.find((s) => s.key === key)?.value
+      setAutoFulfill(find('orders.auto_fulfillment_enabled') === true)
+      setVelocityWindow(Number(find('orders.velocity_window_minutes') ?? 30) || 30)
+      setVelocityMax(Number(find('orders.velocity_max_orders') ?? 5) || 5)
+      setMaxTotalEur(Number(find('orders.auto_fulfill_max_total_eur') ?? 0) || 0)
+      setGuardTriggeredAt((find('orders.velocity_guard_triggered_at') as string) || null)
     } catch {
       setAutoFulfill(false)
     }
@@ -183,18 +194,34 @@ export default function AdminOrdersControlPage() {
     setBusy(`${target}-${orderId}`)
     setMessage(null)
     try {
-      await adminApi.post(`/admin/order-control/${orderId}/approve`, { target, approved: true })
+      const res = await adminApi.post(`/admin/order-control/${orderId}/approve`, {
+        target,
+        approved: true,
+      })
       const fresh = await loadDetail(orderId)
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, metadata: fresh?.metadata || o.metadata } : o))
       )
-      setMessage({
-        ok: true,
-        text:
-          target === 'order'
-            ? 'Sipariş onaylandı. Ödeme de onaylıysa key gönderebilirsiniz.'
-            : 'Ödeme onaylandı. Sipariş de onaylıysa key gönderebilirsiniz.',
-      })
+      if (res.data?.auto_fulfilled) {
+        setMessage({
+          ok: true,
+          text: 'Onay tamamlandı — iki onay da tam, keyler otomatik gönderildi.',
+        })
+        await loadOrders()
+      } else if (res.data?.auto_fulfill_error) {
+        setMessage({
+          ok: false,
+          text: `Onay verildi ama key gönderilemedi: ${res.data.auto_fulfill_error}`,
+        })
+      } else {
+        setMessage({
+          ok: true,
+          text:
+            target === 'order'
+              ? 'Sipariş onaylandı. Ödeme de onaylıysa keyler otomatik gönderilecek.'
+              : 'Ödeme onaylandı. Sipariş de onaylıysa keyler otomatik gönderilecek.',
+        })
+      }
     } catch (e: any) {
       setMessage({ ok: false, text: e?.response?.data?.message || 'Onay başarısız' })
     } finally {
@@ -241,6 +268,47 @@ export default function AdminOrdersControlPage() {
       setMessage({ ok: false, text: 'Ayar kaydedilemedi' })
     } finally {
       setBusy(null)
+    }
+  }
+
+  // Hiz limiti + tutar esigi ayarlarini toplu kaydet
+  const saveGuardSettings = async () => {
+    setSettingsSaving(true)
+    setMessage(null)
+    const items: Array<{ key: string; value: any; description: string }> = [
+      {
+        key: 'orders.velocity_window_minutes',
+        value: Math.max(1, Math.round(velocityWindow || 30)),
+        description: 'Peşpeşe alım alarmı zaman penceresi (dakika)',
+      },
+      {
+        key: 'orders.velocity_max_orders',
+        value: Math.max(1, Math.round(velocityMax || 5)),
+        description: 'Pencere içinde izin verilen maksimum sipariş sayısı',
+      },
+      {
+        key: 'orders.auto_fulfill_max_total_eur',
+        value: Math.max(0, Number(maxTotalEur) || 0),
+        description:
+          'Sipariş tutarı bu EUR eşiğini aşarsa otomatik fulfillment manuel onaya düşer (0 = kapalı)',
+      },
+    ]
+    try {
+      for (const item of items) {
+        await adminApi.post('/admin/settings', { ...item, category: 'general' })
+      }
+      await loadSetting()
+      setMessage({
+        ok: true,
+        text:
+          'Fulfillment kuralları kaydedildi: ' +
+          `${Math.round(velocityWindow || 30)} dk / ${Math.round(velocityMax || 5)} sipariş, ` +
+          `tutar eşiği ${Number(maxTotalEur) || 0} EUR ${Number(maxTotalEur) > 0 ? '' : '(kapalı)'}`,
+      })
+    } catch {
+      setMessage({ ok: false, text: 'Kural ayarları kaydedilemedi' })
+    } finally {
+      setSettingsSaving(false)
     }
   }
 
@@ -337,25 +405,93 @@ export default function AdminOrdersControlPage() {
           </div>
         )}
 
-        <div className="bg-[#15171c] border border-gray-800 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-black text-white">Otomatik Fulfillment</h2>
-            <p className="text-gray-400 text-sm">
-              Açıkken ödemesi tamamlanan siparişler otomatik onaylanır ve keyleri gönderilir.
-              Kapalıyken sipariş + ödeme onayı elle verilir.
-            </p>
+        <div className="bg-[#15171c] border border-gray-800 rounded-xl p-6 space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-black text-white">Otomatik Fulfillment</h2>
+              <p className="text-gray-400 text-sm">
+                Açıkken ödemesi tamamlanan siparişler otomatik onaylanır ve keyleri gönderilir.
+                Kapalıyken sipariş + ödeme onayı elle verilir.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm ${autoFulfill ? 'text-green-400' : 'text-gray-400'}`}>
+                {autoFulfill ? 'Açık' : 'Kapalı'}
+              </span>
+              <button
+                disabled={busy === 'auto'}
+                onClick={toggleAutoFulfill}
+                className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-60"
+              >
+                {autoFulfill ? 'Kapat' : 'Aç'}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`text-sm ${autoFulfill ? 'text-green-400' : 'text-gray-400'}`}>
-              {autoFulfill ? 'Açık' : 'Kapalı'}
-            </span>
-            <button
-              disabled={busy === 'auto'}
-              onClick={toggleAutoFulfill}
-              className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-60"
-            >
-              {autoFulfill ? 'Kapat' : 'Aç'}
-            </button>
+
+          {/* Manuel onaya dusme kurallari */}
+          <div className="border-t border-gray-800 pt-5">
+            <h3 className="text-white font-bold mb-1">Manuel Onaya Düşme Kuralları</h3>
+            <p className="text-gray-400 text-sm mb-4">
+              Bu kurallardan biri tetiklenirse sipariş otomatik gönderim yerine manuel onay
+              kuyruğuna düşer. Onay verildiğinde keyler otomatik gönderilir.
+              {guardTriggeredAt && (
+                <span className="text-yellow-500 block mt-1">
+                  ⚠ Son hız alarmı: {new Date(guardTriggeredAt).toLocaleString('tr-TR')} — alarm
+                  tetiklendiğinde otomatik gönderim kapatıldı.
+                </span>
+              )}
+            </p>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">
+                  Zaman penceresi (dakika)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={velocityWindow}
+                  onChange={(e) => setVelocityWindow(Number(e.target.value))}
+                  className="w-28 bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">
+                  Penceredeki maks. sipariş
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={velocityMax}
+                  onChange={(e) => setVelocityMax(Number(e.target.value))}
+                  className="w-28 bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">
+                  Tutar eşiği (EUR, 0 = kapalı)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="10"
+                  value={maxTotalEur}
+                  onChange={(e) => setMaxTotalEur(Number(e.target.value))}
+                  className="w-36 bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+                />
+              </div>
+              <button
+                disabled={settingsSaving}
+                onClick={saveGuardSettings}
+                className="px-4 py-2 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-60"
+              >
+                {settingsSaving ? 'Kaydediliyor…' : 'Kuralları Kaydet'}
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-3">
+              Örnek: 30 dk / 5 sipariş → 30 dakikada 5 sipariş geçilirse otomatik gönderim
+              kapanır ve yeni siparişler manuel onaya düşer. Tutar eşiği 100 EUR → toplamı
+              100 EUR ve üzeri olan siparişler manuel onay bekler.
+            </p>
           </div>
         </div>
 

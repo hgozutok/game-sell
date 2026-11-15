@@ -48,6 +48,24 @@ export async function getCurrencyRates(settingsService: any): Promise<Record<str
 }
 
 /**
+ * Tutar esigi karsilastirmalari icin siparis tutarini (siparis para birimi,
+ * minor unit) hedef para biriminin major unit'ine cevirir. Kurlar USD
+ * bazlidir (rate X = 1 USD = X cur).
+ */
+export async function convertOrderTotalToCurrency(
+  settingsService: any,
+  totalMinor: number,
+  currencyCode: string,
+  targetCurrency: string
+): Promise<number> {
+  const rates = await getCurrencyRates(settingsService)
+  const from = rates[String(currencyCode || 'usd').toLowerCase()] || 1
+  const to = rates[String(targetCurrency || 'eur').toLowerCase()] || 1
+  const usdMajor = Number(totalMinor || 0) / 100 / from
+  return usdMajor * to
+}
+
+/**
  * Calculate multi-currency prices from a base USD price
  */
 export function calculateMultiCurrencyPrices(
