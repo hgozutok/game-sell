@@ -138,11 +138,11 @@ export const common: MessageTable = {
   },
 
   'footer.description': {
-    en: 'Your trusted marketplace for digital game keys. Over 10,000 games available with instant delivery, secure payments and the best prices guaranteed.',
-    tr: 'Dijital oyun key’leri için güvenilir pazaryeriniz. 10.000’den fazla oyun, anında teslimat, güvenli ödeme ve en iyi fiyat garantisi.',
-    de: 'Ihr vertrauenswürdiger Marktplatz für digitale Spielkeys. Über 10.000 Spiele mit sofortiger Lieferung, sicheren Zahlungen und Bestpreisgarantie.',
-    fr: 'Votre place de marché de confiance pour les clés de jeux numériques. Plus de 10 000 jeux, livraison immédiate, paiements sécurisés et meilleurs prix garantis.',
-    ar: 'سوقك الموثوق لمفاتيح الألعاب الرقمية. أكثر من 10,000 لعبة مع تسليم فوري ومدفوعات آمنة وأفضل الأسعار المضمونة.',
+    en: 'Your trusted marketplace for digital game keys. Over 30,000 games available with instant delivery, secure payments and the best prices guaranteed.',
+    tr: 'Dijital oyun key’leri için güvenilir pazaryeriniz. 30.000’den fazla oyun, anında teslimat, güvenli ödeme ve en iyi fiyat garantisi.',
+    de: 'Ihr vertrauenswürdiger Marktplatz für digitale Spielkeys. Über 30.000 Spiele mit sofortiger Lieferung, sicheren Zahlungen und Bestpreisgarantie.',
+    fr: 'Votre place de marché de confiance pour les clés de jeux numériques. Plus de 30 000 jeux, livraison immédiate, paiements sécurisés et meilleurs prix garantis.',
+    ar: 'سوقك الموثوق لمفاتيح الألعاب الرقمية. أكثر من 30,000 لعبة مع تسليم فوري ومدفوعات آمنة وأفضل الأسعار المضمونة.',
   },
   'footer.shop': {
     en: 'Shop',

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/store/cartStore'
 import { useCurrencyStore } from '@/store/currencyStore'
@@ -72,10 +72,18 @@ export default function Header() {
   }, [searchQuery])
 
   // Navigate to search results when debounced query changes
+  // ÖNEMLI: kullanici bu oturumda arama yazmadiysa /search sayfasinda kalınmalı —
+  // aksi halde /search?q=... dogrudan acilinca (refresh/link) /products'a firlar.
+  const searchTouchedRef = useRef(false)
+
   useEffect(() => {
     if (debouncedSearch.length >= 2) {
       router.push(`/search?q=${encodeURIComponent(debouncedSearch)}`)
-    } else if (debouncedSearch.length === 0 && window.location.pathname === '/search') {
+    } else if (
+      searchTouchedRef.current &&
+      debouncedSearch.length === 0 &&
+      window.location.pathname === '/search'
+    ) {
       router.push('/products')
     }
   }, [debouncedSearch, router])
@@ -143,7 +151,10 @@ export default function Header() {
                 type="search" 
                 placeholder={t('nav.searchPlaceholder')}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  searchTouchedRef.current = true
+                  setSearchQuery(e.target.value)
+                }}
                 className="bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg w-64 focus:border-[#ff6b35] focus:outline-none"
               />
               {searchQuery && (

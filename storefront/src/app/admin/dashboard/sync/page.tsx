@@ -10,7 +10,10 @@ type SyncLog = {
   type_label?: string
   source?: string
   provider_label?: string
-  status: 'success' | 'failed' | 'running' | string
+  status: 'success' | 'failed' | 'running' | 'stalled' | 'canceled' | string
+  raw_status?: string
+  is_stale?: boolean
+  can_cancel?: boolean
   timestamp: string
   message?: string
   details?: string
@@ -18,6 +21,8 @@ type SyncLog = {
   items_added?: number
   items_updated?: number
   items_failed?: number
+  progress_total?: number
+  progress_processed?: number
 }
 
 type SyncSettings = {
@@ -139,7 +144,9 @@ export default function SyncPage() {
             message:
               last?.status === 'success'
                 ? `✅ Senkronizasyon tamamlandı — ${last.details || ''}`
-                : `❌ Senkronizasyon başarısız: ${last?.details || 'bilinmeyen hata'}`,
+                : last?.status === 'canceled'
+                  ? `⏹️ Senkronizasyon iptal edildi — ${last.details || ''}`
+                  : `❌ Senkronizasyon başarısız: ${last?.details || 'bilinmeyen hata'}`,
           })
           fetchSettings()
         }
@@ -184,8 +191,22 @@ export default function SyncPage() {
     }
   }
 
-  const saveSettings = async () => {
-    setSavingSettings(true)
+  const cancelSync = async (id: string) => {
+    if (!window.confirm('Bu senkronizasyonu iptal etmek istiyor musunuz?')) return
+    try {
+      await adminApi.post(`/admin/kinguin/sync-logs/${id}/cancel`)
+      setResult({ success: true, message: '⏹️ Senkronizasyon iptal edildi' })
+      setSyncing(false)
+      await fetchLogs()
+    } catch (error: any) {
+      setResult({
+        success: false,
+        message: error?.response?.data?.message || 'İptal edilemedi',
+      })
+    }
+  }
+
+  const saveSettings = async () => {    setSavingSettings(true)
     setSettingsMessage(null)
     try {
       await adminApi.post('/admin/kinguin/settings', {
@@ -441,16 +462,32 @@ export default function SyncPage() {
                               ? 'bg-green-500/20 text-green-500'
                               : log.status === 'running'
                                 ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-red-500/20 text-red-500'
+                                : log.status === 'stalled'
+                                  ? 'bg-orange-500/20 text-orange-400'
+                                  : log.status === 'canceled'
+                                    ? 'bg-gray-500/20 text-gray-300'
+                                    : 'bg-red-500/20 text-red-500'
                           }`}
                         >
                           {log.status === 'success'
                             ? '✅ Başarılı'
                             : log.status === 'running'
                               ? '⏳ Çalışıyor'
-                              : '❌ Hatalı'}
+                              : log.status === 'stalled'
+                                ? '⏸️ Takıldı'
+                                : log.status === 'canceled'
+                                  ? '⏹️ İptal edildi'
+                                  : '❌ Hatalı'}
                         </span>
                         <span className="text-sm text-gray-400">{log.timestamp}</span>
+                        {log.can_cancel && (
+                          <button
+                            onClick={() => cancelSync(log.id)}
+                            className="text-xs px-2 py-1 rounded bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25"
+                          >
+                            İptal
+                          </button>
+                        )}
                       </div>
                       <p className="text-white text-sm">{log.message || 'Senkronizasyon'}</p>
                       {log.details && <p className="text-xs text-gray-500 mt-1">{log.details}</p>}

@@ -32,6 +32,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     )
     // Listeleme ust fiyat limiti (EUR). 0 = sinirsiz. Varsayilan 100 EUR.
     const maxPriceEur = await storeSettingsModule.getSettingValue('catalog.max_price_eur', 100)
+    const cartMaxTotalEur = await storeSettingsModule.getSettingValue('cart.max_total_eur', 0)
     const supportEmail = await storeSettingsModule.getSettingValue(
       'store.support_email',
       'support@digitalgamestore.com'
@@ -118,6 +119,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       catalog: {
         max_price_eur: Number(maxPriceEur) || 0,
       },
+      cart: {
+        max_total_eur: Number(cartMaxTotalEur) || 0,
+      },
       payments: {
         stripe_publishable_key: stripePublishableKey,
         bank_transfer: bankTransfer,
@@ -157,6 +161,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
       catalog: {
         max_price_eur: 100,
+      },
+      cart: {
+        max_total_eur: 0,
       },
       payments: {
         stripe_publishable_key: '',

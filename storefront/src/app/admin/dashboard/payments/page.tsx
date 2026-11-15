@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { adminApi } from '@/lib/admin-api'
+import PaymentFeesCard from './PaymentFeesCard'
 
 interface PaymentSystem {
   id: string
@@ -12,6 +13,23 @@ interface PaymentSystem {
   icon: string
   features: string[]
   config: Record<string, string>
+}
+
+interface FeeInfo {
+  percent: number
+  fixedMinor: number
+  currency: string
+}
+
+/** "%3 + 0.30 GBP" biciminde komisyon ozeti. */
+function formatFee(fee?: FeeInfo): string {
+  if (!fee) return ''
+  const parts: string[] = []
+  if (fee.percent > 0) parts.push(`%${fee.percent}`)
+  if (fee.fixedMinor > 0) {
+    parts.push(`${(fee.fixedMinor / 100).toFixed(2)} ${fee.currency.toUpperCase()}`)
+  }
+  return parts.join(' + ')
 }
 
 const defaultPaymentSystems: Omit<PaymentSystem, 'status' | 'config'>[] = [
@@ -54,6 +72,7 @@ const requiredFields: Record<string, string[]> = {
 
 export default function PaymentsPage() {
   const [systems, setSystems] = useState<PaymentSystem[]>([])
+  const [fees, setFees] = useState<Record<string, FeeInfo>>({})
   const [loading, setLoading] = useState(true)
   const [selectedSystem, setSelectedSystem] = useState<PaymentSystem | null>(null)
   const [configValues, setConfigValues] = useState<Record<string, string>>({})
@@ -75,6 +94,27 @@ export default function PaymentsPage() {
       }))
 
       setSystems(updatedSystems)
+
+      // Saglayici komisyonlari (payment.fee.<provider>.*)
+      try {
+        const feeResponse = await adminApi.get('/admin/settings')
+        const feeMap: Record<string, any> = {}
+        ;(feeResponse.data?.settings || []).forEach((item: any) => {
+          feeMap[item.key] = item.value
+        })
+        const nextFees: Record<string, FeeInfo> = {}
+        for (const sys of defaultPaymentSystems) {
+          const feeId = sys.id.replace(/_/g, '-')
+          nextFees[sys.id] = {
+            percent: Number(feeMap[`payment.fee.${feeId}.percent`] || 0),
+            fixedMinor: Number(feeMap[`payment.fee.${feeId}.fixed_minor`] || 0),
+            currency: String(feeMap[`payment.fee.${feeId}.currency`] || 'gbp'),
+          }
+        }
+        setFees(nextFees)
+      } catch {
+        /* komisyon ayarlari okunamazsa odeme sistemleri yine gorunur */
+      }
     } catch (err) {
       console.error('Failed to load payment settings:', err)
       // Use defaults if backend fails
@@ -232,6 +272,19 @@ export default function PaymentsPage() {
                     {feature}
                   </span>
                 ))}
+              </div>
+
+              <div className="mb-4 text-xs">
+                {formatFee(fees[system.id]) ? (
+                  <span className="text-gray-400">
+                    Komisyon:{' '}
+                    <span className="text-[#ff6b35] font-semibold">
+                      {formatFee(fees[system.id])}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-gray-600">Komisyon tanımlı değil</span>
+                )}
               </div>
 
               <div className="mb-4 text-xs">
@@ -421,6 +474,24 @@ export default function PaymentsPage() {
                 )}
 
                 <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSystem(null)
+                    setConfigValues({})
+                    setTimeout(
+                      () =>
+                        document
+                          .getElementById('payment-fees')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                      50
+                    )
+                  }}
+                  className="w-full px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg text-sm hover:border-[#ff6b35] transition"
+                >
+                  💸 Komisyon Ayarları (% + sabit ücret)
+                </button>
+
+                <button
                   onClick={saveConfiguration}
                   className="w-full px-4 py-3 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white rounded-lg font-bold hover:shadow-lg transition"
                 >
@@ -430,6 +501,11 @@ export default function PaymentsPage() {
             </div>
           </div>
         )}
+
+        {/* Odeme komisyonlari — saglayici basina % + sabit tutar */}
+        <div className="mt-6">
+          <PaymentFeesCard onSaved={loadPaymentSettings} />
+        </div>
       </div>
     </div>
   )

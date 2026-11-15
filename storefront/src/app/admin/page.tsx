@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-purple-500 focus:outline-none transition"
-                  placeholder="admin@example.com"
+                  placeholder="info@hupiplay.uk"
                 />
               </div>
 
@@ -113,14 +113,6 @@ export default function AdminLoginPage() {
               </button>
             </form>
           )}
-
-          <div className="mt-6 p-4 bg-gray-800/30 rounded-lg">
-            <p className="text-xs text-gray-500 mb-2">🔑 Varsayilan Giris Bilgileri:</p>
-            <p className="text-sm text-gray-400 font-mono">
-              Email: admin@example.com<br />
-              Password: admin123
-            </p>
-          </div>
 
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-500 mb-2">veya</p>

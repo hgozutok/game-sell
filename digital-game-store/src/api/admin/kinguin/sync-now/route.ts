@@ -15,6 +15,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const auditLog = req.scope.resolve("auditLog") as any
+  const kinguin = req.scope.resolve("kinguin") as any
+
+  // Ayni anda ikinci bir sync baslatmayi engelle (taze heartbeat = gercekten calisiyor).
+  try {
+    const runningLogs = await kinguin.listSyncLogs({ status: "running" })
+    const now = Date.now()
+    const live = (runningLogs || []).find((log: any) => {
+      const hb = log.heartbeat_at
+        ? new Date(log.heartbeat_at).getTime()
+        : log.started_at
+          ? new Date(log.started_at).getTime()
+          : NaN
+      return Number.isFinite(hb) && now - hb < 2 * 60 * 1000
+    })
+    if (live) {
+      return res.status(409).json({
+        started: false,
+        message: "Zaten çalışan bir senkronizasyon var",
+        log_id: live.id,
+      })
+    }
+  } catch {
+    // log okunamazsa mevcut davranis
+  }
 
   const summary =
     parsed.data.type === "price"

@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
 import { normalizeKinguinRegion } from '../../../../utils/kinguin'
+import { listKinguinProduct } from '../../../../utils/kinguin-sync'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -112,6 +113,88 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 }
 
 /**
+ * Kinguin ozel import: Kinguin API'sinin "son 100 urun" siniri yerine, lokal
+ * kinguin_product dump'indan HENUZ LISTELENMEMIS (store_listed=false) stoklu
+ * urunleri listeler. Fiyat/marj motoru listKinguinProduct icinde calisir.
+ */
+async function runKinguinDumpImport(
+  scope: any,
+  jobId: string,
+  margin_percentage: number | undefined,
+  max_products: number
+) {
+  const logger = scope.resolve('logger') as any
+  const backgroundJobs = scope.resolve('backgroundJobs') as any
+  const kinguin = scope.resolve('kinguin') as any
+
+  await backgroundJobs.updateBackgroundJobs({ id: jobId, status: 'running' })
+
+  try {
+    const rows = await kinguin.listKinguinProducts(
+      { store_listed: false, qty: { $gt: 0 }, price: { $gt: 0 } },
+      { take: max_products, order: { qty: 'DESC' } }
+    )
+
+    if (!rows?.length) {
+      await backgroundJobs.completeJob(jobId, {
+        message: 'Listelenecek yeni ürün yok (tüm stoklu ürünler listelenmiş)',
+        imported_count: 0,
+      })
+      return
+    }
+
+    const total = rows.length
+    logger.info(`🚀 [kinguin-dump-import] ${total} listelenmemis urun bulundu, import basliyor`)
+
+    let imported = 0
+    let negative = 0
+    let failed = 0
+    const errors: string[] = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const kp = rows[i]
+      try {
+        const result = await listKinguinProduct(scope, kp, {
+          marginOverridePct: margin_percentage,
+          publish: true,
+        })
+        if (result.ok) imported++
+        else if (result.negative) negative++
+        else {
+          failed++
+          if (errors.length < 10) errors.push(`${kp.name}: ${result.error || 'bilinmeyen'}`)
+        }
+      } catch (e: any) {
+        failed++
+        if (errors.length < 10) errors.push(`${kp.name}: ${e?.message}`)
+      }
+
+      if ((i + 1) % 10 === 0 || i === rows.length - 1) {
+        const progress = 5 + Math.round((90 * (i + 1)) / total)
+        await backgroundJobs
+          .updateJobProgress(jobId, progress, i + 1, total)
+          .catch(() => null)
+        logger.info(
+          `[kinguin-dump-import] ${i + 1}/${total} — imported=${imported}, negative=${negative}, failed=${failed}`
+        )
+      }
+    }
+
+    logger.info(`✅ [kinguin-dump-import] tamamlandi: imported=${imported}, negative=${negative}, failed=${failed}`)
+    await backgroundJobs.completeJob(jobId, {
+      message: `İçe aktarma tamamlandı: ${imported} ürün listelendi, ${negative} zararına (marih atlandı), ${failed} hatalı`,
+      imported_count: imported,
+      skipped_negative: negative,
+      failed_count: failed,
+      errors,
+    })
+  } catch (error: any) {
+    logger.error(`[kinguin-dump-import] hata: ${error?.message}`)
+    await backgroundJobs.completeJob(jobId, { message: 'İçe aktarma hatası', error: error?.message }).catch(() => null)
+  }
+}
+
+/**
  * Run import process in background
  */
 async function runImportInBackground(
@@ -121,6 +204,10 @@ async function runImportInBackground(
   margin_percentage: number | undefined,
   max_products: number
 ) {
+  // Kinguin: yerel dump'tan listeleme (API limiti yok, binlerce urun listelenebilir)
+  if (provider === 'kinguin') {
+    return runKinguinDumpImport(scope, jobId, margin_percentage, max_products)
+  }
   const logger = scope.resolve('logger') as any
   const backgroundJobs = scope.resolve('backgroundJobs') as any
   const providerModuleName = provider === 'codeswholesale' ? 'codesWholesale' : 'kinguin'

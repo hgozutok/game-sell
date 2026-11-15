@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api } from '@/lib/api'
+import { saveUserPrefs, getLocalPrefs } from '@/lib/prefs'
 
 export interface Currency {
   code: string
@@ -29,7 +30,11 @@ export const useCurrencyStore = create<CurrencyState>()(
     (set, get) => ({
       selectedCurrency: defaultCurrencies[0],
       currencies: defaultCurrencies,
-      setSelectedCurrency: (currency) => set({ selectedCurrency: currency }),
+      setSelectedCurrency: (currency) => {
+        set({ selectedCurrency: currency })
+        // hesaba kaydet (girissiz kullanici icin yerel ayna)
+        saveUserPrefs({ currency: currency.code })
+      },
       loadCurrencyRates: async () => {
         try {
           const [ratesResponse, settingsResponse] = await Promise.all([
@@ -44,7 +49,17 @@ export const useCurrencyStore = create<CurrencyState>()(
           const displayCurrencyCode = settingsResponse.data?.currencies?.display?.toLowerCase()
           set({ currencies: rates })
 
+          // Oncelik: URL ?currency= > kullanici kaydi (hesap tercihi/lokal ayna) >
+          // admin display currency > mevcut secim > ilk kur
+          const urlCurrency =
+            typeof window !== 'undefined'
+              ? new URLSearchParams(window.location.search).get('currency')?.toLowerCase()
+              : undefined
+          const savedUserCurrency = getLocalPrefs().currency?.toLowerCase()
+
           const matchedCurrency =
+            rates.find((rate) => rate.code === urlCurrency) ||
+            rates.find((rate) => rate.code === savedUserCurrency) ||
             rates.find((rate) => rate.code === displayCurrencyCode) ||
             rates.find((rate) => rate.code === get().selectedCurrency.code) ||
             rates[0]

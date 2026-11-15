@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { adminApi } from '@/lib/admin-api'
 import { translate } from '@/i18n'
+import SocialLoginCard from './SocialLoginCard'
+import BotProtectionCard from './BotProtectionCard'
 
 /** "facebook.com/x" gibi yazimlari https:// ile tamamlar. */
 function normalizeSocialUrl(value: string) {
@@ -38,6 +40,7 @@ export default function SettingsPage() {
     whatsapp_number: '',
     whatsapp_message: '',
     max_price_eur: 100,
+    cart_max_total_eur: 0,
     logo_url: '',
     social_facebook: '',
     social_instagram: '',
@@ -96,6 +99,7 @@ export default function SettingsPage() {
           whatsapp_number: map['store.whatsapp_number'] ?? '',
           whatsapp_message: map['store.whatsapp_message'] ?? '',
           max_price_eur: Number(map['catalog.max_price_eur'] ?? 100),
+          cart_max_total_eur: Number(map['cart.max_total_eur'] ?? 0),
           logo_url: map['store.logo_url'] ?? '',
           social_instagram: map['store.social.instagram'] ?? '',
           announcement_enabled: map['store.announcement.enabled'] !== false,
@@ -230,6 +234,7 @@ export default function SettingsPage() {
         { key: 'currencies.default', value: settings.currency, category: 'currencies' },
         { key: 'tax.rate', value: Number(settings.tax_rate) || 0, category: 'tax' },
         { key: 'catalog.max_price_eur', value: Number(settings.max_price_eur) || 0, category: 'catalog' },
+        { key: 'cart.max_total_eur', value: Number(settings.cart_max_total_eur) || 0, category: 'cart' },
       ]
 
       await adminApi.post('/admin/settings/batch', { settings: settingsToSave })
@@ -275,6 +280,7 @@ export default function SettingsPage() {
           currency: String(map['currencies.default'] ?? prev.currency).toUpperCase(),
           tax_rate: Number(map['tax.rate'] ?? prev.tax_rate),
           max_price_eur: Number(map['catalog.max_price_eur'] ?? prev.max_price_eur),
+          cart_max_total_eur: Number(map['cart.max_total_eur'] ?? prev.cart_max_total_eur),
         }))
       } catch (refreshError) {
         console.warn('Settings refresh failed:', refreshError)
@@ -601,6 +607,25 @@ export default function SettingsPage() {
                 0 yazarsanız limit kaldırılır. Örnek: 100 → 100 EUR üzeri ürünler gizlenir.
               </p>
             </div>
+
+            <div className="max-w-xs">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Sepet üst limiti (EUR)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={settings.cart_max_total_eur}
+                onChange={(e) =>
+                  setSettings({ ...settings, cart_max_total_eur: Math.max(0, Number(e.target.value)) })
+                }
+                className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                0 yazarsanız limit kaldırılır. Örnek: 500 → sepet toplamı 500 EUR'yu aşan sipariş oluşturulamaz.
+              </p>
+            </div>
           </div>
 
           {/* Currency & Tax */}
@@ -766,6 +791,16 @@ export default function SettingsPage() {
             </Link>
           </div>
         </form>
+
+        {/* Sosyal giris (Google/Facebook) ayarlari — bagimsiz kart */}
+        <div className="mt-6">
+          <SocialLoginCard />
+        </div>
+
+        {/* Bot korumasi (CAPTCHA) — bagimsiz kart */}
+        <div className="mt-6">
+          <BotProtectionCard />
+        </div>
       </div>
     </div>
   )

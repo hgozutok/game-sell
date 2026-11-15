@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { authService, Customer } from '@/lib/auth'
+import { prefsFromCustomer } from '@/lib/prefs'
+import { useCurrencyStore } from '@/store/currencyStore'
+import { useWishlistStore } from '@/store/wishlistStore'
 
 interface AuthContextType {
   customer: Customer | null
@@ -22,6 +25,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authService.isAuthenticated()) {
       const customerData = await authService.getCurrentCustomer()
       setCustomer(customerData)
+
+      // Hesaptaki kayitli tercihleri uygula (kur, dil, wishlist)
+      const prefs = prefsFromCustomer(customerData)
+      if (prefs.currency) {
+        const store = useCurrencyStore.getState()
+        const target = store.currencies.find((c) => c.code === prefs.currency)
+        if (target && store.selectedCurrency.code !== target.code) {
+          store.setSelectedCurrency(target)
+        }
+      }
+      if (Array.isArray(prefs.wishlist) && prefs.wishlist.length) {
+        const wl = useWishlistStore.getState()
+        const merged = [...new Set([...prefs.wishlist, ...wl.productIds])]
+        if (merged.length !== wl.productIds.length) {
+          wl.setIds(merged)
+        }
+      }
+      if (prefs.locale) {
+        try {
+          localStorage.setItem('NEXT_LOCALE', prefs.locale)
+          document.cookie = `NEXT_LOCALE=${prefs.locale}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+        } catch {}
+      }
     } else {
       setCustomer(null)
     }
@@ -45,6 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const response = await authService.login(email, password)
     setCustomer(response.customer)
+    // guest tercihlerini yeni hesaba tasi
+    await refreshCustomer()
   }
 
   const logout = async () => {
@@ -71,4 +99,3 @@ export function useAuth() {
   }
   return context
 }
-

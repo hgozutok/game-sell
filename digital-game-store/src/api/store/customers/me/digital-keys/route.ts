@@ -6,7 +6,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const keyInventoryService = req.scope.resolve("keyInventory") as KeyInventoryService
   
   // Get authenticated customer ID from request
-  const customerId = (req as any).auth?.actor_id
+  const customerId = ((req as any).auth_context?.actor_id ?? (req as any).auth?.actor_id)
 
   if (!customerId) {
     return res.status(401).json({ message: "Unauthorized" })

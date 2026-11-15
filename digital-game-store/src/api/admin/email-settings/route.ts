@@ -4,6 +4,7 @@ import {
   encodePassword,
   SMTP_SETTING_KEYS,
 } from "../../../utils/email"
+import { normalizeEmailLocale } from "../../../modules/email-template/locales"
 
 export const AUTHENTICATE = false
 
@@ -12,7 +13,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const smtp = await readSmtpSettings(req.scope)
     const storeSettings = req.scope.resolve("storeSettings") as any
-    const language = await storeSettings.getSettingValue("email.language", "tr")
+    const language = normalizeEmailLocale(
+      await storeSettings.getSettingValue("email.language", "en")
+    )
     res.json({
       settings: {
         enabled: smtp.enabled,
@@ -22,7 +25,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         user: smtp.user,
         from_email: smtp.from_email,
         from_name: smtp.from_name,
-        language: language === "en" ? "en" : "tr",
+        language,
       },
       password_set: Boolean(smtp.password),
     })
@@ -45,7 +48,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const user = String(body.user || "").trim()
     const fromEmail = String(body.from_email || "").trim()
     const fromName = String(body.from_name || "").trim()
-    const language = body.language === "en" ? "en" : "tr"
+    const language =
+      body.language !== undefined
+        ? normalizeEmailLocale(body.language)
+        : normalizeEmailLocale(
+            await storeSettings.getSettingValue("email.language", "en")
+          )
 
     if (enabled) {
       if (!host) {

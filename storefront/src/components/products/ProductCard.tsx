@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { useCartStore } from '@/store/cartStore'
+import { useWishlistStore } from '@/store/wishlistStore'
 import { getCurrencySymbol, convertAmount } from '@/utils/currency'
 import { useT } from '@/components/useT'
 
@@ -46,11 +47,13 @@ export default function ProductCard({ product }: ProductCardProps) {
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
   const currencies = useCurrencyStore((state) => state.currencies)
   const addItem = useCartStore((state) => state.addItem)
+  const wishlistToggle = useWishlistStore((state) => state.toggle)
+  const isWishlisted = useWishlistStore((state) => state.productIds.includes(product.id))
   const [amount, setAmount] = useState(0)
   const [currencyCode, setCurrencyCode] = useState(selectedCurrency.code)
   const [addingToCart, setAddingToCart] = useState(false)
   const providerImage = product.metadata?.provider === 'kinguin' ? product.metadata?.provider_image : undefined
-  
+
   // Use handle/slug for SEO-friendly URLs, fallback to ID
   const productUrl = product.handle || product.id
 
@@ -162,6 +165,22 @@ export default function ProductCard({ product }: ProductCardProps) {
               {t('productCard.instantDelivery')}
             </span>
           </div>
+
+          {/* Wishlist kalbi */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              wishlistToggle(product.id)
+            }}
+            title={isWishlisted ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+            className="absolute top-3 end-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm border border-white/20 hover:border-[#ff6b35] transition"
+          >
+            <span className={isWishlisted ? 'text-[#ff6b35] text-lg' : 'text-white text-lg'}>
+              {isWishlisted ? '❤️' : '🤍'}
+            </span>
+          </button>
           
           {/* Platform Badge */}
           {product.metadata?.platform && (

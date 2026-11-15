@@ -7,7 +7,7 @@ import { model } from "@medusajs/framework/utils"
 const EmailTemplate = model.define("email_template", {
   id: model.id().primaryKey(),
   key: model.text(),
-  locale: model.text().default("tr"),
+  locale: model.text().default("en"),
   name: model.text(),
   subject: model.text(),
   html: model.text(),

@@ -3,11 +3,11 @@ import type { MessageTable } from '../types'
 // Ana sayfa ve kategori vitrini.
 export const home: MessageTable = {
   'home.badge': {
-    en: '10,000+ GAMES AVAILABLE',
-    tr: '10.000+ OYUN',
-    de: 'ÜBER 10.000 SPIELE VERFÜGBAR',
-    fr: 'PLUS DE 10 000 JEUX DISPONIBLES',
-    ar: 'أكثر من 10,000 لعبة متاحة',
+    en: '30,000+ GAMES AVAILABLE',
+    tr: '30.000+ OYUN',
+    de: 'ÜBER 30.000 SPIELE VERFÜGBAR',
+    fr: 'PLUS DE 30 000 JEUX DISPONIBLES',
+    ar: 'أكثر من 30,000 لعبة متاحة',
   },
   'home.heroTitle1': {
     en: 'BUY GAME KEYS',
@@ -241,11 +241,11 @@ export const home: MessageTable = {
     ar: 'جميع المعاملات مشفّرة ومحمية. تسوّق بثقة تامة وراحة بال.',
   },
   'home.statsGamesValue': {
-    en: '10K+',
-    tr: '10.000+',
-    de: '10.000+',
-    fr: '10 000+',
-    ar: '10,000+',
+    en: '30K+',
+    tr: '30.000+',
+    de: '30.000+',
+    fr: '30 000+',
+    ar: '30,000+',
   },
   'home.statsCustomersValue': {
     en: '5K+',

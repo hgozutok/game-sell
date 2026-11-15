@@ -11,6 +11,48 @@ const PLACEHOLDER_IMG = "https://placehold.co/600x400/1a1d24/ff6b35?text=No+Imag
 
 type AnyService = any
 
+// Ayni Node surecinde calisan synclari aninda durdurmak icin log id kayitlari.
+// DB'deki "canceled" durumu baska surecler (worker) icin de gecerlidir.
+const canceledSyncs = new Set<string>()
+
+export function markKinguinSyncCanceled(logId: string): void {
+  if (logId) canceledSyncs.add(logId)
+}
+
+const CANCEL_CHECK_INTERVAL_MS = 2000
+
+/** DB'yi her kontrolde yormadan iptal sinyali okur. */
+function createCancelWatcher(kinguin: AnyService, logId: string) {
+  let lastDbCheck = 0
+  return async function isCanceled(force = false): Promise<boolean> {
+    if (canceledSyncs.has(logId)) return true
+    if (!force && Date.now() - lastDbCheck < CANCEL_CHECK_INTERVAL_MS) return false
+    lastDbCheck = Date.now()
+    const rows = await kinguin.listSyncLogs({ id: logId }).catch(() => [])
+    if (rows?.[0]?.status === "canceled") {
+      canceledSyncs.add(logId)
+      return true
+    }
+    return false
+  }
+}
+
+/** Ilerleme + heartbeat; en fazla 3 saniyede bir DB yazar. */
+function createProgressWriter(kinguin: AnyService, logId: string) {
+  let last = 0
+  return async function writeProgress(processed: number, total: number, force = false) {
+    const now = Date.now()
+    if (!force && now - last < 3000) return
+    last = now
+    await kinguin
+      .touchSyncLog(logId, {
+        progress_processed: Math.max(0, Math.round(processed)),
+        progress_total: Math.max(0, Math.round(total)),
+      })
+      .catch(() => undefined)
+  }
+}
+
 export interface KinguinProductRow {
   id: string
   kinguin_id: string
@@ -35,7 +77,7 @@ export interface KinguinProductRow {
 }
 
 export interface SyncSummary {
-  status: "completed" | "failed" | "skipped"
+  status: "completed" | "failed" | "skipped" | "canceled"
   reason?: string
   itemsTotal?: number
   added?: number
@@ -56,6 +98,8 @@ export function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80)
+    // slice sonrasi sonda '-' kalabilir — Medusa handle validasyonu reddediyor
+    .replace(/-+$/g, "")
 }
 
 async function getServices(container: any) {
@@ -427,6 +471,9 @@ export async function runKinguinSync(
 
   const summary: SyncSummary = { status: "completed", logId: log.id }
   const errors: string[] = []
+  const isCanceled = createCancelWatcher(kinguin, log.id)
+  const writeProgress = createProgressWriter(kinguin, log.id)
+  let canceled = false
 
   try {
     // 1) Katalog senkronu — yerel kinguin_product tablosu
@@ -435,6 +482,20 @@ export async function runKinguinSync(
     let added = 0
     let updated = 0
     let failed = 0
+    let expectedTotal = 0
+
+    // Ilerleme cubugu icin ust sinir (API toplam kayit sayisi) — basarisizsa 0 kalir.
+    try {
+      const probe = await kinguin.listProducts({
+        limit: 1,
+        sortBy: "updatedAt",
+        sortType: "desc",
+        ...(lastSync ? { updatedSince: lastSync.toISOString() } : {}),
+      })
+      expectedTotal = Number(probe?.itemCount || 0)
+    } catch {
+      expectedTotal = 0
+    }
 
     const iterator = kinguin.iterateProducts(
       lastSync
@@ -444,6 +505,10 @@ export async function runKinguinSync(
     )
 
     for await (const product of iterator) {
+      if (await isCanceled()) {
+        canceled = true
+        break
+      }
       total++
       try {
         const existing = await kinguin.listKinguinProducts({ kinguin_id: product.kinguinId })
@@ -458,6 +523,7 @@ export async function runKinguinSync(
         failed++
         if (errors.length < 10) errors.push(`upsert ${product.kinguinId}: ${e?.message}`)
       }
+      await writeProgress(total, expectedTotal)
     }
     summary.itemsTotal = total
     summary.added = added
@@ -469,10 +535,22 @@ export async function runKinguinSync(
     let pendingApprovals = 0
     let hidden = 0
     let unhidden = 0
+    let listedProcessed = 0
+    let listedTotal = 0
 
-    if (settings.sync_prices || settings.sync_stock) {
+    if (!canceled && (settings.sync_prices || settings.sync_stock)) {
       const listed = await kinguin.listKinguinProducts({ store_listed: true })
+      const totalWithListed = total + listed.length
+      listedTotal = listed.length
+      let processed = 0
       for (const kp of listed as KinguinProductRow[]) {
+        if (await isCanceled()) {
+          canceled = true
+          break
+        }
+        processed++
+        listedProcessed = processed
+        await writeProgress(total + processed, totalWithListed)
         try {
           // ---- Fiyat ----
           if (settings.sync_prices && settings.auto_reprice && kp.medusa_variant_id) {
@@ -544,6 +622,31 @@ export async function runKinguinSync(
     summary.hidden = hidden
     summary.unhidden = unhidden
 
+    if (canceled) {
+      await kinguin.finishSyncLog(log.id, {
+        status: "canceled",
+        items_total: total,
+        items_added: added,
+        items_updated: updated,
+        items_failed: failed,
+        pending_approvals: pendingApprovals,
+        progress_processed: total + listedProcessed,
+        progress_total: Math.max(expectedTotal, total + listedTotal),
+        errors: errors.length ? errors : ["admin tarafindan iptal edildi"],
+        details: {
+          repriced,
+          hidden,
+          unhidden,
+          mode: lastSync ? "incremental" : "full",
+          cancel_reason: "admin",
+        },
+      })
+      summary.status = "canceled"
+      summary.reason = "admin tarafindan iptal edildi"
+      summary.logId = log.id
+      return summary
+    }
+
     await kinguin.finishSyncLog(log.id, {
       status: "completed",
       items_total: total,
@@ -551,6 +654,8 @@ export async function runKinguinSync(
       items_updated: updated,
       items_failed: failed,
       pending_approvals: pendingApprovals,
+      progress_processed: total + listedTotal,
+      progress_total: Math.max(expectedTotal || 0, total + listedTotal),
       errors: errors.length ? errors : null,
       details: {
         repriced,
@@ -576,21 +681,225 @@ export async function runKinguinSync(
 }
 
 /**
+ * Magaza urunleri ile Kinguin katalog kayitlarini hizalar.
+ *
+ * Kural: yalnizca Medusa'da "published" olan urunler listede sayilir.
+ * Taslak/silinmis urunlerin Kinguin kaydi store_listed=false yapilir; katalog
+ * kaydi silinmez. Boylece dashboard sayisi ile Kinguin listesi ayni gercegi anlatir.
+ */
+export interface ReconcileSummary {
+  products: number
+  published: number
+  catalog: number
+  listed_before: number
+  listed_after: number
+  linked: number
+  relisted: number
+  unlisted: number
+  linked_now: number
+  // Baslik eslesmesiyle baglanan kayitlar (metadata.kinguin_id olmayan eski urunler)
+  linked_by_title: number
+  unmatched: number
+}
+
+export async function reconcileKinguinListings(container: any): Promise<ReconcileSummary> {
+  const { kinguin, productModule, logger } = await getServices(container)
+
+  async function countKinguin(filters: Record<string, any> = {}): Promise<number> {
+    try {
+      if (typeof kinguin.listAndCountKinguinProducts === "function") {
+        const [, count] = await kinguin.listAndCountKinguinProducts(filters, { take: 1 })
+        return Number(count || 0)
+      }
+    } catch {
+      // asagidaki fallback
+    }
+    const rows = await kinguin.listKinguinProducts(filters)
+    return rows.length
+  }
+
+  // 1) Magaza urunleri (sayfali)
+  const products: any[] = []
+  let skip = 0
+  while (true) {
+    const batch = await productModule.listProducts({}, { take: 200, skip })
+    products.push(...batch)
+    if (batch.length < 200) break
+    skip += 200
+    if (skip > 100000) break
+  }
+  const byId = new Map<string, any>(products.map((p: any) => [p.id, p]))
+  const byKinguinId = new Map<string, any>()
+  for (const p of products) {
+    const kid = (p.metadata || {}).kinguin_id
+    if (kid !== undefined && kid !== null && String(kid)) byKinguinId.set(String(kid), p)
+  }
+  const isPublished = (p: any) => !!p && p.status === "published" && !p.deleted_at
+
+  const listedBefore = await countKinguin({ store_listed: true })
+
+  // 2) Medusa urunune bagli kayitlar + metadata.kinguin_id ile eslesenler
+  const linkedRows = await kinguin.listKinguinProducts({ medusa_product_id: { $ne: null } })
+  const kinguinIds = [...byKinguinId.keys()]
+  const matchedRows: any[] = [...linkedRows]
+  for (let i = 0; i < kinguinIds.length; i += 100) {
+    const chunk = kinguinIds.slice(i, i + 100)
+    const rows = await kinguin.listKinguinProducts({ kinguin_id: { $in: chunk } })
+    matchedRows.push(...rows)
+  }
+
+  let relisted = 0
+  let unlisted = 0
+  let linkedNow = 0
+  let linkedByTitle = 0
+  const handled = new Set<string>()
+  const linkedProductIds = new Set<string>()
+
+  for (const kp of matchedRows) {
+    if (!kp || handled.has(kp.id)) continue
+    handled.add(kp.id)
+
+    const product =
+      (kp.medusa_product_id ? byId.get(kp.medusa_product_id) : undefined) ||
+      byKinguinId.get(String(kp.kinguin_id)) ||
+      undefined
+    const shouldList = isPublished(product)
+    const patch: Record<string, any> = {}
+
+    if (shouldList && product) {
+      if (kp.medusa_product_id !== product.id) {
+        patch.medusa_product_id = product.id
+        linkedNow++
+      }
+      if (!kp.store_listed) {
+        patch.store_listed = true
+        relisted++
+      }
+      linkedProductIds.add(product.id)
+    } else if (kp.store_listed) {
+      patch.store_listed = false
+      unlisted++
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await kinguin.updateKinguinProducts({ id: kp.id, ...patch } as any)
+    }
+  }
+
+  // 2b) Baslik eslesmesi — metadata.kinguin_id tasimayan eski urunler.
+  // Katalogda ayni baslikta TEK kayit varsa ve o kayit baska urune bagli degilse baglanir.
+  // Ayni isimde birden fazla katalog kaydi (bolge varyantlari) varsa dokunulmaz.
+  const normalizeTitle = (value: any) =>
+    String(value ?? "").toLowerCase().replace(/\s+/g, " ").trim()
+
+  const titleCandidates = products.filter((p) => !linkedProductIds.has(p.id))
+  const productsByTitleKey = new Map<string, any[]>()
+  for (const p of titleCandidates) {
+    const key = normalizeTitle(p.title)
+    if (!key) continue
+    const arr = productsByTitleKey.get(key)
+    if (arr) arr.push(p)
+    else productsByTitleKey.set(key, [p])
+  }
+
+  const titles = titleCandidates.map((p) => p.title).filter((t: any) => !!t)
+  for (let i = 0; i < titles.length; i += 50) {
+    const chunk = titles.slice(i, i + 50)
+    let rows: any[] = []
+    try {
+      rows = await kinguin.listKinguinProducts({ name: { $in: chunk } })
+    } catch {
+      rows = []
+    }
+
+    const rowsByName = new Map<string, any[]>()
+    for (const row of rows) {
+      const key = normalizeTitle(row?.name)
+      const arr = rowsByName.get(key)
+      if (arr) arr.push(row)
+      else rowsByName.set(key, [row])
+    }
+
+    for (const [key, group] of rowsByName.entries()) {
+      const prods = productsByTitleKey.get(key) || []
+      if (prods.length !== 1 || group.length !== 1) continue
+      const product = prods[0]
+      const kp = group[0]
+      if (kp.medusa_product_id && kp.medusa_product_id !== product.id) continue
+      if (linkedProductIds.has(product.id)) continue
+
+      const patch: Record<string, any> = {}
+      if (kp.medusa_product_id !== product.id) patch.medusa_product_id = product.id
+      if (isPublished(product) && !kp.store_listed) patch.store_listed = true
+      if (Object.keys(patch).length === 0) continue
+
+      await kinguin.updateKinguinProducts({ id: kp.id, ...patch } as any)
+      linkedProductIds.add(product.id)
+      if (patch.medusa_product_id) {
+        linkedNow++
+        linkedByTitle++
+      }
+      if (patch.store_listed) relisted++
+    }
+  }
+
+  // 3) metadata.kinguin_id var ama katalog kaydi yok
+  let unmatched = 0
+  const matchedKinguinIds = new Set(matchedRows.map((r: any) => String(r.kinguin_id)))
+  for (const kid of byKinguinId.keys()) {
+    if (!matchedKinguinIds.has(kid)) unmatched++
+  }
+
+  const listedAfter = await countKinguin({ store_listed: true })
+  const linked = await countKinguin({ medusa_product_id: { $ne: null } })
+  const catalog = await countKinguin({})
+  const published = products.filter(isPublished).length
+
+  const summary: ReconcileSummary = {
+    products: products.length,
+    published,
+    catalog,
+    listed_before: listedBefore,
+    listed_after: listedAfter,
+    linked,
+    relisted,
+    unlisted,
+    linked_now: linkedNow,
+    linked_by_title: linkedByTitle,
+    unmatched,
+  }
+
+  logger.info(`[kinguin-sync] reconcile: ${JSON.stringify(summary)}`)
+  return summary
+}
+
+/**
  * Sadece fiyat senkronu (hizli) — listelenen urunlerde maliyet degisimini uygular.
  */
 export async function syncKinguinPrices(container: any): Promise<SyncSummary> {
   const { kinguin, productModule, logger } = await getServices(container)
   const settings = await kinguin.getSettings()
   const log = await kinguin.startSyncLog("price")
+  const isCanceled = createCancelWatcher(kinguin, log.id)
+  const writeProgress = createProgressWriter(kinguin, log.id)
 
   let repriced = 0
   let pendingApprovals = 0
   let failed = 0
+  let processed = 0
+  let canceled = false
   const errors: string[] = []
 
   try {
     const listed = await kinguin.listKinguinProducts({ store_listed: true })
+    await writeProgress(0, listed.length, true)
     for (const kp of listed as KinguinProductRow[]) {
+      if (await isCanceled()) {
+        canceled = true
+        break
+      }
+      processed++
+      await writeProgress(processed, listed.length)
       if (!kp.medusa_variant_id) continue
       try {
         const computed = await computePriceForKinguinProduct(container, kp, settings)
@@ -623,12 +932,36 @@ export async function syncKinguinPrices(container: any): Promise<SyncSummary> {
       }
     }
 
+    if (canceled) {
+      await kinguin.finishSyncLog(log.id, {
+        status: "canceled",
+        items_total: listed.length,
+        items_updated: repriced,
+        items_failed: failed,
+        pending_approvals: pendingApprovals,
+        progress_processed: processed,
+        progress_total: listed.length,
+        errors: errors.length ? errors : ["admin tarafindan iptal edildi"],
+        details: { cancel_reason: "admin" },
+      })
+      return {
+        status: "canceled",
+        itemsTotal: listed.length,
+        repriced,
+        pendingApprovals,
+        failed,
+        logId: log.id,
+      }
+    }
+
     await kinguin.finishSyncLog(log.id, {
       status: "completed",
       items_total: listed.length,
       items_updated: repriced,
       items_failed: failed,
       pending_approvals: pendingApprovals,
+      progress_processed: processed,
+      progress_total: listed.length,
       errors: errors.length ? errors : null,
     })
     return {

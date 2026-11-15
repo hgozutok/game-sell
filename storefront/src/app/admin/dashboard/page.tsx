@@ -120,6 +120,15 @@ export default function AdminDashboard() {
     revenue: null,
   })
   const [statsError, setStatsError] = useState<string | null>(null)
+  const [kinguinStats, setKinguinStats] = useState<{
+    products: number
+    published: number
+    catalog: number
+    listed: number
+    linked: number
+    in_stock: number
+    products_unlinked?: number
+  } | null>(null)
   const [syncLoading, setSyncLoading] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
 
@@ -127,11 +136,12 @@ export default function AdminDashboard() {
     let active = true
 
     const loadStats = async () => {
-      const [products, orders, customers, keys] = await Promise.allSettled([
+      const [products, orders, customers, keys, kinguin] = await Promise.allSettled([
         adminApi.get('/admin/products', { params: { limit: 1 } }),
         adminApi.get('/admin/orders', { params: { limit: 100 } }),
         adminApi.get('/admin/customers', { params: { limit: 1 } }),
         adminApi.get('/admin/digital-keys', { params: { limit: 1 } }),
+        adminApi.get('/admin/kinguin/stats'),
       ])
 
       if (!active) return
@@ -139,16 +149,19 @@ export default function AdminDashboard() {
       const orderList: any[] = orders.status === 'fulfilled' ? orders.value.data?.orders || [] : []
       // Medusa order.total minor birimde tutulur (kurus/cent).
       const revenue = orderList.reduce((sum, o) => sum + Number(o.total || 0), 0) / 100
+      const kinguinData = kinguin.status === 'fulfilled' ? kinguin.value.data : null
 
       setStats({
         products:
-          products.status === 'fulfilled' ? Number(products.value.data?.count ?? 0) : null,
+          kinguinData?.products ??
+          (products.status === 'fulfilled' ? Number(products.value.data?.count ?? 0) : null),
         orders: orders.status === 'fulfilled' ? Number(orders.value.data?.count ?? 0) : null,
         customers:
           customers.status === 'fulfilled' ? Number(customers.value.data?.count ?? 0) : null,
         keys: keys.status === 'fulfilled' ? Number(keys.value.data?.count ?? 0) : null,
         revenue: orders.status === 'fulfilled' ? revenue : null,
       })
+      if (kinguinData) setKinguinStats(kinguinData)
 
       const failed = [products, orders, customers, keys].find((r) => r.status === 'rejected')
       if (failed && failed.status === 'rejected') {
@@ -227,6 +240,45 @@ export default function AdminDashboard() {
             </div>
           ))}
         </div>
+
+        {kinguinStats && (
+          <div className="bg-[#15171c] border border-gray-800 rounded-xl p-6 mb-8">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-xs text-gray-500 uppercase">Ürün Sayısı</div>
+                <p className="text-sm text-gray-400 mt-1 max-w-xl">
+                  Mağaza ürünü doğrudan DB&apos;den sayılır. Listede görünenler Kinguin katalog
+                  kaydına bağlıdır; kalanların katalogda birebir karşılığı yoktur (yeniden
+                  adlandırılmış kayıt veya aynı kinguin_id&apos;yi paylaşan bölge varyantı).
+                </p>
+              </div>
+              <Link
+                href="/admin/dashboard/kinguin"
+                className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition text-sm"
+              >
+                🎮 Kinguin Eşitleme →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-4">
+              {[
+                { label: 'Mağaza (DB)', value: kinguinStats.products },
+                { label: 'Yayında', value: kinguinStats.published },
+                { label: 'Kinguin katalog', value: kinguinStats.catalog },
+                { label: 'Kinguin listede', value: kinguinStats.listed },
+                { label: 'Stoklu', value: kinguinStats.in_stock },
+                { label: 'Katalog karşılığı yok', value: kinguinStats.products_unlinked ?? '—' },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-[#1a1d24] border border-gray-800 rounded-lg px-3 py-2"
+                >
+                  <div className="text-[11px] text-gray-500">{item.label}</div>
+                  <div className="text-white font-bold">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="bg-[#15171c] border border-gray-800 rounded-xl p-6 mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>

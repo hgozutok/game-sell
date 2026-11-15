@@ -1,15 +1,45 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { createCustomerAccountWorkflow } from '@medusajs/core-flows'
-import { randomToken, sanitizeCustomer } from '../../../../utils/auth-session'
+import { getAuthSettings, randomToken, sanitizeCustomer } from '../../../../utils/auth-session'
 import { sendTemplateEmail } from '../../../../utils/email'
+import {
+  resolveEmailLocaleFromAcceptLanguage,
+  toEmailLocale,
+} from '../../../../modules/email-template/locales'
+import { clientIp, rateLimit, verifyCaptcha } from '../../../../utils/bot-protection'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve('logger') as any
   try {
-    const { email, password, first_name, last_name } = (req.body || {}) as Record<string, string>
+    const { email, password, first_name, last_name, captcha_token, locale: bodyLocale } =
+      (req.body || {}) as Record<string, string>
+
+    // Kayit e-postasi kullanicinin tarayici dilinde gonderilir; yoksa Ingilizce.
+    const requestedLocale =
+      toEmailLocale(bodyLocale) ||
+      resolveEmailLocaleFromAcceptLanguage(req.headers['accept-language'] as string)
+
+    // Bot korumasi 1) IP rate limit — 15 dk'da 5 kayit
+    const rl = rateLimit(`register:${clientIp(req)}`, 5, 15 * 60 * 1000)
+    if (!rl.allowed) {
+      return res.status(429).json({
+        code: 'rate_limited',
+        message: `Çok fazla kayıt denemesi. ${Math.ceil(rl.retryAfterSec / 60)} dakika sonra tekrar deneyin.`,
+      })
+    }
+
+    // Bot korumasi 2) CAPTCHA (admin panelde aciksa) — fail closed
+    const captcha = await verifyCaptcha(req.scope, {
+      token: captcha_token,
+      action: 'register',
+      ip: clientIp(req),
+    })
+    if (!captcha.ok) {
+      return res.status(400).json({ code: captcha.reason || 'captcha_failed', message: 'Bot doğrulaması başarısız. Lütfen tekrar deneyin.' })
+    }
 
     if (!email || !EMAIL_RE.test(email)) {
       return res.status(400).json({ code: 'invalid_email', message: 'Geçerli bir e-posta gerekli' })
@@ -53,8 +83,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
 
-    // 3) e-posta dogrulamasi (ayarliysa)
-    const { getAuthSettings } = await import('../../../../utils/auth-session')
+    // 3) dil tercihi hesaba yazilir — sonraki e-postalar da bu dilde gider
+    const currentMetadata =
+      customer.metadata && typeof customer.metadata === 'object'
+        ? (customer.metadata as Record<string, any>)
+        : {}
+    const currentPrefs =
+      (currentMetadata as any).prefs && typeof (currentMetadata as any).prefs === 'object'
+        ? ((currentMetadata as any).prefs as Record<string, any>)
+        : {}
+    const preferredMetadata = {
+      ...currentMetadata,
+      prefs: {
+        ...currentPrefs,
+        locale: requestedLocale,
+      },
+    }
+    customer.metadata = preferredMetadata
+    await customerModule
+      .updateCustomers(customer.id, { metadata: preferredMetadata })
+      .catch((e: any) =>
+        logger.warn(`[auth] dil tercihi kaydedilemedi: ${e?.message}`)
+      )
+
+    // 4) e-posta dogrulamasi (ayarliysa)
     const settings = await getAuthSettings(req.scope)
     let requiresVerification = false
     if (settings.verificationRequired) {
@@ -74,6 +126,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       void sendTemplateEmail(req.scope, {
         to: normalizedEmail,
         templateKey: 'verify-email',
+        locale: requestedLocale,
+        customerId: customer.id,
+        acceptLanguage: req.headers['accept-language'] as string,
         data: {
           first_name: String(first_name),
           verification_url: verificationUrl,

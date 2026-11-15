@@ -128,6 +128,13 @@ export const checkout: MessageTable = {
     fr: 'TVA',
     ar: 'ضريبة القيمة المضافة',
   },
+  'checkout.paymentFee': {
+    en: 'Payment fee ({provider}):',
+    tr: 'Ödeme komisyonu ({provider}):',
+    de: 'Zahlungsgebühr ({provider}):',
+    fr: 'Frais de paiement ({provider}) :',
+    ar: 'رسوم الدفع ({provider}):',
+  },
   'checkout.total': {
     en: 'Total:',
     tr: 'Toplam:',

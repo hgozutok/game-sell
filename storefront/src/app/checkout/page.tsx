@@ -9,9 +9,10 @@ import { useCurrencyStore } from '@/store/currencyStore'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import { api } from '@/lib/api'
 import { formatMoney, convertAmount } from '@/utils/currency'
+import { getCartLimitEur } from '@/lib/cart-limit'
 import { useT } from '@/components/useT'
 import { useTranslation } from '@/i18n/LocaleProvider'
 import StripePaymentModal from '@/components/StripePaymentModal'
@@ -36,7 +37,7 @@ const COUNTRY_CODES = ['GB', 'US', 'CA', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'AU
 
 export default function CheckoutPage() {
   const t = useT()
-  const { intlLocale } = useTranslation()
+  const { intlLocale, locale } = useTranslation()
   const checkoutSchema = useMemo(() => createCheckoutSchema(t), [t])
   const regionNames = useMemo(() => new Intl.DisplayNames([intlLocale], { type: 'region' }), [intlLocale])
   const router = useRouter()
@@ -58,6 +59,13 @@ export default function CheckoutPage() {
     total: number
     tax_rate: number
     currency_code: string
+    payment_fee?: {
+      provider: string
+      amount_minor: number
+      percent?: number
+      fixed_minor?: number
+      fixed_currency?: string
+    } | null
   }>({
     subtotal: 0,
     tax_total: 0,
@@ -164,6 +172,7 @@ export default function CheckoutPage() {
         total: 0,
         tax_rate: 0,
         currency_code: selectedCurrency.code,
+        payment_fee: null,
       })
       return
     }
@@ -171,7 +180,8 @@ export default function CheckoutPage() {
     const fetchPreview = async () => {
       try {
         setPreviewLoading(true)
-        // Fiyat sunucuda cozumlenir — istemci price/currency gönderilmez
+        // Fiyat sunucuda cozumlenir — istemci price/currency gönderilmez.
+        // payment_method ile ödeme komisyonu da dahil edilir.
         const response = await api.post('/store/cart/preview', {
           items: items.map((item) => ({
             variant_id: item.variantId,
@@ -179,6 +189,7 @@ export default function CheckoutPage() {
           })),
           currency_code: selectedCurrency.code,
           country_code: selectedCountry,
+          payment_method: paymentMethod,
         })
 
         const responseCurrency = response.data.currency_code || selectedCurrency.code
@@ -197,6 +208,7 @@ export default function CheckoutPage() {
           total: effectiveTotal,
           tax_rate: effectiveTaxRate,
           currency_code: responseCurrency,
+          payment_fee: shouldFallback ? null : response.data.payment_fee || null,
         })
       } catch (error) {
         // Fallback to local calc (20%)
@@ -207,6 +219,7 @@ export default function CheckoutPage() {
           total: fallbackSubtotal + Math.round(fallbackSubtotal * (defaultTaxRate / 100)),
           tax_rate: defaultTaxRate,
           currency_code: selectedCurrency.code,
+          payment_fee: null,
         })
       } finally {
         setPreviewLoading(false)
@@ -214,7 +227,7 @@ export default function CheckoutPage() {
     }
 
     fetchPreview()
-  }, [items, selectedCountry, selectedCurrency.code, currencies, defaultTaxRate])
+  }, [items, selectedCountry, selectedCurrency.code, currencies, defaultTaxRate, paymentMethod])
 
   const onSubmit = async (data: CheckoutFormData) => {
     setLoading(true)
@@ -244,6 +257,7 @@ export default function CheckoutPage() {
           country_code: data.country,
         },
         payment_method: data.paymentMethod.replace(/_/g, '-'),
+        locale,
       }
 
       console.log('Creating order with data:', orderData)
@@ -295,9 +309,33 @@ export default function CheckoutPage() {
 
   const totalPrice = getTotalPrice()
   const currencyForDisplay = previewTotals.currency_code || selectedCurrency.code
+  // Sepet ust limiti: admin panelde tanimliysa asimda checkout kilitlenir
+  const cartLimitEur = getCartLimitEur()
+  const limitDisplayMinor =
+    cartLimitEur > 0
+      ? convertAmount(cartLimitEur * 100, 'eur', currencyForDisplay, currencies || [])
+      : 0
+  const overLimit =
+    cartLimitEur > 0 && previewTotals.total > 0 && previewTotals.total > limitDisplayMinor
   const formattedSubtotal = formatMoney(previewTotals.subtotal, currencyForDisplay)
   const formattedTax = formatMoney(previewTotals.tax_total, currencyForDisplay)
   const formattedTotal = formatMoney(previewTotals.total, currencyForDisplay)
+
+  // Komisyon kurali: "%3 + £0.30" gibi admin panelde tanimli oran
+  const paymentFee = previewTotals.payment_fee
+  const paymentFeeRule = paymentFee
+    ? [
+        paymentFee.percent ? `%${paymentFee.percent}` : null,
+        paymentFee.fixed_minor
+          ? formatMoney(paymentFee.fixed_minor, paymentFee.fixed_currency || currencyForDisplay)
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' + ')
+    : ''
+  const paymentFeeLabel = paymentFee
+    ? `${paymentFee.provider}${paymentFeeRule ? ` · ${paymentFeeRule}` : ''}`
+    : ''
 
   if (items.length === 0) {
     return null
@@ -305,7 +343,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
-      <Toaster position="top-right" />
 
       {stripeSecret && stripeCartId && (
         <StripePaymentModal
@@ -529,7 +566,17 @@ export default function CheckoutPage() {
               </div>
 
               {/* Submit Button */}
-              <button type="submit" disabled={loading} className="w-full btn-primary text-lg py-4">
+              {overLimit && (
+                <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg text-sm mb-4">
+                  ⚠️ Sepet toplamı mağaza üst limitini ({formatMoney(limitDisplayMinor, currencyForDisplay)})
+                  aşıyor. Lütfen sepetinizi azaltın.
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading || overLimit}
+                className="w-full btn-primary text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {loading ? t('checkout.processing') : `${t('checkout.placeOrder')} - ${formattedTotal}`}
               </button>
 
@@ -581,6 +628,16 @@ export default function CheckoutPage() {
                   <span>{t('checkout.vat')}{previewTotals.tax_rate ? ` (${previewTotals.tax_rate.toFixed(2)}%)` : ''}:</span>
                   <span>{previewLoading ? t('cart.calculating') : formattedTax}</span>
                 </div>
+                {paymentFee && (
+                  <div className="flex justify-between text-gray-400">
+                    <span>{t('checkout.paymentFee', { provider: paymentFeeLabel })}</span>
+                    <span>
+                      {previewLoading
+                        ? t('cart.calculating')
+                        : formatMoney(paymentFee.amount_minor, currencyForDisplay)}
+                    </span>
+                  </div>
+                )}
                 <div className="border-t border-gray-700 pt-2 flex justify-between text-white font-bold text-xl">
                   <span>{t('checkout.total')}</span>
                   <span>{previewLoading ? t('cart.calculating') : formattedTotal}</span>

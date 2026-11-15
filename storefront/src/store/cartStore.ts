@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import toast from 'react-hot-toast'
 import {
   createServerCart,
   fetchServerCart,
@@ -7,6 +8,9 @@ import {
   serverRemoveItem,
   serverUpdateItem,
 } from '@/lib/server-cart'
+import { getCartLimitEur } from '@/lib/cart-limit'
+import { useCurrencyStore } from '@/store/currencyStore'
+import { convertAmount } from '@/utils/currency'
 
 export interface CartItem {
   id: string
@@ -44,6 +48,25 @@ function syncError(scope: string, e: any) {
   if (typeof console !== 'undefined') console.warn(`[server-cart] ${scope} failed:`, e?.message)
 }
 
+// Sepet ust limiti kontrolu: mevcut sepet + eklenecek tutar (minor) EUR'ya
+// cevrilerek karsilastirilir. Limit asilacaksa true doner (ekleme YAPILMAZ).
+function wouldExceedLimit(currentItems: CartItem[], additionalMinor: number, additionalCurrency: string): boolean {
+  const limitEur = getCartLimitEur()
+  if (limitEur <= 0) return false
+  const rates = useCurrencyStore.getState().currencies || []
+  const currentEurMinor = currentItems.reduce(
+    (sum, i) => sum + convertAmount(i.price * i.quantity, i.currency, 'eur', rates),
+    0
+  )
+  const addEurMinor = convertAmount(additionalMinor, additionalCurrency, 'eur', rates)
+  return currentEurMinor + addEurMinor > limitEur * 100
+}
+
+function notifyLimitBlocked() {
+  const limitEur = getCartLimitEur()
+  toast.error(`Sepet üst limiti (${limitEur} EUR) aşıldığı için ürün eklenemedi.`)
+}
+
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
@@ -52,6 +75,12 @@ export const useCartStore = create<CartStore>()(
       serverSyncing: false,
 
       addItem: (item) => {
+        // Sepet ust limiti: eklenince asilacaksa ekleme
+        if (wouldExceedLimit(get().items, item.price, item.currency)) {
+          notifyLimitBlocked()
+          return
+        }
+
         set((state) => {
           const existingItem = state.items.find((i) => i.variantId === item.variantId)
 
@@ -143,6 +172,16 @@ export const useCartStore = create<CartStore>()(
         if (quantity <= 0) {
           get().removeItem(variantId)
           return
+        }
+
+        // adet artisi limiti asiyorsa eski adette kal
+        const current = get().items.find((i) => i.variantId === variantId)
+        if (current && quantity > current.quantity) {
+          const delta = (quantity - current.quantity) * current.price
+          if (wouldExceedLimit(get().items, delta, current.currency)) {
+            notifyLimitBlocked()
+            return
+          }
         }
 
         set((state) => ({

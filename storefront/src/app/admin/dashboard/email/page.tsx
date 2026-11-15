@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { adminApi } from '@/lib/admin-api'
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  LOCALE_META,
+  resolveLocale,
+  type Locale,
+} from '@/i18n/config'
 
 type SmtpSettings = {
   enabled: boolean
@@ -12,13 +19,13 @@ type SmtpSettings = {
   user: string
   from_email: string
   from_name: string
-  language: 'tr' | 'en'
+  language: Locale
 }
 
 type EmailTemplate = {
   id: string
   key: string
-  locale: 'tr' | 'en' | string
+  locale: string
   name: string
   subject: string
   html: string
@@ -29,7 +36,7 @@ type EmailTemplate = {
 const emptyTemplate: EmailTemplate = {
   id: '',
   key: '',
-  locale: 'tr',
+  locale: DEFAULT_LOCALE,
   name: '',
   subject: '',
   html: '',
@@ -51,6 +58,9 @@ const PLACEHOLDERS = [
   '{{email}}',
   '{{subject}}',
   '{{message}}',
+  '{{first_name}}',
+  '{{verification_url}}',
+  '{{expires_hours}}',
   '{{now}}',
   '{{year}}',
 ]
@@ -65,7 +75,7 @@ export default function EmailSettingsPage() {
     user: '',
     from_email: '',
     from_name: '',
-    language: 'tr',
+    language: DEFAULT_LOCALE,
   })
   const [password, setPassword] = useState('')
   const [passwordSet, setPasswordSet] = useState(false)
@@ -98,7 +108,7 @@ export default function EmailSettingsPage() {
         user: s.user || '',
         from_email: s.from_email || '',
         from_name: s.from_name || '',
-        language: s.language === 'en' ? 'en' : 'tr',
+        language: resolveLocale(s.language),
       })
       setPasswordSet(Boolean(res.data?.password_set))
       if (s.from_email) setTestTo((prev) => prev || s.from_email)
@@ -137,7 +147,7 @@ export default function EmailSettingsPage() {
     loadTemplates()
   }, [loadTemplates])
 
-  const changeLanguage = async (next: 'tr' | 'en') => {
+  const changeLanguage = async (next: Locale) => {
     setSmtp((prev) => ({ ...prev, language: next }))
     setLanguageStatus('saving')
     try {
@@ -184,7 +194,10 @@ export default function EmailSettingsPage() {
     setSmtpSaving(true)
     setSmtpMessage(null)
     try {
-      const res = await adminApi.post('/admin/email-settings/test', { to: testTo.trim() })
+      const res = await adminApi.post('/admin/email-settings/test', {
+        to: testTo.trim(),
+        locale: smtp.language,
+      })
       setSmtpMessage({ ok: true, text: res.data?.message || 'Test e-postası gönderildi.' })
     } catch (error: any) {
       setSmtpMessage({
@@ -212,6 +225,26 @@ export default function EmailSettingsPage() {
     setTemplateMessage(null)
   }
 
+  /** Ayni sablonun eksik dil varyantini Ingilizce icerikten baslatarak acar. */
+  const newLocaleVariant = (key: string, locale: Locale) => {
+    const base =
+      templates.find((t) => t.key === key && resolveLocale(t.locale) === DEFAULT_LOCALE) ||
+      templates.find((t) => t.key === key)
+    setDraft({
+      ...emptyTemplate,
+      key,
+      locale,
+      name: base ? `${base.name} (${LOCALE_META[locale].nativeLabel})` : key,
+      subject: base?.subject || '',
+      html: base?.html || '',
+      active: true,
+    })
+    setIsNew(true)
+    setPreviewHtml('')
+    setPreviewSubject('')
+    setTemplateMessage(null)
+  }
+
   const saveTemplate = async () => {
     setTemplateSaving(true)
     setTemplateMessage(null)
@@ -227,7 +260,9 @@ export default function EmailSettingsPage() {
       const list: EmailTemplate[] = res.data?.templates || []
       setTemplates(list)
       const saved = list.find(
-        (t) => t.key === draft.key && (t.locale || 'tr') === (draft.locale || 'tr')
+        (t) =>
+          t.key === draft.key &&
+          resolveLocale(t.locale) === resolveLocale(draft.locale)
       )
       if (saved) setDraft({ ...saved, text: saved.text || '' })
     } catch (error: any) {
@@ -284,6 +319,7 @@ export default function EmailSettingsPage() {
       const res = await adminApi.post('/admin/email-templates/preview', {
         subject: draft.subject,
         html: draft.html,
+        locale: draft.locale,
       })
       setPreviewHtml(res.data?.html || '')
       setPreviewSubject(res.data?.subject || '')
@@ -299,13 +335,36 @@ export default function EmailSettingsPage() {
 
   const activeTemplateKey = useMemo(() => (isNew ? '' : draft.id), [draft.id, isNew])
 
+  const groupedTemplates = useMemo(() => {
+    const groups = new Map<string, EmailTemplate[]>()
+    for (const template of templates) {
+      const list = groups.get(template.key) || []
+      list.push(template)
+      groups.set(template.key, list)
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [templates])
+
+  const coverage = useMemo(() => {
+    const expected = groupedTemplates.length * LOCALES.length
+    const present = templates.length
+    return { expected, present, missing: Math.max(0, expected - present) }
+  }, [groupedTemplates.length, templates.length])
+
+  const localeVariants = useMemo(
+    () => templates.filter((template) => template.key === draft.key),
+    [templates, draft.key]
+  )
+
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
       <div className="bg-[#15171c] border-b border-gray-800">
         <div className="container mx-auto px-4 py-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-black text-white mb-1">📧 E-posta Ayarları</h1>
-            <p className="text-gray-400">SMTP bağlantısı ve düzenlenebilir mail şablonları</p>
+            <p className="text-gray-400">
+              SMTP bağlantısı ve 5 dilde düzenlenebilir mail şablonları
+            </p>
           </div>
           <Link
             href="/admin/dashboard"
@@ -457,16 +516,18 @@ export default function EmailSettingsPage() {
                   </label>
                   <select
                     value={smtp.language}
-                    onChange={(e) =>
-                      changeLanguage(e.target.value === 'en' ? 'en' : 'tr')
-                    }
+                    onChange={(e) => changeLanguage(resolveLocale(e.target.value))}
                     className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                   >
-                    <option value="tr">Türkçe (TR)</option>
-                    <option value="en">English (EN)</option>
+                    {LOCALES.map((l) => (
+                      <option key={l} value={l}>
+                        {LOCALE_META[l].flag} {LOCALE_META[l].nativeLabel} ({l.toUpperCase()})
+                      </option>
+                    ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Müşteriye giden otomatik e-postalarda kullanılır. Değişiklik anında kaydedilir.
+                    Test e-postaları için kullanılır. Müşteri e-postaları alıcının diline göre
+                    gider; dil tespit edilemezse İngilizce gönderilir. Değişiklik anında kaydedilir.
                   </p>
                   <p
                     className={`text-xs mt-1 ${
@@ -531,34 +592,73 @@ export default function EmailSettingsPage() {
               {templatesLoading ? (
                 <div className="text-gray-400 text-sm py-4">Yükleniyor…</div>
               ) : (
-                <div className="space-y-1">
-                  {templates.map((template) => (
-                    <button
-                      key={template.id}
-                      onClick={() => selectTemplate(template)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
-                        activeTemplateKey === template.id
-                          ? 'bg-[#ff6b35]/15 text-[#ff6b35] border border-[#ff6b35]/40'
-                          : 'text-gray-300 hover:bg-[#1a1d24] border border-transparent'
-                      }`}
-                    >
-                      <div className="font-semibold">{template.name}</div>
-                      <div className="text-xs text-gray-500 font-mono">
-                        {template.key} · {(template.locale || 'tr').toUpperCase()}
+                <>
+                  <div className="text-[11px] text-gray-500 mb-3">
+                    {coverage.present}/{coverage.expected} dil hazır
+                    {coverage.missing > 0 && (
+                      <span className="text-yellow-400"> · {coverage.missing} eksik</span>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {groupedTemplates.map(([key, list]) => (
+                      <div key={key}>
+                        <div className="flex items-center justify-between text-[11px] font-mono text-gray-500 mb-1">
+                          <span className="truncate">{key}</span>
+                          <span
+                            className={
+                              list.length === LOCALES.length
+                                ? 'text-green-400'
+                                : 'text-yellow-400'
+                            }
+                          >
+                            {list.length}/{LOCALES.length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1">
+                          {LOCALES.map((l) => {
+                            const template = list.find(
+                              (t) => resolveLocale(t.locale) === l
+                            )
+                            const isActive =
+                              template && activeTemplateKey === template.id
+                            return (
+                              <button
+                                key={l}
+                                type="button"
+                                title={template ? template.name : `${l.toUpperCase()} dilini ekle`}
+                                onClick={() =>
+                                  template
+                                    ? selectTemplate(template)
+                                    : newLocaleVariant(key, l)
+                                }
+                                className={`flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-[10px] font-bold transition ${
+                                  isActive
+                                    ? 'bg-[#ff6b35]/15 text-[#ff6b35] border border-[#ff6b35]/40'
+                                    : template
+                                      ? 'text-gray-300 hover:bg-[#1a1d24] border border-transparent'
+                                      : 'text-gray-500 border border-dashed border-gray-700 hover:border-[#ff6b35]'
+                                }`}
+                              >
+                                <span>{LOCALE_META[l].flag}</span>
+                                <span>{l.toUpperCase()}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </button>
-                  ))}
-                  {templates.length === 0 && (
-                    <div className="text-gray-400 text-sm">Henüz şablon yok.</div>
-                  )}
-                </div>
+                    ))}
+                    {templates.length === 0 && (
+                      <div className="text-gray-400 text-sm">Henüz şablon yok.</div>
+                    )}
+                  </div>
+                </>
               )}
               <button
                 onClick={seedDefaults}
                 disabled={templateSaving}
                 className="w-full mt-4 px-3 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg text-xs hover:border-[#ff6b35] disabled:opacity-50"
               >
-                Varsayılanları Yükle
+                Varsayılanları Yükle (5 dil)
               </button>
             </div>
 
@@ -595,15 +695,18 @@ export default function EmailSettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Dil</label>
                     <select
-                      value={(draft.locale as string) || 'tr'}
+                      value={resolveLocale(draft.locale)}
                       disabled={!isNew}
                       onChange={(e) =>
-                        setDraft({ ...draft, locale: e.target.value === 'en' ? 'en' : 'tr' })
+                        setDraft({ ...draft, locale: resolveLocale(e.target.value) })
                       }
                       className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none disabled:opacity-60"
                     >
-                      <option value="tr">Türkçe (TR)</option>
-                      <option value="en">English (EN)</option>
+                      {LOCALES.map((l) => (
+                        <option key={l} value={l}>
+                          {LOCALE_META[l].flag} {LOCALE_META[l].nativeLabel} ({l.toUpperCase()})
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -633,6 +736,42 @@ export default function EmailSettingsPage() {
                     />
                   </div>
                 </div>
+
+                {draft.key && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Dil Varyantları
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {LOCALES.map((l) => {
+                        const variant = localeVariants.find(
+                          (t) => resolveLocale(t.locale) === l
+                        )
+                        const isActive = resolveLocale(draft.locale) === l
+                        return (
+                          <button
+                            key={l}
+                            type="button"
+                            onClick={() =>
+                              variant ? selectTemplate(variant) : newLocaleVariant(draft.key, l)
+                            }
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                              isActive
+                                ? 'bg-[#ff6b35]/15 text-[#ff6b35] border-[#ff6b35]/40'
+                                : variant
+                                  ? 'bg-[#1a1d24] text-gray-300 border-gray-700 hover:border-[#ff6b35]'
+                                  : 'bg-[#1a1d24] text-gray-500 border-dashed border-gray-700 hover:border-[#ff6b35]'
+                            }`}
+                          >
+                            <span>{LOCALE_META[l].flag}</span>
+                            <span>{LOCALE_META[l].nativeLabel}</span>
+                            <span>{variant ? '✓' : '+'}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -692,6 +831,9 @@ export default function EmailSettingsPage() {
                 <div className="gaming-card p-4">
                   <div className="text-sm text-gray-400 mb-2">
                     Önizleme konusu: <span className="text-white">{previewSubject}</span>
+                    <span className="ml-2 text-xs">
+                      ({LOCALE_META[resolveLocale(draft.locale)].nativeLabel})
+                    </span>
                   </div>
                   <iframe
                     title="E-posta önizleme"

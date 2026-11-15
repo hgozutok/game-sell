@@ -1,5 +1,14 @@
 import nodemailer from "nodemailer"
+import { Modules } from "@medusajs/framework/utils"
 import { decryptText, encryptText } from "./key-crypto"
+import {
+  DEFAULT_EMAIL_LOCALE,
+  EMAIL_LOCALE_META,
+  normalizeEmailLocale,
+  resolveEmailLocaleFromAcceptLanguage,
+  toEmailLocale,
+  type EmailLocale,
+} from "../modules/email-template/locales"
 
 /**
  * SMTP ayarlari `store_setting` tablosunda `email.smtp.*` anahtarlariyla tutulur.
@@ -89,14 +98,159 @@ export async function readSmtpSettings(container: any): Promise<SmtpSettings> {
   }
 }
 
+/** Sablonlarda ve tablo basliklarinda kullanilan dile ozel metinler. */
+export interface EmailUiText {
+  /** Dil tespit edilemediginde kullanilan hitap. */
+  customer: string
+  product: string
+  key: string
+  quantity: string
+  total: string
+  order: string
+  notificationSubject: string
+}
+
+export const EMAIL_UI_TEXT: Record<EmailLocale, EmailUiText> = {
+  en: {
+    customer: "Valued Customer",
+    product: "Product",
+    key: "Key",
+    quantity: "Qty",
+    total: "Total",
+    order: "Order",
+    notificationSubject: "Notification",
+  },
+  tr: {
+    customer: "Değerli Müşteri",
+    product: "Ürün",
+    key: "Anahtar",
+    quantity: "Adet",
+    total: "Tutar",
+    order: "Sipariş",
+    notificationSubject: "Bilgilendirme",
+  },
+  de: {
+    customer: "Geschätzter Kunde",
+    product: "Produkt",
+    key: "Schlüssel",
+    quantity: "Menge",
+    total: "Gesamt",
+    order: "Bestellung",
+    notificationSubject: "Benachrichtigung",
+  },
+  fr: {
+    customer: "Cher client",
+    product: "Produit",
+    key: "Clé",
+    quantity: "Quantité",
+    total: "Total",
+    order: "Commande",
+    notificationSubject: "Notification",
+  },
+  ar: {
+    customer: "عزيزي العميل",
+    product: "المنتج",
+    key: "المفتاح",
+    quantity: "الكمية",
+    total: "الإجمالي",
+    order: "الطلب",
+    notificationSubject: "إشعار",
+  },
+}
+
+export function emailUiText(locale?: string | null): EmailUiText {
+  return EMAIL_UI_TEXT[normalizeEmailLocale(locale)]
+}
+
+/** Secilen dilde tarih/saat metni (ornek: "14 Kas 2026 12:30"). */
+export function formatEmailDateTime(
+  locale?: string | null,
+  value: Date | string | number = new Date()
+): string {
+  const normalized = normalizeEmailLocale(locale)
+  const date = value instanceof Date ? value : new Date(value)
+  try {
+    return new Intl.DateTimeFormat(EMAIL_LOCALE_META[normalized].intlLocale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date)
+  } catch {
+    return date.toISOString()
+  }
+}
+
+export interface EmailLocaleContext {
+  /** Acikca verilen dil (istek dili, siparis metadata'si vb.). */
+  locale?: string | null
+  /** Template verisi icinde tasinan dil. */
+  dataLocale?: string | null
+  /** Alicinin musteri kaydi; metadata.prefs.locale okunur. */
+  customerId?: string | null
+  /** Musteri kaydi yoksa e-posta ile tercih aranir. */
+  email?: string | null
+  /** Accept-Language basligi (tarayici dili). */
+  acceptLanguage?: string | null
+}
+
+/**
+ * Alicinin e-posta dilini cozer.
+ * Sirasi: acik dil -> musteri tercihi -> Accept-Language -> Ingilizce.
+ */
+export async function resolveEmailLocale(
+  container: any,
+  context: EmailLocaleContext = {}
+): Promise<EmailLocale> {
+  const explicit =
+    toEmailLocale(context.locale) || toEmailLocale(context.dataLocale)
+  if (explicit) return explicit
+
+  try {
+    const customerModule = container.resolve(Modules.CUSTOMER) as any
+    let customer: any = null
+
+    if (context.customerId) {
+      customer = await customerModule
+        .retrieveCustomer(context.customerId)
+        .catch(() => null)
+    }
+
+    if (!customer && context.email) {
+      const customers = await customerModule
+        .listCustomers({ email: String(context.email).toLowerCase().trim() })
+        .catch(() => [])
+      customer = customers?.[0] || null
+    }
+
+    const saved = toEmailLocale(
+      customer?.metadata?.prefs?.locale ||
+        customer?.metadata?.locale ||
+        customer?.metadata?.language ||
+        customer?.metadata?.preferred_locale
+    )
+    if (saved) return saved
+  } catch {
+    /* musteri modulu yoksa / kayit bulunamazsa tarayici diline gec */
+  }
+
+  return resolveEmailLocaleFromAcceptLanguage(context.acceptLanguage)
+}
+
 export interface SendTemplateEmailOptions {
   to: string
   templateKey: string
   data?: Record<string, any>
   subject?: string
   replyTo?: string
-  /** Sablon dili (tr/en). Verilmezse admin panelindeki varsayilan dil kullanilir. */
+  /**
+   * Sablon dili (en/tr/de/fr/ar).
+   * Verilmezse alicinin hesap tercihi, sonra Accept-Language,
+   * hicbiri yoksa Ingilizce kullanilir.
+   */
   locale?: string
+  /** Alicinin musteri kaydi — kayitli dil tercihi icin. */
+  customerId?: string | null
+  /** Tarayici dili; musteri tercihi yoksa kullanilir. */
+  acceptLanguage?: string | null
   /** SMTP kapaliyken hata yerine sessizce atla (workflow'larda tercih edilir) */
   silent?: boolean
 }
@@ -105,6 +259,7 @@ export interface SendTemplateEmailResult {
   sent: boolean
   skipped?: boolean
   messageId?: string
+  locale?: EmailLocale
   error?: string
 }
 
@@ -116,12 +271,23 @@ export async function sendTemplateEmail(
   const logger = container.resolve("logger") as any
 
   try {
+    const locale = await resolveEmailLocale(container, {
+      locale: options.locale,
+      dataLocale:
+        options.data?.locale ||
+        options.data?.language ||
+        options.data?.prefs?.locale,
+      customerId: options.customerId,
+      email: options.to,
+      acceptLanguage: options.acceptLanguage,
+    })
+
     const smtp = await readSmtpSettings(container)
     if (!smtp.enabled || !smtp.host || !smtp.from_email) {
       logger?.warn?.(
-        `[email] SMTP yapilandirilmamis — "${options.templateKey}" gonderilmedi (to=${options.to})`
+        `[email] SMTP yapilandirilmamis — "${options.templateKey}" (${locale}) gonderilmedi (to=${options.to})`
       )
-      return { sent: false, skipped: true, error: "SMTP yapılandırılmamış" }
+      return { sent: false, skipped: true, locale, error: "SMTP yapılandırılmamış" }
     }
 
     const storeSettings = container.resolve("storeSettings") as any
@@ -136,18 +302,18 @@ export async function sendTemplateEmail(
       "http://localhost:3000"
 
     const emailTemplate = container.resolve("emailTemplate") as any
-    const locale =
-      options.locale ||
-      (await storeSettings.getSettingValue("email.language", "tr")) ||
-      "tr"
-    let template = await emailTemplate.getTemplate(options.templateKey, String(locale))
+    let template = await emailTemplate.getTemplate(options.templateKey, locale)
     if (!template) {
       await emailTemplate.ensureDefaults()
-      template = await emailTemplate.getTemplate(options.templateKey, String(locale))
+      template = await emailTemplate.getTemplate(options.templateKey, locale)
     }
 
     if (!template) {
-      return { sent: false, error: `Şablon bulunamadı: ${options.templateKey}` }
+      return {
+        sent: false,
+        locale,
+        error: `Şablon bulunamadı: ${options.templateKey} (${locale})`,
+      }
     }
 
     const renderData: Record<string, any> = {
@@ -155,13 +321,17 @@ export async function sendTemplateEmail(
       support_email: supportEmail,
       site_url: siteUrl,
       year: new Date().getFullYear(),
-      now: new Date().toLocaleString("tr-TR"),
-      customer_name: "Değerli Müşteri",
+      now: formatEmailDateTime(locale),
+      customer_name: emailUiText(locale).customer,
       ...(options.data || {}),
+      locale,
     }
 
     const rendered = emailTemplate.render(template, renderData)
-    const subject = options.subject || rendered.subject || "Bilgilendirme"
+    const subject =
+      options.subject ||
+      rendered.subject ||
+      emailUiText(locale).notificationSubject
 
     const transport = nodemailer.createTransport({
       host: smtp.host,
@@ -183,10 +353,14 @@ export async function sendTemplateEmail(
       replyTo: options.replyTo,
     })
 
-    logger?.info?.(`[email] "${options.templateKey}" gonderildi -> ${options.to}`)
-    return { sent: true, messageId: info.messageId }
+    logger?.info?.(
+      `[email] "${options.templateKey}" (${locale}) gonderildi -> ${options.to}`
+    )
+    return { sent: true, messageId: info.messageId, locale }
   } catch (error: any) {
-    logger?.warn?.(`[email] gonderim hatasi (${options.templateKey}): ${error?.message}`)
+    logger?.warn?.(
+      `[email] gonderim hatasi (${options.templateKey}, locale=${options.locale || DEFAULT_EMAIL_LOCALE}): ${error?.message}`
+    )
     return { sent: false, error: String(error?.message || error) }
   }
 }

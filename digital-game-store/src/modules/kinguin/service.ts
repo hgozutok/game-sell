@@ -488,11 +488,15 @@ class KinguinService extends MedusaService({
   // ===================== Sync log =====================
 
   async startSyncLog(type: "full" | "price" | "stock" | "import" | "order_status", details?: any): Promise<any> {
+    const now = new Date()
     return await this.createSyncLogs({
       type,
       source: "kinguin",
       status: "running",
-      started_at: new Date(),
+      started_at: now,
+      heartbeat_at: now,
+      progress_total: 0,
+      progress_processed: 0,
       details: details ?? null,
     } as any)
   }
@@ -500,12 +504,14 @@ class KinguinService extends MedusaService({
   async finishSyncLog(
     logId: string,
     patch: Partial<{
-      status: "completed" | "failed"
+      status: "completed" | "failed" | "canceled"
       items_total: number
       items_added: number
       items_updated: number
       items_failed: number
       pending_approvals: number
+      progress_total: number
+      progress_processed: number
       errors: any
       details: any
     }>
@@ -513,8 +519,43 @@ class KinguinService extends MedusaService({
     await this.updateSyncLogs({
       id: logId,
       ...patch,
+      heartbeat_at: new Date(),
       finished_at: new Date(),
     } as any)
+  }
+
+  /** Uzun synclarda ilerleme + yasam sinyali yazar. */
+  async touchSyncLog(
+    logId: string,
+    patch: {
+      progress_processed?: number
+      progress_total?: number
+      details?: any
+    } = {}
+  ): Promise<void> {
+    await this.updateSyncLogs({ id: logId, heartbeat_at: new Date(), ...patch } as any)
+  }
+
+  /** Admin iptali: calisan kaydi canceled yapar; is parcacigi bunu gorup durur. */
+  async cancelSyncLog(logId: string, reason = "admin"): Promise<any | null> {
+    const rows = await this.listSyncLogs({ id: logId })
+    const log = rows?.[0]
+    if (!log) return null
+    if (log.status !== "running") return log
+
+    await this.updateSyncLogs({
+      id: logId,
+      status: "canceled",
+      canceled_at: new Date(),
+      finished_at: new Date(),
+      heartbeat_at: new Date(),
+      details: {
+        ...(log.details && typeof log.details === "object" ? log.details : {}),
+        cancel_reason: reason,
+      },
+    } as any)
+
+    return { ...log, status: "canceled" }
   }
 
   // ===================== Webhook imza =====================

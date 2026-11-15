@@ -1,5 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { sendTemplateEmail } from "../../../utils/email"
+import {
+  resolveEmailLocaleFromAcceptLanguage,
+  toEmailLocale,
+} from "../../../modules/email-template/locales"
 
 export const AUTHENTICATE = false
 
@@ -34,9 +38,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(500).json({ message: "Destek e-postası tanımlı değil" })
     }
 
+    const locale =
+      toEmailLocale(body.locale) ||
+      resolveEmailLocaleFromAcceptLanguage(req.headers["accept-language"] as string)
+
     const result = await sendTemplateEmail(req.scope, {
       to: recipient,
       templateKey: "contact-form",
+      locale,
       replyTo: email,
       data: { name, email, subject, message },
     })

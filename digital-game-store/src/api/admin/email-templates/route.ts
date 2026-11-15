@@ -1,4 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import {
+  DEFAULT_EMAIL_LOCALE,
+  SUPPORTED_EMAIL_LOCALES,
+  toEmailLocale,
+} from "../../../modules/email-template/locales"
 
 export const AUTHENTICATE = false
 
@@ -13,7 +18,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       {},
       { order: { created_at: "ASC" } }
     )
-    res.json({ templates })
+    res.json({
+      templates,
+      locales: SUPPORTED_EMAIL_LOCALES,
+      default_locale: DEFAULT_EMAIL_LOCALE,
+    })
   } catch (error: any) {
     res.status(500).json({ message: "Şablonlar okunamadı", error: error?.message })
   }
@@ -27,11 +36,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const body = (req.body || {}) as any
 
     const key = String(body.key || "").trim().toLowerCase()
-    const locale = body.locale === "en" ? "en" : "tr"
+    const rawLocale =
+      body.locale === undefined || body.locale === null || body.locale === ""
+        ? DEFAULT_EMAIL_LOCALE
+        : body.locale
+    const locale = toEmailLocale(rawLocale)
     const name = String(body.name || "").trim()
     const subject = String(body.subject || "").trim()
     const html = String(body.html || "")
 
+    if (!locale) {
+      return res.status(400).json({
+        message: `Desteklenmeyen dil. Desteklenenler: ${SUPPORTED_EMAIL_LOCALES.join(", ")}`,
+      })
+    }
     if (!KEY_RE.test(key)) {
       return res.status(400).json({
         message: "Anahtar 2-61 karakter olmalı; küçük harf, rakam, - ve _ kullanın",

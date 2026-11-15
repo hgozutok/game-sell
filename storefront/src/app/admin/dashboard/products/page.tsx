@@ -99,6 +99,16 @@ export default function ProductsPage() {
       localStorage.setItem('admin_products_filters', JSON.stringify(filters))
     }
     
+    // Backend'e de yaz — arama ve diger urun listeleri bu ayarlari okur
+    adminApi
+      .post('/admin/settings/batch', {
+        settings: [
+          { key: 'catalog.hide_zero_price', value: filters.hideZeroPrice },
+          { key: 'catalog.hide_zero_stock', value: filters.hideZeroStock },
+        ],
+      })
+      .catch(() => {})
+
     setSavedLimit(limit)
     setSavedFilters(filters)
     setPage(1) // Reset to first page

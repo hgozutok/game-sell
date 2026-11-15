@@ -19,17 +19,20 @@ export interface AuthResponse {
 }
 
 export const authService = {
-  // Customer login using custom endpoint
-  async login(email: string, password: string): Promise<AuthResponse> {
+  // Customer login — donen token gercek Medusa JWT'sidir; medusa_auth_token olarak
+  // saklanir (api interceptor Authorization: Bearer ile gonderir) ve /store/* route'lari
+  // bu token ile gercek kimlik dogrulamasi yapar.
+  async login(email: string, password: string, captchaToken?: string | null): Promise<AuthResponse> {
     try {
       const response = await api.post('/store/auth/login', {
         email,
         password,
+        captcha_token: captchaToken || undefined,
       })
-      
+
       const customer = response.data.customer
       const token = response.data.token
-      
+
       if (customer) {
         localStorage.setItem('customer_id', customer.id)
         localStorage.setItem('customer_email', customer.email)
@@ -37,24 +40,34 @@ export const authService = {
         localStorage.setItem('customer_last_name', customer.last_name || '')
         if (token) {
           localStorage.setItem('customer_token', token)
+          localStorage.setItem('medusa_auth_token', token)
         }
       }
-      
+
       return { customer, token }
     } catch (error: any) {
       console.error('Auth error:', error)
-      throw new Error(error.response?.data?.message || error.message || 'Invalid email or password')
+      const err: any = new Error(
+        error.response?.data?.message || error.message || 'Invalid email or password'
+      )
+      err.code = error.response?.data?.code
+      err.email = error.response?.data?.email
+      throw err
     }
   },
 
-  // Customer registration
-  async register(data: {
-    email: string
-    password: string
-    first_name: string
-    last_name: string
-    phone?: string
-  }): Promise<Customer> {
+  // Kayit — e-posta dogrulamasi aciksa token donmez; kullanici e-postasindaki
+  // baglantiyla hesabini dogruladiktan sonra giris yapabilir.
+  async register(
+    data: {
+      email: string
+      password: string
+      first_name: string
+      last_name: string
+      phone?: string
+    },
+    captchaToken?: string | null
+  ): Promise<{ customer: Customer | null; requiresVerification: boolean }> {
     try {
       const response = await api.post('/store/auth/register', {
         email: data.email,
@@ -62,23 +75,60 @@ export const authService = {
         first_name: data.first_name,
         last_name: data.last_name,
         phone: data.phone,
+        captcha_token: captchaToken || undefined,
       })
-      
+
       const customer = response.data.customer
-      
-      // Auto-login after registration
-      if (customer) {
+      const requiresVerification = response.data.requires_verification === true
+
+      if (customer && !requiresVerification) {
         localStorage.setItem('customer_id', customer.id)
         localStorage.setItem('customer_email', customer.email)
         localStorage.setItem('customer_first_name', customer.first_name || '')
         localStorage.setItem('customer_last_name', customer.last_name || '')
       }
-      
-      return customer
+
+      return { customer, requiresVerification }
     } catch (error: any) {
       console.error('Registration error:', error)
       throw new Error(error.response?.data?.message || error.message || 'Registration failed')
     }
+  },
+
+  // E-posta dogrulama akisi
+  async verifyEmail(token: string): Promise<void> {
+    await api.post('/store/auth/verify-email', { token })
+  },
+
+  async resendVerification(email: string): Promise<void> {
+    await api.post('/store/auth/resend-verification', { email })
+  },
+
+  // Sosyal giris saglayici + bot korumasi konfigurasyonu (admin ayarlarindan gelir)
+  async getSocialProviders(): Promise<Array<{ provider: string; enabled: boolean }>> {
+    const config = await this.getAuthProvidersConfig()
+    return config.providers
+  },
+
+  async getAuthProvidersConfig(): Promise<{
+    providers: Array<{ provider: string; enabled: boolean }>
+    captcha: { provider: string; site_key: string | null }
+  }> {
+    try {
+      const response = await api.get('/store/auth/providers')
+      return {
+        providers: response.data?.providers || [],
+        captcha: response.data?.captcha || { provider: 'none', site_key: null },
+      }
+    } catch {
+      return { providers: [], captcha: { provider: 'none', site_key: null } }
+    }
+  },
+
+  // Sosyal callback sayfasi JWT'yi burada saklar
+  saveSocialSession(token: string): void {
+    localStorage.setItem('medusa_auth_token', token)
+    localStorage.setItem('customer_token', token)
   },
 
   // Logout
@@ -97,18 +147,34 @@ export const authService = {
     }
   },
 
-  // Get current customer
+  // Get current customer — backend'den taze veri (metadata dahil); JWT gecersizse
+  // lokal aynaya dusulur.
   async getCurrentCustomer(): Promise<Customer | null> {
     try {
+      const token = localStorage.getItem('medusa_auth_token')
+      if (token) {
+        try {
+          const response = await api.get('/store/customers/me')
+          const c = response.data?.customer
+          if (c) {
+            localStorage.setItem('customer_id', c.id)
+            localStorage.setItem('customer_email', c.email)
+            localStorage.setItem('customer_first_name', c.first_name || '')
+            localStorage.setItem('customer_last_name', c.last_name || '')
+            return c as Customer
+          }
+        } catch {
+          /* backend erisilemedi — lokal aynaya dus */
+        }
+      }
+
       const customerId = localStorage.getItem('customer_id')
       const customerEmail = localStorage.getItem('customer_email')
       const firstName = localStorage.getItem('customer_first_name')
       const lastName = localStorage.getItem('customer_last_name')
-      
+
       if (!customerId || !customerEmail) return null
-      
-      // Return customer data from localStorage
-      // In production, you would validate the session with backend
+
       return {
         id: customerId,
         email: customerEmail,

@@ -1,8 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
-import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/currency'
+import { getCurrencyRates } from '../../../../utils/currency'
 import { calculateTaxAmount } from '../../../../utils/pricing'
 import { resolveVariantUnitPrice } from '../../../../utils/variant-pricing'
+import { applyPaymentFee } from '../../../../utils/payment-fee'
 
 const COUNTRY_TAX_RATES: Record<string, number> = {
   us: 8,
@@ -108,12 +109,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const subtotal = subtotalMinor
     const taxTotal = calculateTaxAmount(subtotal, countryTaxRate)
-    const total = subtotal + taxTotal
+    // Odeme komisyonu: checkout secilen saglayiciyi gonderirse uygulanir
+    const requestedProvider = String((req.body as any)?.payment_method || '').toLowerCase()
+    let paymentFee = null
+    let total = subtotal + taxTotal
+    if (requestedProvider) {
+      const fee = await applyPaymentFee(
+        req.scope,
+        requestedProvider,
+        subtotal + taxTotal,
+        displayCurrency,
+        currencyRates
+      )
+      if (fee) {
+        paymentFee = {
+          provider: fee.provider,
+          percent: fee.percent,
+          fixed_minor: fee.fixedMinor,
+          fixed_currency: fee.currency,
+          amount_minor: fee.feeMinor,
+        }
+        total += fee.feeMinor
+      }
+    }
 
     res.json({
       currency_code: displayCurrency,
       subtotal,
       tax_total: taxTotal,
+      payment_fee: paymentFee,
       total,
       tax_rate: countryTaxRate,
       country_code: normalizedCountry || null,

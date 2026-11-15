@@ -19,7 +19,13 @@ import {
   when,
 } from "@medusajs/framework/workflows-sdk"
 import { encryptKeys, decryptKeys } from "../utils/key-crypto"
-import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
+import {
+  sendTemplateEmail,
+  buildTableHtml,
+  escapeHtmlValue,
+  emailUiText,
+  resolveEmailLocale,
+} from "../utils/email"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 
 interface FulfillKinguinOrderInput {
@@ -468,27 +474,35 @@ const deliverKeysStep = createStep(
       const order = await orderModule.retrieveOrder(input.orderId, { relations: ["items"] })
       const to = input.email || order?.email
       if (to) {
+        const locale = await resolveEmailLocale(container, {
+          locale: order?.metadata?.locale || order?.metadata?.language,
+          customerId: input.customerId || order?.customer_id,
+          email: to,
+        })
+        const ui = emailUiText(locale)
         const keysHtml = buildTableHtml(
           (input.keys || []).map((k: any) => ({
-            title: escapeHtmlValue(k.name || k.product_id || "Dijital anahtar"),
+            title: escapeHtmlValue(k.name || k.product_id || ui.key),
             code: `<code style="font-family:monospace;background:#f3f4f6;padding:3px 7px;border-radius:4px;font-size:13px;">${escapeHtmlValue(
               k.serial || ""
             )}</code>`,
           })),
           [
-            { key: "title", label: "Ürün" },
-            { key: "code", label: "Anahtar" },
+            { key: "title", label: ui.product },
+            { key: "code", label: ui.key },
           ]
         )
 
         await sendTemplateEmail(container, {
           to,
           templateKey: "order-digital-keys",
+          locale,
+          customerId: input.customerId || order?.customer_id,
           data: {
             customer_name:
               order?.billing_address?.first_name ||
               String(to).split("@")[0] ||
-              "Değerli Müşteri",
+              ui.customer,
             order_number: order?.display_id ? String(order.display_id) : input.orderId,
             keys_html: keysHtml,
           },

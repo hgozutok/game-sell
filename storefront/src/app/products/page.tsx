@@ -13,7 +13,7 @@ export default function ProductsPage() {
   const { cap, ready: priceCapReady, isOverCap } = usePriceCap()
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(50)
+  const [limit, setLimit] = useState(24)
   const [platform, setPlatform] = useState<string>('all')
   const [genre, setGenre] = useState<string>('all')
   const [priceMin, setPriceMin] = useState<number>(0)
@@ -23,39 +23,32 @@ export default function ProductsPage() {
   const [platforms, setPlatforms] = useState<string[]>([])
   const [genres, setGenres] = useState<string[]>([])
 
-  // Fetch all products to get available platforms and genres
-  const { data: allProductsData } = useQuery({
-    queryKey: ['all-products'],
+  // Facet listeleri sunucudan gelir (koleksiyon = platform, kategori = tur).
+  // Tum urunleri cekmek yerine sayfalanmis iki kucuk istek kullanilir.
+  const { data: facetsData } = useQuery({
+    queryKey: ['product-facets'],
     queryFn: async () => {
-      const response = await api.get('/store/products', {
-        params: {
-          fields: 'metadata,collection,title',
-          limit: 1000,
-        }
-      })
-      return response.data.products
+      const [collections, categories] = await Promise.all([
+        api.get('/store/collections', { params: { limit: 100 } }),
+        api.get('/store/product-categories', { params: { limit: 100 } }),
+      ])
+      return {
+        platforms: (collections.data.collections || [])
+          .map((c: any) => c.title)
+          .filter(Boolean),
+        genres: (categories.data.product_categories || [])
+          .map((c: any) => c.name)
+          .filter(Boolean),
+      }
     },
   })
 
-  // Extract unique platforms and genres
   useEffect(() => {
-    if (allProductsData) {
-      const uniquePlatforms = new Set<string>()
-      const uniqueGenres = new Set<string>()
-
-      allProductsData.forEach((product: any) => {
-        if (product.metadata?.platform) {
-          uniquePlatforms.add(product.metadata.platform)
-        }
-        if (product.collection?.handle) {
-          uniqueGenres.add(product.collection.handle)
-        }
-      })
-
-      setPlatforms(Array.from(uniquePlatforms).sort())
-      setGenres(Array.from(uniqueGenres).sort())
+    if (facetsData) {
+      setPlatforms(facetsData.platforms.sort())
+      setGenres(facetsData.genres.sort())
     }
-  }, [allProductsData])
+  }, [facetsData])
 
   // Close price filter when clicking outside
   useEffect(() => {
@@ -72,91 +65,41 @@ export default function ProductsPage() {
     }
   }, [showPriceFilter])
 
-  // Fetch products with pagination and filters
+  // Sunucu tarafi sayfalama: filtre + siralama + sayfalama backend'de yapilir.
+  // Fiyat filtreleri USD'ye cevrilir (kurlar USD bazli: rate = USD -> secilen kur).
   const { data, isLoading, error } = useQuery({
-    queryKey: ['products', page, limit, platform, genre, priceMin, priceMax, sortBy, cap],
+    queryKey: ['products', page, limit, platform, genre, priceMin, priceMax, sortBy, cap, selectedCurrency.code],
     queryFn: async () => {
-      const response = await api.get('/store/products', {
-        params: {
-          fields: 'id,title,handle,description,thumbnail,*variants,*variants.prices,metadata,collection',
-          limit: 1000, // Get all products for filtering
-          offset: 0,
-        }
-      })
-      let products = response.data.products || []
+      const rate = Number(selectedCurrency.rate) || 1
+      // Secilen kur -> USD (min/max cinsinden major unit)
+      const minUsd = priceMin > 0 ? priceMin / rate : undefined
+      const maxUsd = priceMax > 0 ? priceMax / rate : undefined
 
-      // Filter out products with no price or zero price
-      products = products.filter((p: any) => {
-        const price = p.variants?.[0]?.prices?.[0]?.amount || 0
-        return price > 0
+      const response = await api.get('/store/products/search', {
+        params: {
+          platform: platform !== 'all' ? platform : undefined,
+          genre: genre !== 'all' ? genre : undefined,
+          price_min: minUsd,
+          price_max: maxUsd,
+          sort_by: sortBy === 'popular' ? undefined : sortBy,
+          limit,
+          offset: (page - 1) * limit,
+        },
       })
+
+      let products = response.data.products || []
 
       // Admin tarafinda belirlenen listeleme ust fiyat limiti (EUR)
       if (cap > 0) {
         products = products.filter((p: any) => !isOverCap(p))
       }
 
-      // Apply filters
-      if (platform !== 'all') {
-        products = products.filter((p: any) => p.metadata?.platform === platform)
-      }
-      if (genre !== 'all') {
-        products = products.filter((p: any) => p.collection?.handle === genre)
-      }
-      
-      // Apply price range filter (convert to selected currency)
-      products = products.filter((p: any) => {
-        const variantPrices = p.variants?.[0]?.prices || []
-        const currencyPrice = variantPrices.find((price: any) => 
-          price.currency_code === selectedCurrency.code.toLowerCase()
-        )
-        const defaultPrice = variantPrices.find((price: any) => price.currency_code === 'usd')
-        const price = currencyPrice || defaultPrice
-        const priceInCurrency = (price?.amount || 0) / 100
-        
-        // Convert price to selected currency if needed
-        let convertedPrice = priceInCurrency
-        if (!currencyPrice && defaultPrice && selectedCurrency.rate) {
-          convertedPrice = (defaultPrice.amount / 100) * selectedCurrency.rate
-        }
-        
-        return convertedPrice >= priceMin && convertedPrice <= priceMax
-      })
-
-      // Apply sorting
-      if (sortBy === 'low-high') {
-        products.sort((a: any, b: any) => {
-          const priceA = a.variants?.[0]?.prices?.[0]?.amount || 0
-          const priceB = b.variants?.[0]?.prices?.[0]?.amount || 0
-          return priceA - priceB
-        })
-      } else if (sortBy === 'high-low') {
-        products.sort((a: any, b: any) => {
-          const priceA = a.variants?.[0]?.prices?.[0]?.amount || 0
-          const priceB = b.variants?.[0]?.prices?.[0]?.amount || 0
-          return priceB - priceA
-        })
-      } else if (sortBy === 'a-z') {
-        products.sort((a: any, b: any) => a.title.localeCompare(b.title))
-      } else if (sortBy === 'newest') {
-        products.sort((a: any, b: any) => {
-          const dateA = new Date(a.created_at).getTime()
-          const dateB = new Date(b.created_at).getTime()
-          return dateB - dateA
-        })
-      }
-
-      // Apply pagination after filtering and sorting
-      const totalCount = products.length
-      const skip = (page - 1) * limit
-      const paginatedProducts = products.slice(skip, skip + limit)
-
       return {
-        products: paginatedProducts,
-        count: totalCount,
+        products,
+        count: response.data.count || 0,
       }
     },
-    enabled: !!allProductsData && priceCapReady,
+    enabled: priceCapReady,
   })
 
   const products = data?.products || []
@@ -175,14 +118,14 @@ export default function ProductsPage() {
           <p className="text-gray-400 text-lg">{t('catalog.allGamesSubtitle')}</p>
         </div>
       </div>
-      
+
       <div className="container mx-auto px-4 py-8">
         {/* Filters Bar */}
         <div className="bg-[#15171c] border border-gray-800 rounded-xl p-6 mb-8">
           <div className="flex flex-wrap gap-4 items-center justify-between">
             <div className="flex flex-wrap gap-2">
-              <select 
-                value={platform} 
+              <select
+                value={platform}
                 onChange={(e) => {
                   setPlatform(e.target.value)
                   setPage(1)
@@ -194,8 +137,8 @@ export default function ProductsPage() {
                   <option key={p} value={p}>{t('catalog.platformOption', { value: p })}</option>
                 ))}
               </select>
-              <select 
-                value={genre} 
+              <select
+                value={genre}
                 onChange={(e) => {
                   setGenre(e.target.value)
                   setPage(1)
@@ -208,13 +151,13 @@ export default function ProductsPage() {
                 ))}
               </select>
               <div className="relative price-filter-container">
-                <button 
+                <button
                   onClick={() => setShowPriceFilter(!showPriceFilter)}
                   className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg hover:border-[#ff6b35] hover:text-white transition text-sm font-semibold"
                 >
                   {t('catalog.priceButton', { min: `${selectedCurrency.symbol}${priceMin}`, max: `${selectedCurrency.symbol}${priceMax}` })}
                 </button>
-                
+
                 {showPriceFilter && (
                   <div className="absolute top-full start-0 mt-2 w-80 bg-[#1a1d24] border border-gray-700 rounded-lg p-6 shadow-xl z-50 price-filter-container">
                     <div className="mb-4">
@@ -248,7 +191,7 @@ export default function ProductsPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="mb-4">
                       <input
                         type="range"
@@ -275,7 +218,7 @@ export default function ProductsPage() {
                         className="w-full accent-[#ff6b35] mt-2"
                       />
                     </div>
-                    
+
                     <button
                       onClick={() => setShowPriceFilter(false)}
                       className="w-full px-4 py-2 bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white rounded-lg font-bold hover:shadow-lg transition"
@@ -286,9 +229,12 @@ export default function ProductsPage() {
                 )}
               </div>
             </div>
-            <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value)}
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value)
+                setPage(1)
+              }}
               className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-gray-300 rounded-lg hover:border-[#ff6b35] focus:border-[#ff6b35] focus:outline-none text-sm font-semibold"
             >
               <option value="popular">{t('catalog.sortPopular')}</option>
@@ -319,8 +265,8 @@ export default function ProductsPage() {
             <div className="text-6xl mb-4">😕</div>
             <h3 className="text-2xl font-bold mb-2">{t('catalog.loadFailedTitle')}</h3>
             <p className="text-gray-600 mb-6">{t('catalog.loadFailedDesc')}</p>
-            <button 
-              onClick={() => window.location.reload()} 
+            <button
+              onClick={() => window.location.reload()}
               className="btn-primary"
             >
               {t('catalog.tryAgain')}
@@ -356,7 +302,7 @@ export default function ProductsPage() {
                     }}
                     className="bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
                   >
-                    <option value={25}>25</option>
+                    <option value={24}>24</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
                   </select>

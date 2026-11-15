@@ -5,7 +5,13 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { Modules } from "@medusajs/framework/utils"
-import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
+import {
+  sendTemplateEmail,
+  buildTableHtml,
+  escapeHtmlValue,
+  emailUiText,
+  resolveEmailLocale,
+} from "../utils/email"
 import type KeyInventoryService from "../modules/key-inventory/service"
 
 interface FulfillDigitalOrderInput {
@@ -145,28 +151,36 @@ const sendKeyDeliveryEmailStep = createStep(
 
     // SMTP ayarlari admin panelden gelir; hata teslimati bloklamaz.
     if (email) {
+      const locale = await resolveEmailLocale(container, {
+        locale: order?.metadata?.locale || order?.metadata?.language,
+        customerId: input.customerId || order?.customer_id,
+        email,
+      })
+      const ui = emailUiText(locale)
       const keysHtml = buildTableHtml(
         (input.keys || []).map((key: any) => ({
-          title: escapeHtmlValue(key.product_title || key.title || key.product_id || "Dijital anahtar"),
+          title: escapeHtmlValue(key.product_title || key.title || key.product_id || ui.key),
           code: `<code style="font-family:monospace;background:#f3f4f6;padding:3px 7px;border-radius:4px;font-size:13px;">${escapeHtmlValue(
             key.key_code || key.code || key.serial || ""
           )}</code>`,
         })),
         [
-          { key: "title", label: "Ürün" },
-          { key: "code", label: "Anahtar" },
+          { key: "title", label: ui.product },
+          { key: "code", label: ui.key },
         ]
       )
 
       await sendTemplateEmail(container, {
         to: email,
         templateKey: "order-digital-keys",
+        locale,
+        customerId: input.customerId || order?.customer_id,
         data: {
           customer_name:
             order?.billing_address?.first_name ||
             order?.shipping_address?.first_name ||
             String(email).split("@")[0] ||
-            "Değerli Müşteri",
+            ui.customer,
           order_number: order?.display_id ? String(order.display_id) : input.orderId,
           keys_html: keysHtml,
         },

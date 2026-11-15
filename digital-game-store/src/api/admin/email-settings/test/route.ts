@@ -1,5 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { sendTemplateEmail } from "../../../../utils/email"
+import {
+  normalizeEmailLocale,
+  toEmailLocale,
+} from "../../../../modules/email-template/locales"
 
 export const AUTHENTICATE = false
 
@@ -11,9 +15,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(400).json({ message: "Geçerli bir alıcı e-postası girin" })
     }
 
+    const storeSettings = req.scope.resolve("storeSettings") as any
+    const defaultLanguage = normalizeEmailLocale(
+      await storeSettings.getSettingValue("email.language", "en")
+    )
+    const locale =
+      toEmailLocale((req.body as any)?.locale) || defaultLanguage
+
     const result = await sendTemplateEmail(req.scope, {
       to,
       templateKey: "smtp-test",
+      locale,
       data: {},
     })
 

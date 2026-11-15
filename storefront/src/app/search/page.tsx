@@ -15,6 +15,8 @@ function SearchPageContent() {
   const { cap, ready: priceCapReady, isOverCap } = usePriceCap()
   const query = searchParams.get('q') || ''
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(24)
 
   // Debounce the search query
   useEffect(() => {
@@ -25,42 +27,36 @@ function SearchPageContent() {
     return () => clearTimeout(timer)
   }, [query])
 
-  // Fetch search results
+  // Yeni aramada sayfa 1'e don
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedQuery])
+
+  // Arama tamamiyle sunucu tarafinda sayfalanir: tum sonuc seti inmez.
   const { data, isLoading, error } = useQuery({
-    queryKey: ['search', debouncedQuery, cap],
+    queryKey: ['search', debouncedQuery, page, limit, cap],
     queryFn: async () => {
-      const response = await api.get('/store/products', {
+      const response = await api.get('/store/products/search', {
         params: {
-          fields: 'id,title,handle,description,thumbnail,*variants,*variants.prices,metadata',
-          limit: 1000,
-        }
+          q: debouncedQuery,
+          limit,
+          offset: (page - 1) * limit,
+        },
       })
-      
+
       let products = response.data.products || []
-      
-      // Filter out products with no price or zero price
-      products = products.filter((product: any) => {
-        const price = product.variants?.[0]?.prices?.[0]?.amount || 0
-        return price > 0
-      })
-      
+
+      // fiyatsiz/stoksuz gizleme artik backend'de kayitli filtre ayarlarina gore yapilir
+      // (catalog.hide_zero_price / catalog.hide_zero_stock)
+
       // Admin tarafinda belirlenen listeleme ust fiyat limiti (EUR)
       if (cap > 0) {
         products = products.filter((product: any) => !isOverCap(product))
       }
 
-      // Filter by search query
-      if (debouncedQuery.length >= 2) {
-        products = products.filter((product: any) =>
-          product.title?.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-          product.description?.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-          product.metadata?.platform?.toLowerCase().includes(debouncedQuery.toLowerCase())
-        )
-      }
-      
       return {
         products,
-        count: products.length,
+        count: response.data.count || 0,
       }
     },
     enabled: debouncedQuery.length >= 2 && priceCapReady,
@@ -68,6 +64,7 @@ function SearchPageContent() {
 
   const products = data?.products || []
   const count = data?.count || 0
+  const totalPages = Math.ceil(count / limit)
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
@@ -143,6 +140,50 @@ function SearchPageContent() {
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-between bg-[#15171c] border border-gray-800 rounded-xl p-6">
+                <div className="flex items-center gap-4">
+                  <label htmlFor="searchPerPage" className="text-gray-400 text-sm">
+                    {t('catalog.perPage')}
+                  </label>
+                  <select
+                    id="searchPerPage"
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value))
+                      setPage(1)
+                    }}
+                    className="bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
+                  >
+                    <option value={24}>24</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t('catalog.previous')}
+                  </button>
+                  <span className="text-white px-4">
+                    {t('catalog.pageOf', { page, total: totalPages })}
+                  </span>
+                  <button
+                    onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={page === totalPages}
+                    className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t('catalog.next')}
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

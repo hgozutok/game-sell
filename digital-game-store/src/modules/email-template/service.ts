@@ -1,6 +1,11 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import EmailTemplate from "./models/email-template"
 import { DEFAULT_EMAIL_TEMPLATES } from "./defaults"
+import {
+  DEFAULT_EMAIL_LOCALE,
+  normalizeEmailLocale,
+  type EmailLocale,
+} from "./locales"
 
 export function escapeHtml(value: string): string {
   return value
@@ -34,20 +39,26 @@ export function renderEmailString(
 }
 
 class EmailTemplateService extends MedusaService({ EmailTemplate }) {
-  /** Aktif sablonu key + dil ile getirir; yoksa TR'ye, sonra herhangi bir dile duser. */
-  async getTemplate(key: string, locale: string = "tr"): Promise<any | null> {
-    const normalized = String(locale || "tr").toLowerCase()
+  /**
+   * Aktif sablonu key + dil ile getirir.
+   * Istenen dil yoksa Ingilizce'ye, o da yoksa mevcut herhangi bir dile duser.
+   */
+  async getTemplate(key: string, locale: string = DEFAULT_EMAIL_LOCALE): Promise<any | null> {
+    const normalized = normalizeEmailLocale(locale)
+
     const exact = await this.listEmailTemplates(
       { key, locale: normalized, active: true },
       { take: 1, order: { created_at: "ASC" } }
     )
     if (exact?.length) return exact[0]
 
-    const fallbackTr = await this.listEmailTemplates(
-      { key, locale: "tr", active: true },
-      { take: 1, order: { created_at: "ASC" } }
-    )
-    if (fallbackTr?.length) return fallbackTr[0]
+    if (normalized !== DEFAULT_EMAIL_LOCALE) {
+      const fallbackEn = await this.listEmailTemplates(
+        { key, locale: DEFAULT_EMAIL_LOCALE, active: true },
+        { take: 1, order: { created_at: "ASC" } }
+      )
+      if (fallbackEn?.length) return fallbackEn[0]
+    }
 
     const any = await this.listEmailTemplates(
       { key, active: true },
@@ -56,7 +67,7 @@ class EmailTemplateService extends MedusaService({ EmailTemplate }) {
     return any?.[0] || null
   }
 
-  /** Eksik varsayilan sablonlari (TR + EN) olusturur; mevcutlara dokunmaz. */
+  /** Eksik varsayilan sablonlari (5 dil) olusturur; mevcutlara dokunmaz. */
   async ensureDefaults(): Promise<{ created: number; existing: number }> {
     let created = 0
     let existing = 0
@@ -86,6 +97,14 @@ class EmailTemplateService extends MedusaService({ EmailTemplate }) {
         ? renderEmailString(template.text, data, { escape: false })
         : null,
     }
+  }
+
+  /** Desteklenen dilleri ve varsayilan dili dondurur (admin paneli icin). */
+  getLocales(): { locales: EmailLocale[]; defaultLocale: EmailLocale } {
+    const locales = Array.from(
+      new Set(DEFAULT_EMAIL_TEMPLATES.map((template) => template.locale))
+    )
+    return { locales, defaultLocale: DEFAULT_EMAIL_LOCALE }
   }
 }
 

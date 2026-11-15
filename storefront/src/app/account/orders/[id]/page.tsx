@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import { useT } from '@/components/useT'
 import { useTranslation } from '@/i18n/LocaleProvider'
 import { formatCurrency, formatDate } from '@/i18n'
@@ -132,7 +132,6 @@ export default function OrderDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
-      <Toaster position="top-right" />
 
       {/* Breadcrumb */}
       <div className="bg-[#15171c] border-b border-gray-800">

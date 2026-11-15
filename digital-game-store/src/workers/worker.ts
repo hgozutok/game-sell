@@ -1,7 +1,13 @@
 import { Queue, Worker } from "bullmq"
 import Redis from "ioredis"
 import type KeyInventoryService from "../modules/key-inventory/service"
-import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
+import {
+  sendTemplateEmail,
+  buildTableHtml,
+  escapeHtmlValue,
+  emailUiText,
+  resolveEmailLocale,
+} from "../utils/email"
 
 const connection = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
@@ -99,23 +105,31 @@ const keyFulfillmentWorker = new Worker(
       const order = await orderModule.retrieveOrder(orderId).catch(() => null)
       const email = order?.email
       if (email) {
+        const locale = await resolveEmailLocale(container, {
+          locale: order?.metadata?.locale || order?.metadata?.language,
+          customerId: customerId || order?.customer_id,
+          email,
+        })
+        const ui = emailUiText(locale)
         const keysHtml = buildTableHtml(
           keys.map((key: any) => ({
-            title: escapeHtmlValue(key.product_title || key.product_id || "Dijital anahtar"),
+            title: escapeHtmlValue(key.product_title || key.product_id || ui.key),
             code: `<code style="font-family:monospace;background:#f3f4f6;padding:3px 7px;border-radius:4px;">${escapeHtmlValue(
               key.key_code || key.code || ""
             )}</code>`,
           })),
           [
-            { key: "title", label: "Ürün" },
-            { key: "code", label: "Anahtar" },
+            { key: "title", label: ui.product },
+            { key: "code", label: ui.key },
           ]
         )
         await sendTemplateEmail(container, {
           to: email,
           templateKey: "order-digital-keys",
+          locale,
+          customerId: customerId || order?.customer_id,
           data: {
-            customer_name: String(email).split("@")[0] || "Değerli Müşteri",
+            customer_name: String(email).split("@")[0] || ui.customer,
             order_number: order?.display_id ? String(order.display_id) : orderId,
             keys_html: keysHtml,
           },

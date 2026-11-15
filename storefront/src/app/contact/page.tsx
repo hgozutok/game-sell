@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import PolicyLayout from '@/components/layout/PolicyLayout'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import { api } from '@/lib/api'
 import { useT } from '@/components/useT'
 import { useLocale } from '@/i18n/LocaleProvider'
@@ -74,7 +74,6 @@ export default function ContactPage() {
 
   return (
     <>
-      <Toaster position="top-right" />
       <PolicyLayout
         title={t('content.contact.title')}
         lastUpdated={formatDate('2025-10-27', locale, { day: 'numeric', month: 'long', year: 'numeric' })}

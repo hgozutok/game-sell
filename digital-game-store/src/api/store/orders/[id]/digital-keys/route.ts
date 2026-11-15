@@ -8,7 +8,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const orderModuleService = req.scope.resolve(Modules.ORDER) as any
   
   const { id: orderId } = req.params
-  const customerId = (req as any).auth?.actor_id
+  const customerId = ((req as any).auth_context?.actor_id ?? (req as any).auth?.actor_id)
 
   if (!customerId) {
     return res.status(401).json({ message: "Unauthorized" })

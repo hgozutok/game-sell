@@ -5,7 +5,12 @@ import {
   createPaymentCollectionForCartWorkflow,
 } from '@medusajs/core-flows'
 import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/currency'
-import { computePriceForKinguinProduct } from '../../../../utils/kinguin-sync'
+import { resolveVariantUnitPrice } from '../../../../utils/variant-pricing'
+import { applyPaymentFee } from '../../../../utils/payment-fee'
+import {
+  resolveEmailLocaleFromAcceptLanguage,
+  toEmailLocale,
+} from '../../../../modules/email-template/locales'
 
 export const AUTHENTICATE = false // Disable auth for development
 
@@ -25,9 +30,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
     }
     const logger = req.scope.resolve('logger') as any
-    const { items, email, billing_address, shipping_address, payment_method } = req.body as any
+    const {
+      items,
+      email,
+      billing_address,
+      shipping_address,
+      payment_method,
+      locale: bodyLocale,
+    } = req.body as any
 
-    logger.info('📦 Creating order from checkout...')
+    // Siparis e-postalari alicinin dilinde gonderilir; tespit edilemezse Ingilizce.
+    const orderLocale =
+      toEmailLocale(bodyLocale) ||
+      resolveEmailLocaleFromAcceptLanguage(req.headers['accept-language'] as string)
+
+    logger.info(`📦 Creating order from checkout... (locale=${orderLocale})`)
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -125,6 +142,29 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         })
         logger.info(`✅ Created customer: ${email}`)
       }
+
+      // Checkout dili hesap tercihine yazilir - sonraki e-postalar da bu dilde gider
+      if (customer?.id) {
+        const currentMetadata =
+          customer.metadata && typeof customer.metadata === 'object'
+            ? customer.metadata
+            : {}
+        const currentPrefs =
+          currentMetadata.prefs && typeof currentMetadata.prefs === 'object'
+            ? currentMetadata.prefs
+            : {}
+        await customerModule
+          .updateCustomers(customer.id, {
+            metadata: {
+              ...currentMetadata,
+              prefs: {
+                ...currentPrefs,
+                locale: orderLocale,
+              },
+            },
+          })
+          .catch(() => null)
+      }
     } catch (customerError: any) {
       logger.warn(`⚠️ Customer creation/retrieval failed:`, customerError.message)
       // Continue without customer for now
@@ -142,6 +182,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       metadata: {
         payment_method: payment_method || 'paypal',
         payment_status: 'pending',
+        locale: orderLocale,
       },
     }
 
@@ -163,86 +204,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
       let title = 'Item'
       let unitPrice = 0
-      try {
-        logger.info(`🔧 fiyat cozumleme basladi: variant=${variantId}`)
-        // Fiyatlari fiyat modulunden oku (variant -> price_set linki uzerinden)
-        const remoteLink = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK) as any
-        const pricingModule = req.scope.resolve(Modules.PRICING) as any
-        let prices: any[] = []
-        try {
-          const links = await remoteLink.list({
-            [Modules.PRODUCT]: { variant_id: variantId },
-          })
-          const priceSetId = links?.[0]?.pricing?.price_set_id
-          if (priceSetId) {
-            const priceSet = await pricingModule.retrievePriceSet(priceSetId, {
-              relations: ['prices'],
-            })
-            prices = priceSet?.prices || []
-          }
-        } catch {
-          /* fiyat seti yok — fallback asagida */
-        }
-        if (prices.length === 0) {
-          const variants = await productModule.listProductVariants(
-            { id: variantId },
-            { relations: ['prices'] }
-          ).catch(() => [])
-          const variant = Array.isArray(variants) ? variants[0] : variants
-          prices = Array.isArray(variant?.prices) ? variant.prices : []
-          if (variant?.title) {
-            title = String(variant.title)
-          }
-        }
-        if (prices.length > 0) {
-          const direct = prices.find((p) => String(p.currency_code || '').toLowerCase() === regionCurrency)
-          if (direct && typeof direct.amount === 'number') {
-            unitPrice = Math.round(Number(direct.amount))
-          } else if (prices.length > 0) {
-            const base = prices[0]
-            const fromCur = String(base.currency_code || 'usd').toLowerCase()
-            const baseAmt = Number(base?.amount || 0)
-            try {
-              unitPrice = convertCurrencyAmount(baseAmt, fromCur, regionCurrency, rates)
-            } catch {
-              unitPrice = baseAmt || 0
-            }
-          }
-        }
-        // Fiyat motoru fallback — kinguin maliyetinden satis fiyati (USD -> bolge parası)
-        if (unitPrice === 0) {
-          try {
-            const kinguin = req.scope.resolve('kinguin') as any
-            const kSettings = await kinguin.getSettings()
-            const kpRows =
-              (await kinguin.listKinguinProducts({ medusa_variant_id: variantId }).catch(() => [])) ||
-              []
-            let kp = kpRows[0]
-            if (!kp) {
-              // urun id ile dene
-              const prod = await productModule.retrieveProduct(
-                (await productModule.retrieveVariant(variantId)).product_id,
-                { relations: [] }
-              ).catch(() => null)
-              if (prod) {
-                const rows = await kinguin.listKinguinProducts({ medusa_product_id: prod.id }).catch(() => [])
-                kp = rows[0]
-              }
-            }
-            if (kp) {
-              const computed = await computePriceForKinguinProduct(req.scope, kp, kSettings)
-              if (!computed.negative && computed.sellMinor > 0) {
-                unitPrice = convertCurrencyAmount(computed.sellMinor, 'usd', regionCurrency, rates)
-                title = title === 'Item' ? String(kp.name) : title
-                logger.info(`💱 fiyat motoru fallback: ${kp.name} -> ${unitPrice} ${regionCurrency}`)
-              }
-            }
-          } catch (e: any) {
-            logger.warn(`⚠️ fiyat motoru fallback hatasi: ${e?.message}`)
-          }
-        }
-      } catch (priceErr: any) {
-        logger.warn(`⚠️ fiyat cozumleme hatasi (${variantId}): ${priceErr?.message}`)
+      // Fiyat cozumleme ortak util uzerinden — query.graph + kinguin fallback.
+      // (Eski inline remoteLink/retrieveVariant yolu bu surumde sessizce kopuyordu.)
+      const resolved = await resolveVariantUnitPrice(req.scope, variantId, regionCurrency, rates)
+      unitPrice = resolved.unitPriceMinor
+      if (resolved.title) {
+        title = resolved.title
+      }
+      if (unitPrice === 0) {
+        logger.warn(`⚠️ fiyat cozumlenemedi (${variantId}) — satir 0 ile eklenmeyecek`)
+        continue
       }
 
       lineItems.push({
@@ -275,13 +246,39 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       `items=${JSON.stringify((enrichedCart.items || []).map((i: any) => ({ unit_price: i.unit_price, total: i.total, title: i.title })))}`
     )
     // Modul totals hesaplamayabilir — toplami satirlardan hesapla
-    const cartTotal = Math.round(
+    let cartTotal = Math.round(
       lineItems.reduce((sum: number, li: any) => sum + Number(li.unit_price || 0) * Number(li.quantity || 0), 0)
     )
     const cartCurrency = String(enrichedCart.currency_code || regionCurrency).toLowerCase()
 
     if (!(cartTotal > 0)) {
       return res.status(400).json({ message: 'Cart total is zero — variant prices missing' })
+    }
+
+    // Odeme komisyonu: admin panelde tanimliysa sepete ayri satir olarak eklenir
+    // (siparis toplami ve tahsilat tutari tutarli kalir).
+    const requestedProvider = String(payment_method || 'bank-transfer').replace(/^pp_/, '')
+    let paymentFeeMinor = 0
+    try {
+      const fee = await applyPaymentFee(req.scope, requestedProvider, cartTotal, cartCurrency, rates)
+      if (fee && fee.feeMinor > 0) {
+        paymentFeeMinor = fee.feeMinor
+        if (typeof cartModule.addLineItems === 'function') {
+          await cartModule.addLineItems(cart.id, [
+            {
+              title: 'Payment processing fee',
+              quantity: 1,
+              unit_price: paymentFeeMinor,
+              // dijital urun — kargo validasyonuna takilmasin
+              requires_shipping: false,
+            },
+          ])
+        }
+        cartTotal += paymentFeeMinor
+        logger.info(`💳 odeme komisyonu: ${requestedProvider} -> +${paymentFeeMinor} ${cartCurrency}`)
+      }
+    } catch (feeErr: any) {
+      logger.warn(`⚠️ odeme komisyonu eklenemedi: ${feeErr?.message}`)
     }
 
     // 2) Payment collection olustur ve cart'a bagla
@@ -296,7 +293,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     // 3) Provider icin payment session ac
     const paymentModule = req.scope.resolve(Modules.PAYMENT) as any
-    const requestedProvider = String(payment_method || 'bank-transfer').replace(/^pp_/, '')
+
+    // Sepet ust limiti: admin panelde tanimliysa (cart.max_total_eur) siparis
+    // toplami (komisyon dahil) asamaz. EUR'dan siparis kuruna cevrilir.
+    const cartMaxEur = Number(await storeSettings.getSettingValue('cart.max_total_eur', 0)) || 0
+    if (cartMaxEur > 0) {
+      const maxMinor = Math.round(cartMaxEur * 100)
+      const totalInEur = convertCurrencyAmount(cartTotal, cartCurrency, 'eur', rates)
+      if (totalInEur > maxMinor) {
+        return res.status(400).json({
+          code: 'cart_limit_exceeded',
+          message: `Sepet toplamı mağaza üst limitini (${cartMaxEur} EUR) aşıyor. Lütfen sepetinizi azaltın.`,
+        })
+      }
+    }
 
     const sessionBase = {
       currency_code: cartCurrency,
@@ -402,8 +412,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           id: order.id,
           metadata: {
             ...(order.metadata || {}),
+            locale: orderLocale,
             payment_method: requestedProvider,
             payment_provider: paymentSession.provider_id,
+            ...(paymentFeeMinor > 0
+              ? { payment_fee_minor: paymentFeeMinor, payment_fee_currency: cartCurrency }
+              : {}),
             ...(paymentInstructions ? { payment_instructions: paymentInstructions } : {}),
           },
         },

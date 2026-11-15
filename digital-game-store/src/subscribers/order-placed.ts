@@ -1,7 +1,13 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework/subscribers"
 import { Modules } from "@medusajs/framework/utils"
 import { fulfillKinguinOrderWorkflow } from "../workflows/fulfill-kinguin-order"
-import { sendTemplateEmail, buildTableHtml, escapeHtmlValue } from "../utils/email"
+import {
+  sendTemplateEmail,
+  buildTableHtml,
+  escapeHtmlValue,
+  emailUiText,
+  resolveEmailLocale,
+} from "../utils/email"
 import { evaluatePurchaseVelocity } from "../utils/velocity-guard"
 
 /**
@@ -75,12 +81,18 @@ export default async function orderPlacedHandler({
   )
   if (digitalItems.length === 0) return
 
-  // Sipariş onayı e-postası — SMTP yapılandırılmışsa gönderilir, akışı bloklamaz
+  // Sipariş onayı e-postası — alicinin dilinde; SMTP yoksa akışı bloklamaz
   if (order.email) {
     try {
+      const locale = await resolveEmailLocale(container, {
+        locale: order.metadata?.locale || order.metadata?.language,
+        customerId: order.customer_id,
+        email: order.email,
+      })
+      const ui = emailUiText(locale)
       const itemsHtml = buildTableHtml(
         (lineItems || []).map((item: any) => ({
-          title: escapeHtmlValue(item.title || item.product_title || "Ürün"),
+          title: escapeHtmlValue(item.title || item.product_title || ui.product),
           quantity: escapeHtmlValue(item.quantity || 1),
           total: escapeHtmlValue(
             `${(Number(item.total || 0) / 100).toFixed(2)} ${String(
@@ -89,20 +101,22 @@ export default async function orderPlacedHandler({
           ),
         })),
         [
-          { key: "title", label: "Ürün" },
-          { key: "quantity", label: "Adet", align: "right" },
-          { key: "total", label: "Tutar", align: "right" },
+          { key: "title", label: ui.product },
+          { key: "quantity", label: ui.quantity, align: "right" },
+          { key: "total", label: ui.total, align: "right" },
         ]
       )
 
       await sendTemplateEmail(container, {
         to: order.email,
         templateKey: "order-confirmation",
+        locale,
+        customerId: order.customer_id,
         data: {
           customer_name:
             order.billing_address?.first_name ||
             String(order.email).split("@")[0] ||
-            "Değerli Müşteri",
+            ui.customer,
           order_number: order.display_id ? String(order.display_id) : order.id,
           items_html: itemsHtml,
           total: `${(Number(order.total || 0) / 100).toFixed(2)} ${String(

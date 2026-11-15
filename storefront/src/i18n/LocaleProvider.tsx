@@ -63,6 +63,14 @@ export function LocaleProvider({
         }
       }
 
+      // dil tercihi hesaba kaydedilir (girissizse yerel ayna)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        void import('@/lib/prefs').then(({ saveUserPrefs }) => saveUserPrefs({ locale: next }))
+      } catch {
+        /* prefs modulu yoksa sessizce atla */
+      }
+
       // Sunucu bilesenlerinin (metadata, <html lang>) yeni dile gecmesi icin yenile.
       router.refresh()
     },

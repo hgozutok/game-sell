@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { adminApi } from '@/lib/admin-api'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 
 interface CurrencyRate {
   code: string
@@ -94,7 +94,7 @@ export default function CurrencyRatesPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0b0d] p-8">
-      <Toaster position="top-right" />
+
 
       <div className="max-w-4xl mx-auto">
         {/* Header */}

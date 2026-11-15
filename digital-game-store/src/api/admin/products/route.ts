@@ -73,7 +73,18 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       }
     }
 
-    const count = filteredProducts.length
+    // Filtre yoksa sayi DB'den tam okunur; 5000'lik sorgu penceresi sayiyi kirpmaz.
+    const hasFilters = Boolean(collection_id) || hideZeroPrice === 'true' || hideZeroStock === 'true'
+    let count = filteredProducts.length
+    if (!hasFilters) {
+      try {
+        const productModule = req.scope.resolve('product') as any
+        const [, total] = await productModule.listAndCountProducts({}, { take: 1 })
+        if (Number.isFinite(Number(total))) count = Number(total)
+      } catch {
+        // servis sayimi basarisizsa liste uzunlugu kullanilir
+      }
+    }
     const products = filteredProducts.slice(skipParam, skipParam + takeParam)
 
     res.json({

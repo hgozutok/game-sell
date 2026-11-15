@@ -8,7 +8,7 @@ import { api } from '@/lib/api'
 import { useCartStore } from '@/store/cartStore'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { convertAmount, getCurrencySymbol } from '@/utils/currency'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import { useT } from '@/components/useT'
 import { usePriceCap } from '@/hooks/usePriceCap'
 
@@ -279,7 +279,6 @@ export default function ProductDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
-      <Toaster position="top-right" />
 
       {/* Breadcrumb */}
       <div className="bg-[#15171c] border-b border-gray-800">

@@ -17,6 +17,7 @@ export default function ProductImportPage() {
   const [productIds, setProductIds] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [margin, setMargin] = useState(15)
+  const [maxProducts, setMaxProducts] = useState(1000)
   const [loading, setLoading] = useState(false)
   const [searching, setSearching] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -107,6 +108,8 @@ export default function ProductImportPage() {
       const response = await adminApi.post('/admin/products/import-background', {
         provider,
         margin_percentage: margin,
+        // Kinguin: yerel dump'tan listelenmemis urunler bu adet kadar cekilir
+        max_products: provider === 'kinguin' ? maxProducts : Math.min(maxProducts, 100),
       })
 
       const newJobId = response.data.job_id
@@ -391,6 +394,26 @@ export default function ProductImportPage() {
                 Provider fiyatına eklenecek kar marjı
               </p>
             </div>
+
+            {provider === 'kinguin' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  İçe Aktarım Adedi (Kinguin)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50000"
+                  value={maxProducts}
+                  onChange={(e) => setMaxProducts(parseInt(e.target.value) || 1)}
+                  className="w-full px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Kinguin seçiliyken ürünler <b>yerel katalogdan</b> (API limiti yok) listelenmemiş
+                  stoklu ürünlerden çekilir. 5.000+ değerleri arka planda uzun sürebilir.
+                </p>
+              </div>
+            )}
 
             <div className="bg-gray-800/30 rounded-lg p-4">
               <h4 className="text-sm font-bold text-white mb-2">📊 Fiyat Önizlemesi</h4>

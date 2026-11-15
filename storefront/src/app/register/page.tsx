@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { authService } from '@/lib/auth'
 import { useT } from '@/components/useT'
+import CaptchaWidget from '@/components/CaptchaWidget'
 
 export default function RegisterPage() {
   const t = useT()
@@ -18,32 +19,49 @@ export default function RegisterPage() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [captcha, setCaptcha] = useState<{ provider: string; site_key: string | null }>({ provider: 'none', site_key: null })
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaResetKey, setCaptchaResetKey] = useState(0)
+
+  useEffect(() => {
+    void authService.getAuthProvidersConfig().then((config) => setCaptcha(config.captcha))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
+    // Bot korumasi aciksa token zorunlu
+    if (captcha.provider !== 'none' && captcha.site_key && !captchaToken) {
+      setError('Lütfen bot doğrulamasını tamamlayın.')
+      setLoading(false)
+      return
+    }
+
     try {
       // Create customer account using auth service
-      const customer = await authService.register({
+      const { requiresVerification } = await authService.register({
         email: formData.email,
         password: formData.password,
         first_name: formData.first_name,
         last_name: formData.last_name,
         phone: formData.phone || undefined,
-      })
+      }, captchaToken)
 
-      if (customer) {
-        console.log('✅ Registration successful, redirecting to /account')
-        // Use window.location for hard redirect (most reliable)
-        window.location.href = '/account'
-      } else {
-        console.error('❌ No customer data returned')
-        setError(t('register.noCustomer'))
+      if (requiresVerification) {
+        // E-posta dogrulamasi bekleniyor — login ekranina bilgiyle don
+        window.location.href = `/login?verify_pending=${encodeURIComponent(formData.email)}`
+        return
       }
+
+      console.log('✅ Registration successful, redirecting to /account')
+      // Use window.location for hard redirect (most reliable)
+      window.location.href = '/account'
     } catch (err: any) {
       console.error('Registration error:', err)
+      // captcha token tek kullanimlik — hatadan sonra yeni token icin reset
+      setCaptchaResetKey((k) => k + 1)
       console.error('Error details:', {
         message: err.message,
         response: err.response?.data,
@@ -185,9 +203,22 @@ export default function RegisterPage() {
               </label>
             </div>
 
+            {/* Bot korumasi — admin panelde aciksa widget gorunur */}
+            {captcha.provider !== 'none' && captcha.site_key && (
+              <div>
+                <CaptchaWidget
+                  provider={captcha.provider as 'turnstile' | 'recaptcha'}
+                  siteKey={captcha.site_key}
+                  action="register"
+                  onToken={setCaptchaToken}
+                  resetKey={captchaResetKey}
+                />
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (captcha.provider !== 'none' && captcha.site_key && !captchaToken)}
               className="w-full bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white py-3 rounded-lg font-bold text-lg hover:shadow-2xl hover:shadow-[#ff6b35]/50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed uppercase"
             >
               {loading ? t('register.creatingAccount') : t('register.createAccount')}
