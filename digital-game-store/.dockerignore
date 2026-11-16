@@ -1,0 +1,10 @@
+node_modules
+dist
+.medusa
+public/admin
+.env
+.env.*
+!.env.example
+*.log
+uploads
+.git

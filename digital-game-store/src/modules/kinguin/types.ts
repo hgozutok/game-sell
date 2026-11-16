@@ -75,6 +75,7 @@ export interface KinguinApiProduct {
   productId?: string
   name?: string
   originalName?: string
+  description?: string
   qty?: number
   textQty?: number
   totalQty?: number
@@ -100,6 +101,7 @@ export interface KinguinProductData {
   productId: string | null
   name: string
   originalName: string | null
+  description: string | null
   platform: string | null
   genre: string | null
   regionId: number | null

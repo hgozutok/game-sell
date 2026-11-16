@@ -23,25 +23,74 @@ function resolveRequestLocale(): Locale {
   return matchAcceptLanguage(headers().get('accept-language'))
 }
 
+// Next layout'ta tanimli disa aktarim listesi disina cikmamak icin const kalir
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
 export function generateMetadata(): Metadata {
   const locale = resolveRequestLocale()
   const title = translate(locale, 'meta.title')
   const description = translate(locale, 'meta.description')
 
   return {
-    title,
+    // Alt sayfalarda sadece kendi basligini verir; %s yerine genisletilir
+    title: {
+      default: title,
+      template: '%s | HUPIPLAY',
+    },
     description,
+    metadataBase: new URL(SITE_URL),
+    alternates: { canonical: '/' },
     openGraph: {
       title,
       description,
       type: 'website',
       locale: INTL_LOCALE[locale].replace('-', '_'),
       siteName: 'HUPIPLAY',
+      url: SITE_URL,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
     },
     other: {
       'content-language': locale,
     },
   }
+}
+
+/** Site geneli yapisal veri: Organization + WebSite (arama eylemi ile) */
+function SiteJsonLd() {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': `${SITE_URL}/#organization`,
+        name: 'HUPIPLAY',
+        url: SITE_URL,
+        description: 'Digital game key marketplace with instant delivery',
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: 'HUPIPLAY',
+        publisher: { '@id': `${SITE_URL}/#organization` },
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${SITE_URL}/search?q={search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      },
+    ],
+  }
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
+  )
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -54,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers initialLocale={locale}>
           <SiteChrome>{children}</SiteChrome>
         </Providers>
+        <SiteJsonLd />
       </body>
     </html>
   )

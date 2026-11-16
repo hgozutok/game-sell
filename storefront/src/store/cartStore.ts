@@ -232,7 +232,7 @@ export const useCartStore = create<CartStore>()(
           set((state) => {
             const byVariant = new Map(server.items.map((i) => [i.variant_id, i]))
             const merged = state.items
-              .map((item) => {
+              .map((item): CartItem | null => {
                 const line = byVariant.get(item.variantId)
                 if (!line) return null
                 return {

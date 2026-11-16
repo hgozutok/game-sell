@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Docker imaji icin minimal sunucu cikti klasoru (.next/standalone)
+  output: 'standalone',
   images: {
     remotePatterns: [
       {

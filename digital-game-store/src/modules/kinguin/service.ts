@@ -173,6 +173,8 @@ class KinguinService extends MedusaService({
       productId: raw.productId ?? null,
       name: raw.name || raw.originalName || "Unknown",
       originalName: raw.originalName ?? null,
+      // Aciklama HTML icerabilir — import tarafinda temizlenir
+      description: raw.description ?? null,
       platform: raw.platform ?? null,
       genre: raw.genre ?? null,
       regionId: typeof raw.regionId === "number" ? raw.regionId : null,
@@ -290,6 +292,7 @@ class KinguinService extends MedusaService({
       product_id: data.productId,
       name: data.name,
       original_name: data.originalName,
+      description: data.description ?? null,
       platform: data.platform,
       genre: data.genre,
       region_id: regionId,

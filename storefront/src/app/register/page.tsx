@@ -218,7 +218,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading || (captcha.provider !== 'none' && captcha.site_key && !captchaToken)}
+              disabled={loading || Boolean(captcha.provider !== 'none' && captcha.site_key && !captchaToken)}
               className="w-full bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white py-3 rounded-lg font-bold text-lg hover:shadow-2xl hover:shadow-[#ff6b35]/50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed uppercase"
             >
               {loading ? t('register.creatingAccount') : t('register.createAccount')}

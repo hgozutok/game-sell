@@ -4,7 +4,7 @@ import { runKinguinSync, syncKinguinPrices } from "../../../../utils/kinguin-syn
 
 const BodySchema = z.object({
   type: z.enum(["full", "price"]).default("full"),
-  max_pages: z.number().min(1).max(500).optional(),
+  max_pages: z.number().min(1).max(1000).optional(),
 })
 
 // Admin "Şimdi senkronize et". Varsayilan tam senkron; type=price sadece fiyat.

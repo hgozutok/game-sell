@@ -102,6 +102,25 @@ export function slugify(s: string): string {
     .replace(/-+$/g, "")
 }
 
+/**
+ * Kinguin aciklamasini Medusa product.description icin temizler: HTML
+ * etiketlerini doker, beyaz alanlari sadelestirir, 4000 karakterde keser.
+ */
+export function cleanKinguinDescription(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined
+  const clean = String(raw)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!clean) return undefined
+  return clean.length > 4000 ? `${clean.slice(0, 3997)}...` : clean
+}
+
 async function getServices(container: any) {
   const scope = container.scope ?? container
   return {
@@ -341,6 +360,7 @@ export async function listKinguinProduct(
       const existingCatIds: string[] = (current?.[0]?.categories || []).map((c: any) => c.id)
       await productModule.updateProducts(productId, {
         title: kp.name.substring(0, 255),
+        description: cleanKinguinDescription(kp.description),
         thumbnail,
         images: [{ url: thumbnail }],
         status: opts.publish === false ? "draft" : "published",
@@ -352,6 +372,7 @@ export async function listKinguinProduct(
     } else {
       const created = await productModule.createProducts({
         title: kp.name.substring(0, 255),
+        description: cleanKinguinDescription(kp.description),
         handle,
         status: opts.publish === false ? "draft" : "published",
         thumbnail,
@@ -501,7 +522,7 @@ export async function runKinguinSync(
       lastSync
         ? { updatedSince: lastSync.toISOString(), sortBy: "updatedAt", sortType: "desc" }
         : { sortBy: "updatedAt", sortType: "desc" },
-      opts.maxPages ?? 500
+      opts.maxPages ?? 1000
     )
 
     for await (const product of iterator) {

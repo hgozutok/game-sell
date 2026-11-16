@@ -1,0 +1,125 @@
+# VPS uretim kurulumu — digital-game-store + storefront + postgres + redis + worker
+#
+# Kullanim:
+#   cp .env.production.example .env.production   # doldur
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Notlar:
+# - NEXT_PUBLIC_MEDUSA_BACKEND_URL build-arg olarak girilir (tarayici bundle'ina
+#   islenir). Ayni domain uzerinde reverse proxy kullanacaksan / ile baslayabilir,
+#   yoksa https://api.senindomain.com gibi acik bir adres olmali.
+# - Migration'lar backend konteyneri baslarken otomatik uygulanir.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dgs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medusa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medusa_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-medusa-digital-store}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medusa} -d ${POSTGRES_DB:-medusa-digital-store}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # VPS'te disariya acma; sadece compose agi
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: dgs-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "6379"
+
+  backend:
+    build: ./digital-game-store
+    container_name: dgs-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD:-medusa_change_me}@postgres:5432/${POSTGRES_DB:-medusa-digital-store}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      PORT: 9000
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://localhost:9000}
+      STORE_CORS: ${STORE_CORS:-http://localhost:3000}
+      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:7001,http://localhost:3000}
+      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000,http://localhost:3000}
+      KINGUIN_API_KEY: ${KINGUIN_API_KEY}
+      KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://api.kinguin.net}
+      KINGUIN_ORDER_MODE: ${KINGUIN_ORDER_MODE:-readonly}
+      DIGITAL_KEY_ENCRYPTION_KEY: ${DIGITAL_KEY_ENCRYPTION_KEY}
+      FULFILL_MAX_RETRIES: ${FULFILL_MAX_RETRIES:-4}
+    ports:
+      - "${BACKEND_PORT:-9000}:9000"
+
+  worker:
+    build: ./digital-game-store
+    container_name: dgs-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD:-medusa_change_me}@postgres:5432/${POSTGRES_DB:-medusa-digital-store}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      KINGUIN_API_KEY: ${KINGUIN_API_KEY}
+      KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://api.kinguin.net}
+      DIGITAL_KEY_ENCRYPTION_KEY: ${DIGITAL_KEY_ENCRYPTION_KEY}
+      WORKER_MODE: worker
+    command: ["node", "dist/workers/worker.js"]
+
+  storefront:
+    build:
+      context: ./storefront
+      args:
+        # Tarayici bundle'ina islenir — VPS'te backend'in PUBLIC adresi olmali
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://localhost:9000}
+        NEXT_PUBLIC_PUBLISHABLE_KEY: ${NEXT_PUBLIC_PUBLISHABLE_KEY}
+    container_name: dgs-storefront
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://localhost:9000}
+      # Runtime'da server-side istekler icin publishable key (sitemap/llms.txt)
+      NEXT_PUBLIC_PUBLISHABLE_KEY: ${NEXT_PUBLIC_PUBLISHABLE_KEY}
+      # Server-side istekler (sitemap, generateMetadata) compose agindan gider
+      MEDUSA_BACKEND_URL_SERVER: http://backend:9000
+      # Canonical/sitemap URL'leri icin — public site adresi
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      PORT: 3000
+    ports:
+      - "${STOREFRONT_PORT:-3000}:3000"
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -663,11 +663,11 @@ export const content: MessageTable = {
     ar: 'تصفّح لعبتك واخترها',
   },
   'content.how.step1Text': {
-    en: 'Explore our extensive catalog of over 30,000 games across all major platforms including Steam, Epic Games, PlayStation, Xbox, and more. Use our search and filter options to find exactly what you’re looking for.',
-    tr: 'Steam, Epic Games, PlayStation, Xbox ve daha fazlası dahil tüm büyük platformlarda 30.000’den fazla oyundan oluşan geniş kataloğumuzu keşfedin. Tam olarak aradığınızı bulmak için arama ve filtre seçeneklerimizi kullanın.',
-    de: 'Entdecken Sie unseren umfangreichen Katalog mit über 30.000 Spielen auf allen großen Plattformen wie Steam, Epic Games, PlayStation, Xbox und mehr. Nutzen Sie unsere Such- und Filteroptionen, um genau das zu finden, was Sie suchen.',
-    fr: 'Explorez notre vaste catalogue de plus de 30 000 jeux sur toutes les grandes plateformes, notamment Steam, Epic Games, PlayStation, Xbox et bien d’autres. Utilisez notre recherche et nos filtres pour trouver exactement ce que vous cherchez.',
-    ar: 'استكشف كتالوجنا الواسع الذي يضم أكثر من 30,000 لعبة على جميع المنصات الرئيسية، بما في ذلك Steam وEpic Games وPlayStation وXbox وغيرها. واستخدم خيارات البحث والتصفية للعثور على ما تبحث عنه بالضبط.',
+    en: 'Explore our extensive catalog of over 70,000 games across all major platforms including Steam, Epic Games, PlayStation, Xbox, and more. Use our search and filter options to find exactly what you’re looking for.',
+    tr: 'Steam, Epic Games, PlayStation, Xbox ve daha fazlası dahil tüm büyük platformlarda 70.000’den fazla oyundan oluşan geniş kataloğumuzu keşfedin. Tam olarak aradığınızı bulmak için arama ve filtre seçeneklerimizi kullanın.',
+    de: 'Entdecken Sie unseren umfangreichen Katalog mit über 70.000 Spielen auf allen großen Plattformen wie Steam, Epic Games, PlayStation, Xbox und mehr. Nutzen Sie unsere Such- und Filteroptionen, um genau das zu finden, was Sie suchen.',
+    fr: 'Explorez notre vaste catalogue de plus de 70 000 jeux sur toutes les grandes plateformes, notamment Steam, Epic Games, PlayStation, Xbox et bien d’autres. Utilisez notre recherche et nos filtres pour trouver exactement ce que vous cherchez.',
+    ar: 'استكشف كتالوجنا الواسع الذي يضم أكثر من 70,000 لعبة على جميع المنصات الرئيسية، بما في ذلك Steam وEpic Games وPlayStation وXbox وغيرها. واستخدم خيارات البحث والتصفية للعثور على ما تبحث عنه بالضبط.',
   },
   'content.how.step1b1': {
     en: 'Check platform compatibility (Steam, Epic, Origin, etc.)',
@@ -915,11 +915,11 @@ export const content: MessageTable = {
     ar: 'هل أنت مستعد للبدء؟',
   },
   'content.how.ctaText': {
-    en: 'Browse our catalog of 30,000+ games and start playing today!',
-    tr: '30.000’den fazla oyundan oluşan kataloğumuza göz atın ve bugün oynamaya başlayın!',
-    de: 'Entdecken Sie unseren Katalog mit über 30.000 Spielen und spielen Sie noch heute!',
-    fr: 'Parcourez notre catalogue de plus de 30 000 jeux et commencez à jouer dès aujourd’hui !',
-    ar: 'تصفّح كتالوجنا الذي يضم أكثر من 30,000 لعبة وابدأ اللعب اليوم!',
+    en: 'Browse our catalog of 70,000+ games and start playing today!',
+    tr: '70.000’den fazla oyundan oluşan kataloğumuza göz atın ve bugün oynamaya başlayın!',
+    de: 'Entdecken Sie unseren Katalog mit über 70.000 Spielen und spielen Sie noch heute!',
+    fr: 'Parcourez notre catalogue de plus de 70 000 jeux et commencez à jouer dès aujourd’hui !',
+    ar: 'تصفّح كتالوجنا الذي يضم أكثر من 70,000 لعبة وابدأ اللعب اليوم!',
   },
   'content.how.ctaButton': {
     en: 'BROWSE GAMES NOW',
