@@ -7,6 +7,7 @@ import { adminApi } from '@/lib/admin-api'
 import { translate } from '@/i18n'
 import SocialLoginCard from './SocialLoginCard'
 import BotProtectionCard from './BotProtectionCard'
+import AdminAccessCard from './AdminAccessCard'
 
 /** "facebook.com/x" gibi yazimlari https:// ile tamamlar. */
 function normalizeSocialUrl(value: string) {
@@ -47,6 +48,7 @@ export default function SettingsPage() {
     social_x: '',
     social_linkedin: '',
     social_youtube: '',
+    ga_measurement_id: '',
     announcement_enabled: true,
     announcement_en: '',
     announcement_tr: '',
@@ -112,6 +114,7 @@ export default function SettingsPage() {
           social_x: map['store.social.x'] ?? '',
           social_linkedin: map['store.social.linkedin'] ?? '',
           social_youtube: map['store.social.youtube'] ?? '',
+          ga_measurement_id: map['analytics.google_measurement_id'] ?? '',
         }))
 
         try {
@@ -221,6 +224,7 @@ export default function SettingsPage() {
         { key: 'store.social.x', value: socialUrls.x, category: 'store' },
         { key: 'store.social.linkedin', value: socialUrls.linkedin, category: 'store' },
         { key: 'store.social.youtube', value: socialUrls.youtube, category: 'store' },
+        { key: 'analytics.google_measurement_id', value: (settings.ga_measurement_id || '').trim(), category: 'store' },
         { key: 'store.announcement.enabled', value: settings.announcement_enabled, category: 'store' },
         { key: 'store.announcement.en', value: settings.announcement_en, category: 'store' },
         { key: 'store.announcement.tr', value: settings.announcement_tr, category: 'store' },
@@ -500,6 +504,29 @@ export default function SettingsPage() {
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="gaming-card p-6">
+            <h2 className="text-xl font-bold text-white mb-1">Google Analytics</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              GA4 ölçüm kimliğini girin (örn. G-XXXXXXXXXX). Mağazanın tüm sayfalarında ziyaret
+              takibi etkinleşir. Boş bırakırsanız Analytics kodu yüklenmez.
+            </p>
+            <div className="max-w-md">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Ölçüm Kimliği (Measurement ID)
+              </label>
+              <input
+                type="text"
+                value={settings.ga_measurement_id}
+                onChange={(e) => setSettings({ ...settings, ga_measurement_id: e.target.value })}
+                placeholder="G-XXXXXXXXXX"
+                className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Google Analytics → Yönetici → Veri Akışları → Web → Ölçüm Kimliği (G- ile başlar).
+              </p>
             </div>
           </div>
 
@@ -800,6 +827,11 @@ export default function SettingsPage() {
         {/* Bot korumasi (CAPTCHA) — bagimsiz kart */}
         <div className="mt-6">
           <BotProtectionCard />
+        </div>
+
+        {/* Admin giris kapisi anahtari — bagimsiz kart */}
+        <div className="mt-6">
+          <AdminAccessCard />
         </div>
       </div>
     </div>

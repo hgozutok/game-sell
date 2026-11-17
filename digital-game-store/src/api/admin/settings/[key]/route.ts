@@ -4,6 +4,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const storeSettingsModule = req.scope.resolve('storeSettings') as any
   const { key } = req.params
 
+  // Admin giris anahtari bu herkese acik uctan okunamaz.
+  if (key === 'admin.access_key') {
+    return res.status(403).json({ message: 'Forbidden' })
+  }
+
   const setting = await storeSettingsModule.getSetting(key)
 
   if (!setting) {

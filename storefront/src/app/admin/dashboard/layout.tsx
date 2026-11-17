@@ -9,6 +9,7 @@ import {
   getAdminToken,
   verifyAdminSession,
 } from '@/lib/admin-api'
+import { getStoredAdminAccessKey, verifyAdminAccessKey } from '@/lib/admin-access'
 
 const navGroups: Array<{
   title: string
@@ -58,20 +59,32 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   useEffect(() => {
     let active = true
 
-    if (!getAdminToken()) {
-      window.location.href = '/admin'
-      return
-    }
+    const run = async () => {
+      // Giris kapisi: URL anahtari (sekmede saklanir) yoksa/yanlissa panel acilmaz.
+      const gate = await verifyAdminAccessKey(getStoredAdminAccessKey())
+      if (!active) return
+      if (gate === 'invalid') {
+        window.location.href = '/admin'
+        return
+      }
 
-    verifyAdminSession().then((ok) => {
+      if (!getAdminToken()) {
+        window.location.href = '/admin'
+        return
+      }
+
+      const ok = await verifyAdminSession()
       if (!active) return
       if (!ok) {
         window.location.href = '/admin'
         return
       }
+
       setEmail(getAdminEmail() || '')
       setStatus('ok')
-    })
+    }
+
+    void run()
 
     return () => {
       active = false

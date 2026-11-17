@@ -39,6 +39,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     )
     const logoUrl = await storeSettingsModule.getSettingValue('store.logo_url', '')
 
+    // Google Analytics olcum kimligi (admin panelden yonetilir; bos = kapali)
+    const gaMeasurementId = await storeSettingsModule.getSettingValue(
+      'analytics.google_measurement_id',
+      ''
+    )
+
     // Sosyal medya baglantilari (admin panelden yonetilir, bos olanlar gizlenir)
     const socialValue = async (key: string) => {
       const value = await storeSettingsModule.getSettingValue(key, '')
@@ -112,6 +118,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         whatsapp_message: whatsappMessage || '',
         social,
         announcement,
+      },
+      analytics: {
+        google_measurement_id: (gaMeasurementId || '').trim(),
       },
       taxes: {
         rate: typeof taxRate === 'number' ? taxRate : parseFloat(taxRate) || 0,

@@ -15,9 +15,9 @@ export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/medusa-store",
     http: {
-      storeCors: process.env.STORE_CORS || "http://localhost:3000,http://localhost:8000",
-      adminCors: process.env.ADMIN_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000",
-      authCors: process.env.AUTH_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000",
+      storeCors: process.env.STORE_CORS || "http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk",
+      adminCors: process.env.ADMIN_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk",
+      authCors: process.env.AUTH_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk",
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },

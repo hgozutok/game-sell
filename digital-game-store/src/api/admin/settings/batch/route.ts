@@ -27,6 +27,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const saved: any[] = []
     for (const item of settings) {
       if (!item?.key || item.value === undefined) continue
+      // Admin giris anahtari toplu kayda dahil edilemez.
+      if (item.key === 'admin.access_key') continue
       const setting = await storeSettings.setSetting(item.key, item.value, {
         category: item.category,
         description: item.description,

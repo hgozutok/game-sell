@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import SiteChrome from '@/components/layout/SiteChrome'
+import GoogleAnalytics from '@/components/analytics/GoogleAnalytics'
 import {
   INTL_LOCALE,
   LOCALE_COOKIE,
@@ -15,6 +16,30 @@ import {
 } from '@/i18n'
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' })
+
+// Server-side istekler icin backend adresi (konteynerde compose agi)
+const SERVER_API_URL =
+  process.env.MEDUSA_BACKEND_URL_SERVER ||
+  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+  'http://localhost:9000'
+const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY || ''
+
+/** Admin paneldeki analytics.google_measurement_id ayarini okur (60 sn cache). */
+async function getGaMeasurementId(): Promise<string> {
+  try {
+    const res = await fetch(`${SERVER_API_URL}/store/settings`, {
+      headers: PUBLISHABLE_KEY ? { 'x-publishable-api-key': PUBLISHABLE_KEY } : {},
+      // Kisa cache: build-time'da yakalanan bos deger hizla tazelenir,
+      // admin panel degisikligi ~1 dk icinde yayina girer.
+      next: { revalidate: 60 },
+    })
+    if (!res.ok) return ''
+    const data = await res.json()
+    return String(data?.analytics?.google_measurement_id || '').trim()
+  } catch {
+    return ''
+  }
+}
 
 /** Aktif dili cerezden, yoksa tarayici dilinden cozer. */
 function resolveRequestLocale(): Locale {
@@ -93,9 +118,10 @@ function SiteJsonLd() {
   )
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = resolveRequestLocale()
   const dir = localeDir(locale)
+  const gaMeasurementId = await getGaMeasurementId()
 
   return (
     <html lang={locale} dir={dir} className="scroll-smooth">
@@ -104,6 +130,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteChrome>{children}</SiteChrome>
         </Providers>
         <SiteJsonLd />
+        <GoogleAnalytics measurementId={gaMeasurementId} />
       </body>
     </html>
   )

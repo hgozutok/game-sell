@@ -153,15 +153,18 @@ export async function updateVariantPrice(
   const scope = container.scope ?? container
   const pricingModule = scope.resolve(Modules.PRICING) as AnyService
   const remoteLink = scope.resolve(ContainerRegistrationKeys.REMOTE_LINK) as AnyService
-  const productModule = scope.resolve("product") as AnyService
+  const db = scope.resolve(ContainerRegistrationKeys.PG_CONNECTION) as AnyService
 
-  // Varyantin mevcut price set'ini bul
+  // Varyantin mevcut price set'ini bul — remoteLink.list variant->pricing
+  // linkini bu surumde bulamiyor (bulamayinca duplicate link hatasi veriyordu);
+  // link tablosundan dogrudan okumak kesin ve hizli.
   let priceSetId: string | null = null
   try {
-    const links = await remoteLink.list({
-      [Modules.PRODUCT]: { variant_id: variantId },
-    })
-    priceSetId = links?.[0]?.pricing?.price_set_id ?? null
+    const res = await db.raw(
+      `SELECT price_set_id FROM product_variant_price_set WHERE variant_id = ? AND deleted_at IS NULL LIMIT 1`,
+      [variantId]
+    )
+    priceSetId = res.rows?.[0]?.price_set_id ?? null
   } catch {
     priceSetId = null
   }
@@ -181,7 +184,6 @@ export async function updateVariantPrice(
       [Modules.PRICING]: { price_set_id: priceSet.id },
     },
   ])
-  void productModule
 }
 
 // ===================== Fiyatlandirma =====================

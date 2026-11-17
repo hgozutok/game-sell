@@ -1,14 +1,20 @@
 import { MedusaContainer } from "@medusajs/framework/types"
+import { Modules } from "@medusajs/framework/utils"
 import { fulfillKinguinOrderWorkflow } from "../workflows/fulfill-kinguin-order"
 
 /**
  * retrying durumundaki siparisleri yeniden dener (exponential olmayan sabit aralik;
  * gercek backoff deneme sayisiyla artan bekleme ile simule edilir).
  * Max denemeden sonra failed -> admin manuel kuyrugunda gorunur.
+ *
+ * Ayrica: bakiye-topup bekleyen siparisleri (awaiting_approval +
+ * metadata.topup_needed_eur) izler — Kinguin bakiyesi siparis maliyetini
+ * karsilayacak kadar yukseldiginde fulfillment'i otomatik tamamlar.
  */
 export default async function retryFulfillmentsJob(container: MedusaContainer) {
   const logger = container.resolve("logger")
-  const orderModule = container.resolve("order") as any
+  const orderModule = container.resolve(Modules.ORDER) as any
+  const kinguin = container.resolve("kinguin") as any
   const max = Number(process.env.FULFILL_MAX_RETRIES || 4)
 
   const orders = await orderModule.listOrders({
@@ -63,10 +69,69 @@ export default async function retryFulfillmentsJob(container: MedusaContainer) {
     }
   }
 
-  if (retried || failed) {
-    logger.info(`[retry-fulfillments] retried=${retried} failed=${failed}`)
+  // --- Bakiye top-up bekleyen siparisler: bakiye yeterli olursa otomatik tamamla ---
+  let topupCompleted = 0
+  let topupWaiting = 0
+  try {
+    // Metadata $gt operatoru guvenilir degil — state ile cek, bellekte suz
+    const queued = await orderModule.listOrders({
+      metadata: { fulfillment_state: "awaiting_approval" },
+    })
+    const waiting = (queued || []).filter(
+      (o: any) => Number(o.metadata?.topup_needed_eur || 0) > 0
+    )
+    if (waiting?.length) {
+      let balance = 0
+      try {
+        balance = (await kinguin.getBalance()).balance
+      } catch {
+        logger.warn("[retry-fulfillments] bakiye sorgulanamadi — topup kontrolu atlandi")
+      }
+
+      for (const order of waiting || []) {
+        const needed = Number(order.metadata?.topup_needed_eur || 0)
+        const cost = Number(order.metadata?.order_provider_cost_eur || 0)
+        const minBal = Number(
+          (await kinguin.getSettings().then((s: any) => s.min_balance).catch(() => 10)) || 10
+        )
+        if (balance >= cost + minBal && balance >= needed) {
+          logger.info(
+            `[retry-fulfillments] ${order.id}: bakiye yeterli oldu (${balance} EUR >= ${cost} + ${minBal}) — fulfillment otomatik denenecek`
+          )
+          try {
+            await fulfillKinguinOrderWorkflow(container).run({
+              input: { orderId: order.id, customerId: order.customer_id, email: order.email },
+            })
+            await orderModule.updateOrders([
+              {
+                id: order.id,
+                metadata: {
+                  ...order.metadata,
+                  topup_needed_eur: null,
+                  topup_completed_at: new Date().toISOString(),
+                },
+              },
+            ])
+            topupCompleted++
+          } catch (e: any) {
+            // workflow kendi guard'larini tekrar uygular (hala yetersizse kuyruga geri duser)
+            topupWaiting++
+          }
+        } else {
+          topupWaiting++
+        }
+      }
+    }
+  } catch (e: any) {
+    logger.warn(`[retry-fulfillments] topup kontrolu hatasi: ${e?.message}`)
   }
-  return { retried, failed }
+
+  if (retried || failed || topupCompleted || topupWaiting) {
+    logger.info(
+      `[retry-fulfillments] retried=${retried} failed=${failed} topupCompleted=${topupCompleted} topupWaiting=${topupWaiting}`
+    )
+  }
+  return { retried, failed, topupCompleted, topupWaiting }
 }
 
 export const config = {

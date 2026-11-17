@@ -1,26 +1,47 @@
 # VPS uretim kurulumu — digital-game-store + storefront + postgres + redis + worker
 #
-# Kullanim:
-#   cp .env.production.example .env.production   # doldur
-#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# Kullanim (proje kokunde):
+#   docker compose up -d --build                  # .env otomatik okunur
+#   docker compose --env-file .env.production up -d --build   # ayri env dosyasi
 #
 # Notlar:
+# - Tek komut dosyasi: docker-compose.yml (eski docker-compose.prod.yml kaldirildi).
 # - NEXT_PUBLIC_MEDUSA_BACKEND_URL build-arg olarak girilir (tarayici bundle'ina
 #   islenir). Ayni domain uzerinde reverse proxy kullanacaksan / ile baslayabilir,
 #   yoksa https://api.senindomain.com gibi acik bir adres olmali.
 # - Migration'lar backend konteyneri baslarken otomatik uygulanir.
+# - Veritabani verisi proje klasoru icinde: ./db-data/postgres. Klasoru komple
+#   kopyalayip baska bir sunucuya yuklediginizde mevcut veri de beraberinde
+#   gelir; db-perms servisi dosya sahipligini postgres kullanicisina cevirir.
 
 services:
+  # Proje klasoru zip/scp ile baska makineye tasindiginda dosyalar root'a
+  # ait olabilir. Postgres uid 70 (alpine) ile calistigi icin PGDATA'nin
+  # sahibi olmali. Bu one-shot servis duzeltip cikar.
+  db-perms:
+    image: postgres:16-alpine
+    container_name: dgs-db-perms
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "mkdir -p /var/lib/postgresql/data && chown -R postgres:postgres /var/lib/postgresql/data || true; chmod 700 /var/lib/postgresql/data || true"
+    volumes:
+      - ./db-data/postgres:/var/lib/postgresql/data
+
   postgres:
     image: postgres:16-alpine
     container_name: dgs-postgres
     restart: unless-stopped
+    depends_on:
+      db-perms:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-medusa}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medusa_change_me}
       POSTGRES_DB: ${POSTGRES_DB:-medusa-digital-store}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./db-data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medusa} -d ${POSTGRES_DB:-medusa-digital-store}"]
       interval: 10s
@@ -62,9 +83,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
       MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://localhost:9000}
-      STORE_CORS: ${STORE_CORS:-http://localhost:3000}
-      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:7001,http://localhost:3000}
-      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000,http://localhost:3000}
+      STORE_CORS: ${STORE_CORS:-http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk}
+      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:7001,http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk}
+      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000,http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk}
       KINGUIN_API_KEY: ${KINGUIN_API_KEY}
       KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://api.kinguin.net}
       KINGUIN_ORDER_MODE: ${KINGUIN_ORDER_MODE:-readonly}
@@ -121,5 +142,5 @@ services:
       - "${STOREFRONT_PORT:-3000}:3000"
 
 volumes:
-  postgres_data:
+  # Postgres artik bind mount (./db-data/postgres) — isimli volume yok.
   redis_data:

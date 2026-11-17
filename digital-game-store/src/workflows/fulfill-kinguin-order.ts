@@ -105,22 +105,16 @@ const prepareFulfillmentStep = createStep(
 
     const settings = await kinguin.getSettings()
 
-    // --- Bakiye guard (sadece live modda ve gercek alici varken) ---
+    // --- Bakiye guard satir maliyetleri bilindikten SONRA yapilir (asagida);
+    // burada yalnizca bakiyeyi oncedil okuruz.
     let balance = 0
-    try {
-      balance = (await kinguin.getBalance()).balance
-    } catch {
-      logger.warn("[fulfill-kinguin] bakiye sorgulanamadi")
-    }
     const needsProviderOrder = settings.order_mode === "live"
-    if (needsProviderOrder && balance < (settings.min_balance ?? 0)) {
-      await markFulfillmentState(container, input.orderId, "failed", {
-        fulfillment_error: `Kinguin bakiyesi dusuk: ${balance} EUR (min ${settings.min_balance})`,
-      })
-      throw new GuardError(
-        GUARD_CODES.BALANCE,
-        `Kinguin bakiyesi dusuk: ${balance} EUR < min ${settings.min_balance}`
-      )
+    if (needsProviderOrder) {
+      try {
+        balance = (await kinguin.getBalance()).balance
+      } catch {
+        logger.warn("[fulfill-kinguin] bakiye sorgulanamadi")
+      }
     }
 
     // --- Satirlari katalogla esle ---
@@ -200,6 +194,35 @@ const prepareFulfillmentStep = createStep(
         fulfillment_error: "Urunler Kinguin kataloguna bagli degil",
       })
       throw new GuardError(GUARD_CODES.NO_PROVIDER_LINK, "Provider baglantisi yok")
+    }
+
+    // --- Bakiye guard: siparis maliyeti + min bakiye guvenlik tamponu ---
+    // Bakiye yetmezse gereken top-up tutarini hesaplar ve kuyruga birakir;
+    // bakiye yuklendikten sonra retry-fulfillments job'u otomatik tamamlar.
+    if (needsProviderOrder) {
+      // Satirda envanterden karsilanamayan adetler Kinguin'den satin alinacak
+      const providerCostEur = lines
+        .filter((l) => l.providerProductId)
+        .reduce((s, l) => s + (l.costUsdMinor / 100) * l.quantity, 0)
+      const minBal = Number(settings.min_balance ?? 0)
+      const required = providerCostEur + minBal
+
+      if (balance < required) {
+        const topupNeeded = Math.ceil(required - balance)
+        await markFulfillmentState(container, input.orderId, "awaiting_approval", {
+          fulfillment_error: `Kinguin bakiyesi yetersiz: mevcut ${balance} EUR, siparis maliyeti ~${providerCostEur.toFixed(2)} EUR + min bakiye ${minBal} EUR. Gereken yukleme: ~${topupNeeded} EUR. Bakiye yuklendiginde otomatik tamamlanir.`,
+          topup_needed_eur: topupNeeded,
+          order_provider_cost_eur: Number(providerCostEur.toFixed(2)),
+          balance_at_check_eur: balance,
+        })
+        logger.warn(
+          `[fulfill-kinguin] ${input.orderId}: bakiye yetersiz (bakiye=${balance}, gerekli=${required.toFixed(2)}) — top-up ${topupNeeded} EUR sonra otomatik denenecek`
+        )
+        throw new GuardError(
+          GUARD_CODES.BALANCE,
+          `Kinguin bakiyesi yetersiz: ${balance} EUR < gerekli ${required.toFixed(2)} EUR (top-up ~${topupNeeded} EUR)`
+        )
+      }
     }
 
     return new StepResponse(

@@ -50,3 +50,7 @@ Thumbs.db
 .turbo
 *.tsbuildinfo
 
+
+# Yerel veritabani (proje klasoru ile tasinir, git'e girmez)
+db-data/
+

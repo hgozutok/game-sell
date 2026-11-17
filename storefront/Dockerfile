@@ -35,6 +35,10 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 
+# Build sirasinda olusan fetch cache'i (backend'e erisilemeyen build ortamindan
+# gelen bos degerler) runtime'a tasinmasin
+RUN rm -rf .next/cache/fetch-cache
+
 CMD ["node", "server.js"]
 
 EXPOSE 3000

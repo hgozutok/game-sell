@@ -23,6 +23,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       settings = await storeSettingsModule.getAllSettings()
     }
 
+    // Gizli anahtar bu herkese acik uctan donmez; yalnizca /admin/admin-access.
+    settings = (settings || []).filter((item: any) => item?.key !== 'admin.access_key')
+
     res.json({ settings })
   } catch (error: any) {
     console.error('Admin settings GET error:', error)
@@ -46,6 +49,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const storeSettingsModule = req.scope.resolve('storeSettings') as any
 
     const { key, value, category, description } = req.body as any
+
+    // Admin giris anahtari bu herkese acik uctan yazilamaz (bkz. /admin/admin-access).
+    if (key === 'admin.access_key') {
+      return res.status(403).json({ message: 'Bu ayar /admin/admin-access uzerinden degistirilir' })
+    }
 
     if (!key || value === undefined) {
       return res.status(400).json({
