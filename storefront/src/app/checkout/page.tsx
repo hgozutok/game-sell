@@ -33,13 +33,41 @@ const createCheckoutSchema = (t: (key: string) => string) =>
 
 type CheckoutFormData = z.infer<ReturnType<typeof createCheckoutSchema>>
 
-const COUNTRY_CODES = ['GB', 'US', 'CA', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'AU']
+const ALL_COUNTRY_CODES = [
+  'AF', 'AX', 'AL', 'DZ', 'AS', 'AD', 'AO', 'AI', 'AQ', 'AG', 'AR', 'AM', 'AW', 'AU', 'AT', 'AZ',
+  'BS', 'BH', 'BD', 'BB', 'BY', 'BE', 'BZ', 'BJ', 'BM', 'BT', 'BO', 'BA', 'BW', 'BV', 'BR', 'IO',
+  'BN', 'BG', 'BF', 'BI', 'KH', 'CM', 'CA', 'CV', 'KY', 'CF', 'TD', 'CL', 'CN', 'CX', 'CC', 'CO',
+  'KM', 'CG', 'CD', 'CK', 'CR', 'CI', 'HR', 'CU', 'CY', 'CZ', 'DK', 'DJ', 'DM', 'DO', 'EC', 'EG',
+  'SV', 'GQ', 'ER', 'EE', 'ET', 'FK', 'FO', 'FJ', 'FI', 'FR', 'GF', 'PF', 'TF', 'GA', 'GM', 'GE',
+  'DE', 'GH', 'GI', 'GR', 'GL', 'GD', 'GP', 'GU', 'GT', 'GG', 'GN', 'GW', 'GY', 'HT', 'HM', 'VA',
+  'HN', 'HK', 'HU', 'IS', 'IN', 'ID', 'IR', 'IQ', 'IE', 'IM', 'IL', 'IT', 'JM', 'JP', 'JE', 'JO',
+  'KZ', 'KE', 'KI', 'KP', 'KR', 'KW', 'KG', 'LA', 'LV', 'LB', 'LS', 'LR', 'LY', 'LI', 'LT', 'LU',
+  'MO', 'MK', 'MG', 'MW', 'MY', 'MV', 'ML', 'MT', 'MH', 'MQ', 'MR', 'MU', 'YT', 'MX', 'FM', 'MD',
+  'MC', 'MN', 'ME', 'MS', 'MA', 'MZ', 'MM', 'NA', 'NR', 'NP', 'NL', 'NC', 'NZ', 'NI', 'NE', 'NG',
+  'NU', 'NF', 'MP', 'NO', 'OM', 'PK', 'PW', 'PS', 'PA', 'PG', 'PY', 'PE', 'PH', 'PN', 'PL', 'PT',
+  'PR', 'QA', 'RE', 'RO', 'RU', 'RW', 'BL', 'SH', 'KN', 'LC', 'MF', 'PM', 'VC', 'WS', 'SM', 'ST',
+  'SA', 'SN', 'RS', 'SC', 'SL', 'SG', 'SK', 'SI', 'SB', 'SO', 'ZA', 'GS', 'SS', 'ES', 'LK', 'SD',
+  'SR', 'SJ', 'SZ', 'SE', 'CH', 'SY', 'TW', 'TJ', 'TZ', 'TH', 'TL', 'TG', 'TK', 'TO', 'TT', 'TN',
+  'TR', 'TM', 'TC', 'TV', 'UG', 'UA', 'AE', 'GB', 'US', 'UM', 'UY', 'UZ', 'VU', 'VE', 'VN', 'VG',
+  'VI', 'WF', 'EH', 'YE', 'ZM', 'ZW'
+]
 
 export default function CheckoutPage() {
   const t = useT()
   const { intlLocale, locale } = useTranslation()
   const checkoutSchema = useMemo(() => createCheckoutSchema(t), [t])
   const regionNames = useMemo(() => new Intl.DisplayNames([intlLocale], { type: 'region' }), [intlLocale])
+  const countryOptions = useMemo(() => {
+    return ALL_COUNTRY_CODES.map((code) => {
+      let name = code
+      try {
+        name = regionNames.of(code) || code
+      } catch {
+        name = code
+      }
+      return { code, name }
+    }).sort((a, b) => a.name.localeCompare(b.name, intlLocale))
+  }, [regionNames, intlLocale])
   const router = useRouter()
   const { items, getTotalPrice, clearCart, hydrateFromServer } = useCartStore()
   const { selectedCurrency, currencies } = useCurrencyStore()
@@ -591,9 +619,9 @@ export default function CheckoutPage() {
                         className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                       >
                         <option value="">{t('checkout.select')}</option>
-                        {COUNTRY_CODES.map((code) => (
+                        {countryOptions.map(({ code, name }) => (
                           <option key={code} value={code}>
-                            {regionNames.of(code) || code}
+                            {name}
                           </option>
                         ))}
                       </select>
