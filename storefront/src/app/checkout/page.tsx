@@ -53,6 +53,7 @@ export default function CheckoutPage() {
   const [selectedCountry, setSelectedCountry] = useState('us')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [defaultTaxRate, setDefaultTaxRate] = useState<number>(20)
+  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false)
   const [previewTotals, setPreviewTotals] = useState<{
     subtotal: number
     tax_total: number
@@ -397,13 +398,13 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-12">
         {/* Progress Steps */}
-        <div className="max-w-2xl mx-auto mb-12">
-          <div className="flex items-center justify-center gap-4">
+        <div className="max-w-2xl mx-auto mb-6 sm:mb-10 px-2">
+          <div className="flex items-center justify-center gap-2 sm:gap-4">
             <div className="flex items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm md:text-base flex-shrink-0 ${
                   step === 'info'
                     ? 'bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white'
                     : 'bg-green-500 text-white'
@@ -411,12 +412,14 @@ export default function CheckoutPage() {
               >
                 {step === 'payment' ? '✓' : '1'}
               </div>
-              <span className="ms-3 font-semibold text-white">{t('checkout.stepBilling')}</span>
+              <span className="ms-2 sm:ms-3 text-xs sm:text-sm md:text-base font-semibold text-white whitespace-nowrap">
+                {t('checkout.stepBilling')}
+              </span>
             </div>
-            <div className="w-20 h-1 bg-gray-700"></div>
+            <div className="w-8 sm:w-16 h-0.5 sm:h-1 bg-gray-700 flex-shrink-0"></div>
             <div className="flex items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm md:text-base flex-shrink-0 ${
                   step === 'payment'
                     ? 'bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white'
                     : 'bg-gray-700 text-gray-400'
@@ -424,93 +427,168 @@ export default function CheckoutPage() {
               >
                 2
               </div>
-              <span className={`ms-3 font-semibold ${step === 'payment' ? 'text-white' : 'text-gray-500'}`}>
+              <span
+                className={`ms-2 sm:ms-3 text-xs sm:text-sm md:text-base font-semibold whitespace-nowrap ${
+                  step === 'payment' ? 'text-white' : 'text-gray-500'
+                }`}
+              >
                 {t('checkout.stepPayment')}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        {/* Mobile Order Summary Accordion (lg:hidden) */}
+        <div className="lg:hidden gaming-card p-3.5 sm:p-4 mb-6">
+          <button
+            type="button"
+            onClick={() => setMobileSummaryOpen(!mobileSummaryOpen)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base sm:text-lg flex-shrink-0">🛒</span>
+              <span className="font-bold text-white text-xs sm:text-sm truncate">{t('checkout.orderSummary')}</span>
+              <span className="text-[11px] text-gray-400 font-medium">({items.length})</span>
+              <span className="text-[#ff6b35] text-[11px] font-bold">
+                {mobileSummaryOpen ? '▲' : '▼'}
+              </span>
+            </div>
+            <div className="text-sm sm:text-base font-black text-[#ff6b35] whitespace-nowrap ms-2">
+              {previewLoading ? t('cart.calculating') : formattedTotal}
+            </div>
+          </button>
+
+          {mobileSummaryOpen && (
+            <div className="mt-3 pt-3 border-t border-gray-800 space-y-3">
+              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                {items.map((item) => (
+                  <div key={item.id} className="flex gap-2.5 items-center">
+                    <div className="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
+                      {item.thumbnail ? (
+                        <Image src={item.thumbnail} alt={item.title} fill className="object-cover" />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-lg">🎮</div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-medium text-xs truncate">{item.title}</div>
+                      <div className="text-gray-400 text-[11px]">{t('checkout.qty', { count: item.quantity })}</div>
+                    </div>
+                    <div className="text-[#ff6b35] font-bold text-xs whitespace-nowrap">
+                      {selectedCurrency.symbol}{((item.price * item.quantity) / 100).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-gray-800 pt-2.5 space-y-1 text-xs text-gray-400">
+                <div className="flex justify-between">
+                  <span>{t('checkout.subtotal')}</span>
+                  <span className="text-white">{previewLoading ? t('cart.calculating') : formattedSubtotal}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t('checkout.vat')}{previewTotals.tax_rate ? ` (${previewTotals.tax_rate.toFixed(2)}%)` : ''}:</span>
+                  <span className="text-white">{previewLoading ? t('cart.calculating') : formattedTax}</span>
+                </div>
+                {paymentFee && (
+                  <div className="flex justify-between">
+                    <span>{t('checkout.paymentFee', { provider: paymentFeeLabel })}</span>
+                    <span className="text-white">
+                      {previewLoading
+                        ? t('cart.calculating')
+                        : formatMoney(paymentFee.amount_minor, currencyForDisplay)}
+                    </span>
+                  </div>
+                )}
+                <div className="border-t border-gray-800 pt-2 flex justify-between text-white font-bold text-sm">
+                  <span>{t('checkout.total')}</span>
+                  <span className="text-[#ff6b35] font-black">{previewLoading ? t('cart.calculating') : formattedTotal}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Checkout Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Billing Information */}
-              <div className="gaming-card p-8">
-                <h2 className="text-2xl font-black text-white mb-6">{t('checkout.billingInfo')}</h2>
+              <div className="gaming-card p-4 sm:p-6 md:p-8">
+                <h2 className="text-xl sm:text-2xl font-black text-white mb-4 sm:mb-6">{t('checkout.billingInfo')}</h2>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-white font-semibold mb-2">{t('checkout.email')} *</label>
+                    <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.email')} *</label>
                     <input
                       type="email"
                       {...register('email')}
-                      className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                      className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                       placeholder="your.email@example.com"
                     />
-                    {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
+                    {errors.email && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.email.message}</p>}
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <label className="block text-white font-semibold mb-2">{t('checkout.firstName')} *</label>
+                      <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.firstName')} *</label>
                       <input
                         type="text"
                         {...register('firstName')}
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                         placeholder="John"
                       />
-                      {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName.message}</p>}
+                      {errors.firstName && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.firstName.message}</p>}
                     </div>
                     <div>
-                      <label className="block text-white font-semibold mb-2">{t('checkout.lastName')} *</label>
+                      <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.lastName')} *</label>
                       <input
                         type="text"
                         {...register('lastName')}
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                         placeholder="Doe"
                       />
-                      {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName.message}</p>}
+                      {errors.lastName && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.lastName.message}</p>}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-white font-semibold mb-2">{t('checkout.address')} *</label>
+                    <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.address')} *</label>
                     <input
                       type="text"
                       {...register('address')}
-                      className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                      className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                       placeholder="123 Main Street"
                     />
-                    {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address.message}</p>}
+                    {errors.address && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.address.message}</p>}
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div>
-                      <label className="block text-white font-semibold mb-2">{t('checkout.city')} *</label>
+                      <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.city')} *</label>
                       <input
                         type="text"
                         {...register('city')}
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                         placeholder="London"
                       />
-                      {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city.message}</p>}
+                      {errors.city && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.city.message}</p>}
                     </div>
                     <div>
-                      <label className="block text-white font-semibold mb-2">{t('checkout.postalCode')} *</label>
+                      <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.postalCode')} *</label>
                       <input
                         type="text"
                         {...register('postalCode')}
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                         placeholder="SW1A 1AA"
                       />
-                      {errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode.message}</p>}
+                      {errors.postalCode && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.postalCode.message}</p>}
                     </div>
                     <div>
-                      <label className="block text-white font-semibold mb-2">{t('checkout.country')} *</label>
+                      <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.country')} *</label>
                       <select
                         {...register('country')}
-                        className="w-full bg-[#1a1d24] border border-gray-700 text-white px-4 py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                        className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
                       >
                         <option value="">{t('checkout.select')}</option>
                         {COUNTRY_CODES.map((code) => (
@@ -519,15 +597,15 @@ export default function CheckoutPage() {
                           </option>
                         ))}
                       </select>
-                      {errors.country && <p className="text-red-500 text-sm mt-1">{errors.country.message}</p>}
+                      {errors.country && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.country.message}</p>}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Payment Method */}
-              <div className="gaming-card p-8">
-                <h2 className="text-2xl font-black text-white mb-6">💳 {t('checkout.paymentMethod')}</h2>
+              <div className="gaming-card p-4 sm:p-6 md:p-8">
+                <h2 className="text-xl sm:text-2xl font-black text-white mb-4 sm:mb-6">💳 {t('checkout.paymentMethod')}</h2>
 
                 {!methodsLoaded ? (
                   <div className="flex items-center justify-center py-8">
@@ -535,11 +613,11 @@ export default function CheckoutPage() {
                   </div>
                 ) : availableMethods.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-400">{t('checkout.noMethods')}</p>
-                    <p className="text-sm text-gray-500 mt-2">{t('checkout.noMethodsHint')}</p>
+                    <p className="text-gray-400 text-sm">{t('checkout.noMethods')}</p>
+                    <p className="text-xs text-gray-500 mt-2">{t('checkout.noMethodsHint')}</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5 sm:space-y-3">
                     {availableMethods.map((method) => {
                       const methodId = method.id.replace('_', '-')
                       const icons: Record<string, string> = {
@@ -560,31 +638,31 @@ export default function CheckoutPage() {
                       return (
                         <label
                           key={method.id}
-                          className="flex items-center gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-4 cursor-pointer hover:border-[#ff6b35] transition"
+                          className="flex items-center gap-3 sm:gap-4 bg-[#1a1d24] border-2 border-gray-700 rounded-lg p-3 sm:p-4 cursor-pointer hover:border-[#ff6b35] transition"
                         >
                           <input
                             type="radio"
                             value={methodId}
                             {...register('paymentMethod')}
-                            className="w-5 h-5 text-[#ff6b35]"
+                            className="w-5 h-5 text-[#ff6b35] flex-shrink-0"
                           />
-                          <div className="flex-1">
-                            <div className="font-bold text-white">{method.name}</div>
-                            <div className="text-sm text-gray-400">{descriptions[method.id]}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-white text-sm sm:text-base">{method.name}</div>
+                            <div className="text-xs sm:text-sm text-gray-400 line-clamp-2">{descriptions[method.id]}</div>
                           </div>
-                          <span className="text-2xl">{icons[method.id] || '💳'}</span>
+                          <span className="text-xl sm:text-2xl flex-shrink-0">{icons[method.id] || '💳'}</span>
                         </label>
                       )
                     })}
                   </div>
                 )}
 
-                {errors.paymentMethod && <p className="text-red-500 text-sm mt-2">{errors.paymentMethod.message}</p>}
+                {errors.paymentMethod && <p className="text-red-500 text-xs sm:text-sm mt-2">{errors.paymentMethod.message}</p>}
               </div>
 
               {/* Submit Button */}
               {overLimit && (
-                <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg text-sm mb-4">
+                <div className="bg-red-500/10 border border-red-500 text-red-500 px-3.5 py-2.5 rounded-lg text-xs sm:text-sm mb-4">
                   ⚠️ Sepet toplamı mağaza üst limitini ({formatMoney(limitDisplayMinor, currencyForDisplay)})
                   aşıyor. Lütfen sepetinizi azaltın.
                 </div>
@@ -592,12 +670,12 @@ export default function CheckoutPage() {
               <button
                 type="submit"
                 disabled={loading || overLimit}
-                className="w-full btn-primary text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full btn-primary text-base sm:text-lg py-3.5 sm:py-4 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? t('checkout.processing') : `${t('checkout.placeOrder')} - ${formattedTotal}`}
+                {loading ? t('checkout.processing') : `${t('checkout.placeOrder')} · ${formattedTotal}`}
               </button>
 
-              <p className="text-center text-sm text-gray-500">
+              <p className="text-center text-xs sm:text-sm text-gray-500 px-2">
                 {t('checkout.agreePrefix')}{' '}
                 <Link href="/terms" className="text-[#ff6b35] hover:underline">
                   {t('footer.terms')}
@@ -610,12 +688,12 @@ export default function CheckoutPage() {
             </form>
           </div>
 
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
+          {/* Order Summary (Desktop Sticky Sidebar) */}
+          <div className="hidden lg:block lg:col-span-1">
             <div className="gaming-card p-6 sticky top-4">
               <h3 className="text-xl font-black text-white mb-4">{t('checkout.orderSummary')}</h3>
 
-              <div className="space-y-4 mb-6">
+              <div className="space-y-4 mb-6 max-h-80 overflow-y-auto pr-1">
                 {items.map((item) => (
                   <div key={item.id} className="flex gap-3">
                     <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
@@ -637,16 +715,16 @@ export default function CheckoutPage() {
               </div>
 
               <div className="border-t border-gray-700 pt-4 space-y-2">
-                <div className="flex justify-between text-gray-400">
+                <div className="flex justify-between text-gray-400 text-sm">
                   <span>{t('checkout.subtotal')}</span>
                   <span>{previewLoading ? t('cart.calculating') : formattedSubtotal}</span>
                 </div>
-                <div className="flex justify-between text-gray-400">
+                <div className="flex justify-between text-gray-400 text-sm">
                   <span>{t('checkout.vat')}{previewTotals.tax_rate ? ` (${previewTotals.tax_rate.toFixed(2)}%)` : ''}:</span>
                   <span>{previewLoading ? t('cart.calculating') : formattedTax}</span>
                 </div>
                 {paymentFee && (
-                  <div className="flex justify-between text-gray-400">
+                  <div className="flex justify-between text-gray-400 text-sm">
                     <span>{t('checkout.paymentFee', { provider: paymentFeeLabel })}</span>
                     <span>
                       {previewLoading
@@ -655,9 +733,9 @@ export default function CheckoutPage() {
                     </span>
                   </div>
                 )}
-                <div className="border-t border-gray-700 pt-2 flex justify-between text-white font-bold text-xl">
+                <div className="border-t border-gray-700 pt-2 flex justify-between text-white font-bold text-lg sm:text-xl">
                   <span>{t('checkout.total')}</span>
-                  <span>{previewLoading ? t('cart.calculating') : formattedTotal}</span>
+                  <span className="text-[#ff6b35]">{previewLoading ? t('cart.calculating') : formattedTotal}</span>
                 </div>
               </div>
 
@@ -666,7 +744,7 @@ export default function CheckoutPage() {
                   <span>✓</span>
                   <span>{t('checkout.instantDelivery')}</span>
                 </div>
-                <p className="text-sm text-gray-400">{t('checkout.deliveryNote')}</p>
+                <p className="text-xs sm:text-sm text-gray-400">{t('checkout.deliveryNote')}</p>
               </div>
             </div>
           </div>

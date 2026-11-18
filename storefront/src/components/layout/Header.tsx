@@ -21,7 +21,8 @@ export default function Header() {
     name?: string
     logo_url?: string
     announcement?: { enabled?: boolean; texts?: Record<string, string> }
-  }>({})
+  }>({ name: 'HUPIPLAY' })
+  const [logoError, setLogoError] = useState(false)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const getTotalItems = useCartStore((state) => state.getTotalItems)
   const { customer, logout } = useAuth()
@@ -110,22 +111,28 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            {storeInfo.logo_url ? (
+            {storeInfo.logo_url && !logoError ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={storeInfo.logo_url}
                 alt={storeInfo.name || 'HUPIPLAY'}
+                onError={() => setLogoError(true)}
                 className="h-9 sm:h-11 max-w-[130px] sm:max-w-[180px] object-contain group-hover:scale-105 transition-transform"
               />
             ) : (
-              <div className="flex flex-col justify-center">
-                <span className="text-xl sm:text-2xl font-black tracking-wider text-white group-hover:text-[#ff6b35] transition">
-                  {storeInfo.name ? storeInfo.name : <>HUPI<span className="text-[#ff6b35]">PLAY</span></>}
-                </span>
-                <span className="hidden sm:block text-[10px] text-gray-400 font-medium tracking-wide -mt-0.5">
-                  {t('nav.brandTagline')}
-                </span>
-              </div>
+              <>
+                <div className="w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br from-[#ff6b35] to-[#f7931e] rounded-lg flex items-center justify-center text-lg sm:text-2xl group-hover:scale-110 transition-transform shadow-lg flex-shrink-0">
+                  🎮
+                </div>
+                <div className="flex flex-col justify-center">
+                  <span className="text-lg sm:text-xl font-black tracking-wider text-white group-hover:text-[#ff6b35] transition">
+                    {storeInfo.name || 'HUPIPLAY'}
+                  </span>
+                  <span className="hidden sm:block text-[10px] text-gray-400 font-medium tracking-wide -mt-0.5">
+                    {t('nav.brandTagline')}
+                  </span>
+                </div>
+              </>
             )}
           </Link>
 
