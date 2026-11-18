@@ -6,31 +6,31 @@ import { api } from '@/lib/api'
 import ProductCard from './ProductCard'
 import { useT } from '@/components/useT'
 
-export default function ProductGrid() {
+interface ProductGridProps {
+  sortBy?: string
+}
+
+export default function ProductGrid({ sortBy = 'newest' }: ProductGridProps = {}) {
   const t = useT()
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(50)
+  const [limit, setLimit] = useState(24)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['products', page, limit],
+    queryKey: ['products-grid', page, limit, sortBy],
     queryFn: async () => {
-      // Medusa 2.11: `*variants` wildcard'i stack overflow veriyor (500).
-      const response = await api.get('/store/products', {
+      const response = await api.get('/store/products/search', {
         params: {
-          fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
-          limit: limit,
+          sort_by: sortBy,
+          limit,
           offset: (page - 1) * limit,
-        }
+        },
       })
-      // Filter out products with no price or zero price
-      const products = (response.data.products || []).filter((product: any) => {
-        const price = product.variants?.[0]?.prices?.[0]?.amount || 0
-        return price > 0
-      })
-      
+      const products = response.data?.products || []
+      const count = Number(response.data?.count) || products.length
+
       return {
         products,
-        count: products.length,
+        count,
       }
     },
   })
@@ -106,9 +106,9 @@ export default function ProductGrid() {
               }}
               className="bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
             >
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
+              <option value={24}>24</option>
+              <option value={48}>48</option>
+              <option value={96}>96</option>
             </select>
           </div>
 

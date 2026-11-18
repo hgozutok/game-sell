@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
 import ProductDetailClient from './ProductDetail'
 
 const API_URL =
@@ -11,41 +10,75 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 export const revalidate = 3600
 
 interface ProductMeta {
+  id: string
   title: string
   handle: string
   description?: string | null
   thumbnail?: string | null
-  images?: Array<{ url: string }>
+  images?: Array<{ url: string; id?: string }>
   metadata?: {
     platform?: string
     region?: string
+    genre?: string
     genres?: string[]
     release_date?: string
     developer?: string
     publisher?: string
+    languages?: string[]
+    badges?: string[]
+    tags?: string[]
+    provider?: string
+    provider_image?: string
+    provider_region_code?: string
   }
   variants?: Array<{
     id: string
+    title?: string
     prices?: Array<{ amount: number; currency_code: string }>
   }>
+  collection?: {
+    id: string
+    title: string
+    handle?: string
+  }
 }
 
-/** Sunucu tarafinda urunu handle ile ceker (ISR cache'li). */
-async function fetchProductByHandle(handle: string): Promise<ProductMeta | null> {
-  try {
-    const res = await fetch(
-      `${API_URL}/store/products?handle=${encodeURIComponent(handle)}&limit=1&fields=id,title,handle,description,thumbnail,metadata,*images,*variants,*variants.prices`,
-      {
-        headers: PUBLISHABLE_KEY ? { 'x-publishable-api-key': PUBLISHABLE_KEY } : {},
-        next: { revalidate: 3600, tags: [`product-${handle}`] },
-      }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    return data?.products?.[0] || null
-  } catch {
-    return null
+/** Sunucu tarafinda urunu handle veya id ile ceker (ISR cache'li). */
+async function fetchProduct(slug: string): Promise<ProductMeta | null> {
+  const headers = PUBLISHABLE_KEY ? { 'x-publishable-api-key': PUBLISHABLE_KEY } : undefined
+
+  const trySearch = async (param: 'handle' | 'id', val: string) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/store/products/search?${param}=${encodeURIComponent(val)}&limit=1`,
+        {
+          headers,
+          next: { revalidate: 3600, tags: [`product-${val}`] },
+        }
+      )
+      if (!res.ok) return null
+      const data = await res.json()
+      return data?.products?.[0] || null
+    } catch {
+      return null
+    }
   }
+
+  // 1. Slug 'prod_' ile basliyorsa once id ile dene
+  if (slug.startsWith('prod_')) {
+    const byId = await trySearch('id', slug)
+    if (byId) return byId
+  }
+
+  // 2. Handle ile ara
+  const byHandle = await trySearch('handle', slug)
+  if (byHandle) return byHandle
+
+  // 3. Bulunamazsa id ile dene
+  const byIdFallback = await trySearch('id', slug)
+  if (byIdFallback) return byIdFallback
+
+  return null
 }
 
 /** HTML aciklamasini temizleyip meta description'a uygun hale getirir. */
@@ -63,11 +96,11 @@ export async function generateMetadata({
   params: { slug: string }
 }): Promise<Metadata> {
   const { slug } = params
-  const product = await fetchProductByHandle(slug)
+  const product = await fetchProduct(slug)
 
   if (!product) {
     return {
-      title: 'Ürün bulunamadı',
+      title: 'Ürün Detayı | HUPIPLAY',
       robots: { index: false, follow: false },
     }
   }
@@ -85,12 +118,12 @@ export async function generateMetadata({
   return {
     title,
     description,
-    alternates: { canonical: `${SITE_URL}/products/${product.handle}` },
+    alternates: { canonical: `${SITE_URL}/products/${product.handle || product.id}` },
     openGraph: {
       title,
       description,
       type: 'website',
-      url: `${SITE_URL}/products/${product.handle}`,
+      url: `${SITE_URL}/products/${product.handle || product.id}`,
       images: product.thumbnail ? [{ url: product.thumbnail }] : undefined,
       siteName: 'HUPIPLAY',
     },
@@ -115,44 +148,47 @@ export default async function ProductPage({
   params: { slug: string }
 }) {
   const { slug } = params
-  const product = await fetchProductByHandle(slug)
-  if (!product) {
-    notFound()
-  }
+  const product = await fetchProduct(slug)
 
   // JSON-LD: Product schema (Google zengin sonuclar)
-  const price = product.variants?.[0]?.prices?.find((p) => p.currency_code === 'usd')
-  const meta2 = product.metadata || {}
+  const price = product?.variants?.[0]?.prices?.find((p) => p.currency_code === 'usd')
+  const meta2 = product?.metadata || {}
   const bits2 = [meta2.platform, meta2.region].filter(Boolean) as string[]
-  const jsonLdDescription =
-    toDescription(product.description || '') ||
-    `Buy ${product.title} digital game key${bits2.length ? ` (${bits2.join(', ')})` : ''} with instant email delivery.`
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: product.title,
-    description: jsonLdDescription,
-    image: [product.thumbnail, ...(product.images || []).map((i) => i.url)].filter(Boolean),
-    sku: product.handle,
-    category: product.metadata?.platform || undefined,
-    brand: { '@type': 'Brand', name: 'HUPIPLAY' },
-    offers: {
-      '@type': 'Offer',
-      url: `${SITE_URL}/products/${product.handle}`,
-      priceCurrency: 'USD',
-      price: price ? (price.amount / 100).toFixed(2) : undefined,
-      availability: 'https://schema.org/InStock',
-      seller: { '@type': 'Organization', name: 'HUPIPLAY' },
-    },
-  }
+  const jsonLdDescription = product
+    ? toDescription(product.description || '') ||
+      `Buy ${product.title} digital game key${bits2.length ? ` (${bits2.join(', ')})` : ''} with instant email delivery.`
+    : undefined
+
+  const jsonLd = product
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: product.title,
+        description: jsonLdDescription,
+        image: [product.thumbnail, ...(product.images || []).map((i) => i.url)].filter(Boolean),
+        sku: product.handle || product.id,
+        category: product.metadata?.platform || undefined,
+        brand: { '@type': 'Brand', name: 'HUPIPLAY' },
+        offers: {
+          '@type': 'Offer',
+          url: `${SITE_URL}/products/${product.handle || product.id}`,
+          priceCurrency: 'USD',
+          price: price ? (price.amount / 100).toFixed(2) : undefined,
+          availability: 'https://schema.org/InStock',
+          seller: { '@type': 'Organization', name: 'HUPIPLAY' },
+        },
+      }
+    : null
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <ProductDetailClient />
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <ProductDetailClient initialProduct={product as any} />
     </>
   )
 }

@@ -133,6 +133,10 @@ services:
       MOLLIE_ENABLED: ${MOLLIE_ENABLED:-false}
       DIGITAL_KEY_ENCRYPTION_KEY: ${DIGITAL_KEY_ENCRYPTION_KEY}
       FULFILL_MAX_RETRIES: ${FULFILL_MAX_RETRIES:-4}
+      # --- Sosyal Giris / OAuth ---
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-true}
     ports:
       # Yalnizca loopback'e baglanir: disariya acilan tek yol Nginx (443).
       - "127.0.0.1:${BACKEND_PORT:-9000}:9000"

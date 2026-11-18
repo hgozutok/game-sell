@@ -78,11 +78,10 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#ff6b35] to-[#f7931e] rounded-lg flex items-center justify-center text-2xl shadow-lg">
-                🎮
-              </div>
               <div>
-                <h3 className="text-xl font-black text-white">HUPIPLAY</h3>
+                <h3 className="text-2xl font-black text-white tracking-wider">
+                  HUPI<span className="text-[#ff6b35]">PLAY</span>
+                </h3>
                 <p className="text-xs text-gray-500">{t('nav.brandTagline')}</p>
               </div>
             </div>

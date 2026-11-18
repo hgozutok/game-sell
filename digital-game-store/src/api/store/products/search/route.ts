@@ -38,8 +38,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const {
       q,
+      id,
+      handle,
       platform,
       genre,
+      collection_id,
+      category_id,
       price_min,
       price_max,
       sort_by,
@@ -52,10 +56,24 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const where: string[] = [
       `p.status = 'published'`,
       `p.deleted_at IS NULL`,
-      `pr.currency_code = '${BASE_CURRENCY}'`,
-      `pr.amount > 0`,
     ]
     const params: any[] = []
+
+    // Eger tekil urun (id veya handle) aranmiyorsa, gecerli USD fiyati olanlari listele
+    if (!id && !handle) {
+      where.push(`pr.currency_code = '${BASE_CURRENCY}'`)
+      where.push(`pr.amount > 0`)
+    }
+
+    if (id && String(id).trim()) {
+      where.push(`p.id = ?`)
+      params.push(String(id).trim())
+    }
+
+    if (handle && String(handle).trim()) {
+      where.push(`p.handle = ?`)
+      params.push(String(handle).trim())
+    }
 
     const search = q && String(q).trim().length >= MIN_QUERY_LENGTH ? String(q).trim() : null
     if (search) {
@@ -72,6 +90,24 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (genre && String(genre).trim()) {
       where.push(`p.metadata->'genres' @> ?::jsonb`)
       params.push(JSON.stringify([String(genre).trim()]))
+    }
+
+    if (collection_id && String(collection_id).trim()) {
+      where.push(`(p.collection_id = ? OR p.metadata->>'platform' ILIKE (SELECT title FROM product_collection WHERE id = ?))`)
+      params.push(String(collection_id).trim(), String(collection_id).trim())
+    }
+
+    if (category_id && String(category_id).trim()) {
+      where.push(`(
+        EXISTS (
+          SELECT 1 FROM product_category_product pcp 
+          WHERE pcp.product_id = p.id AND pcp.product_category_id = ?
+        )
+        OR p.metadata->'genres' @> (
+          SELECT jsonb_build_array(name) FROM product_category WHERE id = ?
+        )
+      )`)
+      params.push(String(category_id).trim(), String(category_id).trim())
     }
 
     // Fiyat filtreleri USD minor unit (kurus) uzerinden
@@ -123,8 +159,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const fromSql = `
       FROM product p
       JOIN product_variant v ON v.product_id = p.id AND v.deleted_at IS NULL
-      JOIN product_variant_price_set vps ON vps.variant_id = v.id AND vps.deleted_at IS NULL
-      JOIN price pr ON pr.price_set_id = vps.price_set_id
+      LEFT JOIN product_variant_price_set vps ON vps.variant_id = v.id AND vps.deleted_at IS NULL
+      LEFT JOIN price pr ON pr.price_set_id = vps.price_set_id AND pr.currency_code = '${BASE_CURRENCY}'
     `
 
     // ---------- Toplam sayi ----------
@@ -152,7 +188,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     // ---------- Sayfanin id listesi (sirali) ----------
     const idRes = await db.raw(
-      `SELECT p.id, MIN(pr.amount) AS price, (p.title ILIKE ?) AS title_hit
+      `SELECT p.id, COALESCE(MIN(pr.amount), 0) AS price, (p.title ILIKE ?) AS title_hit
        ${fromSql}
        ${whereSql}
        GROUP BY p.id
@@ -222,7 +258,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       })
       .filter((p): p is any => p !== null)
 
-    if (hideZeroStock && shaped.length) {
+    if (hideZeroStock && !handle && !id && shaped.length) {
       try {
         const keyInventoryService = req.scope.resolve('keyInventory') as any
         const checks = await Promise.all(

@@ -57,13 +57,17 @@ interface Product {
   }
 }
 
-export default function ProductDetailClient() {
+export default function ProductDetailClient({
+  initialProduct = null,
+}: {
+  initialProduct?: Product | null
+}) {
   const t = useT()
   const { isOverCap } = usePriceCap()
   const params = useParams()
-  const slug = params.slug as string
-  const [product, setProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(true)
+  const slug = (params?.slug as string) || ''
+  const [product, setProduct] = useState<Product | null>(initialProduct)
+  const [loading, setLoading] = useState(!initialProduct)
   const [selectedVariant, setSelectedVariant] = useState(0)
   const [selectedImage, setSelectedImage] = useState(0)
   const [amount, setAmount] = useState(0)
@@ -72,37 +76,60 @@ export default function ProductDetailClient() {
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
 
   useEffect(() => {
+    if (initialProduct && (initialProduct.handle === slug || initialProduct.id === slug)) {
+      setProduct(initialProduct)
+      setLoading(false)
+      return
+    }
+
     const fetchProduct = async () => {
+      setLoading(true)
       try {
-        // Try to fetch by handle/slug first
-        const response = await api.get(`/store/products`, {
-          params: {
-            handle: slug,
-            fields: 'id,title,handle,description,metadata,*variants,*variants.prices,*images,*collection',
-          },
+        if (slug.startsWith('prod_')) {
+          try {
+            const idRes = await api.get('/store/products/search', { params: { id: slug, limit: 1 } })
+            if (idRes.data?.products?.[0]) {
+              setProduct(idRes.data.products[0])
+              return
+            }
+          } catch {
+            // fallback
+          }
+        }
+
+        // Try to fetch by handle first
+        const handleRes = await api.get('/store/products/search', {
+          params: { handle: slug, limit: 1 },
         })
 
-        if (response.data.products && response.data.products.length > 0) {
-          setProduct(response.data.products[0])
-        } else {
-          // Fallback to fetch by ID if handle doesn't work
-          const idResponse = await api.get(`/store/products/${slug}`, {
-            params: {
-              fields: 'id,title,handle,description,metadata,*variants,*variants.prices,*images,*collection',
-            },
-          })
-          setProduct(idResponse.data.product)
+        if (handleRes.data?.products?.[0]) {
+          setProduct(handleRes.data.products[0])
+          return
         }
+
+        // Fallback to fetch by ID
+        const idRes = await api.get('/store/products/search', {
+          params: { id: slug, limit: 1 },
+        })
+        if (idRes.data?.products?.[0]) {
+          setProduct(idRes.data.products[0])
+          return
+        }
+
+        setProduct(null)
       } catch (error) {
         console.error('Failed to fetch product:', error)
         toast.error(t('product.loadFailed'))
+        setProduct(null)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchProduct()
-  }, [slug])
+    if (slug) {
+      fetchProduct()
+    }
+  }, [slug, initialProduct])
 
   // SEO: dinamik title, meta description ve JSON-LD (client-side)
   useEffect(() => {
@@ -215,7 +242,7 @@ export default function ProductDetailClient() {
     if (!product) return
     if (isOverCap(product)) return
 
-    const currentVariant = product.variants[selectedVariant]
+    const currentVariant = product.variants?.[selectedVariant] || product.variants?.[0] || { id: product.id }
 
     addItem({
       id: `${product.id}-${currentVariant.id}`,
@@ -260,7 +287,7 @@ export default function ProductDetailClient() {
     )
   }
 
-  const variant = product.variants[selectedVariant]
+  const variant = product.variants?.[selectedVariant] || product.variants?.[0] || { id: product.id, title: product.title }
   const productTitle = product.title || product.handle || 'Game'
   const metadataImage =
     product.metadata?.provider === 'kinguin'
@@ -445,7 +472,7 @@ export default function ProductDetailClient() {
               </div>
 
               {/* Variant Selection */}
-              {product.variants.length > 1 && (
+              {(product.variants?.length || 0) > 1 && (
                 <div className="mb-4">
                   <div className="text-sm text-gray-400 mb-2">{t('product.selectEdition')}</div>
                   <div className="flex flex-wrap gap-2">

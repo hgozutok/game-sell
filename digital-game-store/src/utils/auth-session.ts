@@ -20,12 +20,29 @@ export interface AuthSettings {
 }
 
 function readProvider(map: Record<string, any>, provider: string): SocialProviderConfig {
+  const envPrefix = provider.toUpperCase()
+  const dbEnabled = map[`auth.${provider}.enabled`]
+  const envClientId =
+    process.env[`${envPrefix}_CLIENT_ID`] ||
+    process.env[`${envPrefix}_OAUTH_CLIENT_ID`] ||
+    ""
+  const envClientSecret =
+    process.env[`${envPrefix}_CLIENT_SECRET`] ||
+    process.env[`${envPrefix}_OAUTH_CLIENT_SECRET`] ||
+    ""
+
+  const clientId = String(map[`auth.${provider}.client_id`] || envClientId || "")
+  const clientSecret = String(map[`auth.${provider}.client_secret`] || envClientSecret || "")
+
+  const enabled =
+    dbEnabled !== undefined && dbEnabled !== null && dbEnabled !== ""
+      ? dbEnabled === true || dbEnabled === "true"
+      : process.env[`${envPrefix}_OAUTH_ENABLED`] === "true" || Boolean(clientId && clientSecret)
+
   return {
-    enabled:
-      map[`auth.${provider}.enabled`] === true ||
-      map[`auth.${provider}.enabled`] === "true",
-    clientId: String(map[`auth.${provider}.client_id`] || ""),
-    clientSecret: String(map[`auth.${provider}.client_secret`] || ""),
+    enabled: Boolean(enabled && clientId && clientSecret),
+    clientId,
+    clientSecret,
   }
 }
 

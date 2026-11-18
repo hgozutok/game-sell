@@ -132,22 +132,39 @@ export default function CategoryPage() {
           console.log('Found collection:', foundCollection)
           setCategory({ id: foundCollection.id, title: foundCollection.title, handle: foundCollection.handle, kind: 'collection' })
 
-          // Platform (collection) urunleri: Medusa v2'de collection_id array
-          // formatinda gonderilmeli (axios bunu collection_id[]=X olarak serialize eder).
-          // fields: stack overflow'a neden olan *variants wildcard yerine acik liste.
-          const productsResponse = await api.get('/store/products', {
-            params: {
-              'collection_id[]': foundCollection.id,
-              fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
-              limit: PER_PAGE,
-              offset,
-            },
-          })
+          let productsData: any[] = []
+          let totalCount = 0
 
-          if (productsResponse.data.products) {
-            setProducts(productsResponse.data.products)
-            setTotal(Number(productsResponse.data.count) || productsResponse.data.products.length)
+          try {
+            const searchRes = await api.get('/store/products/search', {
+              params: {
+                collection_id: foundCollection.id,
+                limit: PER_PAGE,
+                offset,
+              },
+            })
+            if (searchRes.data?.products) {
+              productsData = searchRes.data.products
+              totalCount = Number(searchRes.data.count) || productsData.length
+            }
+          } catch (searchErr) {
+            console.warn('Search endpoint failed, falling back to /store/products:', searchErr)
+            const fallbackRes = await api.get('/store/products', {
+              params: {
+                collection_id: foundCollection.id,
+                fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
+                limit: PER_PAGE,
+                offset,
+              },
+            })
+            if (fallbackRes.data?.products) {
+              productsData = fallbackRes.data.products
+              totalCount = Number(fallbackRes.data.count) || productsData.length
+            }
           }
+
+          setProducts(productsData)
+          setTotal(totalCount)
           return
         }
 
@@ -162,20 +179,39 @@ export default function CategoryPage() {
           console.log('Found product category:', foundCategory)
           setCategory({ id: foundCategory.id, title: foundCategory.name, handle: foundCategory.handle, kind: 'category' })
 
-          // Medusa v2: category_id de array formatinda gonderilmeli.
-          const productsResponse = await api.get('/store/products', {
-            params: {
-              'category_id[]': foundCategory.id,
-              fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
-              limit: PER_PAGE,
-              offset,
-            },
-          })
+          let productsData: any[] = []
+          let totalCount = 0
 
-          if (productsResponse.data.products) {
-            setProducts(productsResponse.data.products)
-            setTotal(Number(productsResponse.data.count) || productsResponse.data.products.length)
+          try {
+            const searchRes = await api.get('/store/products/search', {
+              params: {
+                category_id: foundCategory.id,
+                limit: PER_PAGE,
+                offset,
+              },
+            })
+            if (searchRes.data?.products) {
+              productsData = searchRes.data.products
+              totalCount = Number(searchRes.data.count) || productsData.length
+            }
+          } catch (searchErr) {
+            console.warn('Search endpoint failed, falling back to /store/products:', searchErr)
+            const fallbackRes = await api.get('/store/products', {
+              params: {
+                category_id: foundCategory.id,
+                fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
+                limit: PER_PAGE,
+                offset,
+              },
+            })
+            if (fallbackRes.data?.products) {
+              productsData = fallbackRes.data.products
+              totalCount = Number(fallbackRes.data.count) || productsData.length
+            }
           }
+
+          setProducts(productsData)
+          setTotal(totalCount)
           return
         }
 

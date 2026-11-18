@@ -59,7 +59,7 @@ export default function DealsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-12">
-        <ProductGrid />
+        <ProductGrid sortBy="price_asc" />
       </div>
     </div>
   )

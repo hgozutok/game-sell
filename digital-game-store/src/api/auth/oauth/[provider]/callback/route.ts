@@ -161,9 +161,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     })
 
     // cookie olarak da set edilir (Authorization kullanan istemciler icin token param'la doner)
+    const isSecure =
+      process.env.COOKIE_SECURE !== 'false' &&
+      (process.env.NODE_ENV === 'production' || settings.frontendUrl.startsWith('https'))
+    const secureFlag = isSecure ? '; Secure' : ''
+
     res.setHeader(
       'Set-Cookie',
-      `_medusa_jwt=${token}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax`
+      `_medusa_jwt=${token}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax${secureFlag}`
     )
     logger.info(`[oauth] oturum acildi: ${profile.email} (${provider})`)
     res.redirect(302, `${settings.frontendUrl}/auth/callback?token=${token}&provider=${provider}`)

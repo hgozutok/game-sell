@@ -8,6 +8,23 @@ import {
   isCustomerDisabled,
 } from "../utils/customer-status"
 
+async function adminCorsMiddleware(req: MedusaRequest, res: MedusaResponse, next: any) {
+  const origin = req.headers?.origin as string | undefined
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin)
+    res.setHeader("Access-Control-Allow-Credentials", "true")
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, x-publishable-api-key, Accept-Language, x-medusa-access-token"
+    )
+  }
+  if (req.method === "OPTIONS") {
+    return res.status(204).end()
+  }
+  return next()
+}
+
 // Custom /store route'larinda req.auth'u doldurur (JWT/session/bearer).
 // allowUnauthenticated: true — token yoksa istek gecer, actor_id bos olur;
 // route'lar kendi icinde 401 doner (fail-closed).
@@ -44,6 +61,10 @@ async function requireActiveCustomer(req: MedusaRequest, res: MedusaResponse, ne
 
 export default defineMiddlewares({
   routes: [
+    {
+      matcher: "/admin/**",
+      middlewares: [adminCorsMiddleware],
+    },
     {
       matcher: "/store/**",
       middlewares: [

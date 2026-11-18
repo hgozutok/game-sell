@@ -24,9 +24,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const state = randomToken(16)
     const redirectUri = `${settings.backendUrl}/auth/oauth/${provider}/callback`
 
+    const isSecure =
+      process.env.COOKIE_SECURE !== 'false' &&
+      (process.env.NODE_ENV === 'production' || settings.backendUrl.startsWith('https'))
+    const secureFlag = isSecure ? '; Secure' : ''
+
     res.setHeader(
       'Set-Cookie',
-      `oauth_state_${provider}=${state}; HttpOnly; Path=/auth/oauth/${provider}/callback; Max-Age=600; SameSite=Lax`
+      `oauth_state_${provider}=${state}; HttpOnly; Path=/auth/oauth/${provider}/callback; Max-Age=600; SameSite=Lax${secureFlag}`
     )
 
     if (provider === 'google') {

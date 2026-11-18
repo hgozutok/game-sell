@@ -26,7 +26,12 @@ export default function WishlistPage() {
         const results = await Promise.all(
           productIds.map((id) =>
             api
-              .get('/store/products', { params: { id, limit: 1 } })
+              .get('/store/products/search', {
+                params: {
+                  id,
+                  limit: 1,
+                },
+              })
               .then((res) => res.data?.products?.[0] || null)
               .catch(() => null)
           )
