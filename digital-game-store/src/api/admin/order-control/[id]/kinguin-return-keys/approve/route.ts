@@ -2,7 +2,6 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { KinguinNoKeysToReturnError } from "../../../../../../modules/kinguin/types"
 
-export const AUTHENTICATE = false
 
 /**
  * POST /admin/order-control/:id/kinguin-return-keys/approve

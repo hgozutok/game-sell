@@ -3,7 +3,6 @@ import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount } from '../../../../utils/currency'
 import { normalizeKinguinRegion } from '../../../../utils/kinguin'
 
-export const AUTHENTICATE = false // Disable auth for development
 
 // Helper: Get or create collection by name
 async function getOrCreateCollection(productModule: any, name: string, logger: any) {

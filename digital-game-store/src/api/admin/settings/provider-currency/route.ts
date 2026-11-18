@@ -10,7 +10,6 @@ const PROVIDER_DEFAULTS: Record<keyof typeof PROVIDER_KEYS, string> = {
   kinguin: 'eur',
 }
 
-export const AUTHENTICATE = false
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const originHeader = req.headers.origin

@@ -3,7 +3,6 @@ import { Modules } from "@medusajs/framework/utils"
 import { fulfillDigitalOrderWorkflow } from "../../../../../workflows/fulfill-digital-order"
 import { fulfillKinguinOrderWorkflow } from "../../../../../workflows/fulfill-kinguin-order"
 
-export const AUTHENTICATE = false
 
 /**
  * POST /admin/order-control/:id/approve

@@ -14,7 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve('logger') as any
   try {
-    const { email, password, first_name, last_name, captcha_token, locale: bodyLocale } =
+    const { email, password, first_name, last_name, phone, captcha_token, locale: bodyLocale } =
       (req.body || {}) as Record<string, string>
 
     // Kayit e-postasi kullanicinin tarayici dilinde gonderilir; yoksa Ingilizce.
@@ -55,7 +55,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const authModule = req.scope.resolve(Modules.AUTH) as any
     const customerModule = req.scope.resolve(Modules.CUSTOMER) as any
     const existing = await customerModule.listCustomers({ email: normalizedEmail })
-    if (existing?.length && existing[0].has_account) {
+    if ((existing || []).some((c: any) => c.has_account)) {
       return res.status(409).json({ code: 'duplicate_error', message: 'Bu e-posta ile bir hesap zaten var' })
     }
 
@@ -71,17 +71,31 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(400).json({ code: 'registration_failed', message: reg?.error || 'Kayıt oluşturulamadı' })
     }
 
-    // 2) customer olustur ve auth identity'ye bagla (actor linki)
-    const { result: customer } = await createCustomerAccountWorkflow(req.scope).run({
-      input: {
-        authIdentityId: reg.authIdentity.id,
-        customerData: {
-          email: normalizedEmail,
-          first_name: String(first_name).substring(0, 80),
-          last_name: String(last_name).substring(0, 80),
+    // 2) customer olustur ve auth identity'ye bagla (actor linki).
+    //    Bu adim patlarsa geride kimlik dogrulama kaydi kalmasin; aksi halde
+    //    ayni e-posta ile tekrar kayit "identity already exists" hatasi verir.
+    let customer: any
+    try {
+      const { result } = await createCustomerAccountWorkflow(req.scope).run({
+        input: {
+          authIdentityId: reg.authIdentity.id,
+          customerData: {
+            email: normalizedEmail,
+            first_name: String(first_name).trim().substring(0, 80),
+            last_name: String(last_name).trim().substring(0, 80),
+            ...(phone ? { phone: String(phone).trim().substring(0, 30) } : {}),
+          },
         },
-      },
-    })
+      })
+      customer = result
+    } catch (createError: any) {
+      await authModule
+        .deleteAuthIdentities([reg.authIdentity.id])
+        .catch((e: any) =>
+          logger.warn(`[auth] yarim kayit temizlenemedi: ${e?.message}`)
+        )
+      throw createError
+    }
 
     // 3) dil tercihi hesaba yazilir — sonraki e-postalar da bu dilde gider
     const currentMetadata =
@@ -121,22 +135,44 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           email_verification_expires: expires,
         },
       })
-      const origin = req.headers.origin || settings.frontendUrl
-      const verificationUrl = `${String(origin).replace(/\/+$/, '')}/verify-email?token=${token}`
-      void sendTemplateEmail(req.scope, {
+      // Baglanti her zaman yapilandirilmis magaza adresini kullanir; istekteki
+      // Origin basligina guvenmek phishing linki uretilebilmesine yol acar.
+      const verificationUrl = `${settings.frontendUrl}/verify-email?token=${token}`
+      const mail = await sendTemplateEmail(req.scope, {
         to: normalizedEmail,
         templateKey: 'verify-email',
         locale: requestedLocale,
         customerId: customer.id,
         acceptLanguage: req.headers['accept-language'] as string,
         data: {
-          first_name: String(first_name),
+          first_name: String(first_name).trim(),
           verification_url: verificationUrl,
           expires_hours: 24,
         },
         silent: true,
-      }).catch((e: any) => logger.warn(`[auth] dogrulama e-postasi gonderilemedi: ${e?.message}`))
-      logger.info(`[auth] kayit + dogrulama e-postasi: ${normalizedEmail}`)
+      })
+      if (mail.sent) {
+        logger.info(`[auth] kayit + dogrulama e-postasi: ${normalizedEmail}`)
+      } else {
+        // Gonderim basarisizsa kullaniciyi kilitlemeyelim: dogrulama postasi
+        // hic ulasmadigi icin hesap "dogrulanmis" sayilir ve durum loglanir.
+        logger.warn(
+          `[auth] kayit alindi ancak dogrulama e-postasi gonderilemedi (${normalizedEmail}): ${mail.error || 'bilinmeyen hata'}`
+        )
+        await customerModule
+          .updateCustomers(customer.id, {
+            metadata: {
+              ...(customer.metadata || {}),
+              email_verified: true,
+              email_verification_token: null,
+              email_verification_expires: null,
+            },
+          })
+          .catch((e: any) =>
+            logger.warn(`[auth] dogrulama durumu guncellenemedi: ${e?.message}`)
+          )
+        requiresVerification = false
+      }
     }
 
     res.status(201).json({

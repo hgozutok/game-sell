@@ -15,8 +15,11 @@ COPY . .
 # Tarayicinin baglanacagi backend adresi ve publishable key (build-time)
 ARG NEXT_PUBLIC_MEDUSA_BACKEND_URL=http://localhost:9000
 ARG NEXT_PUBLIC_PUBLISHABLE_KEY=
+# Kanonik/sitemap adresi; .env.local gibi dosyalara bagimli kalmasin
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ENV NEXT_PUBLIC_MEDUSA_BACKEND_URL=$NEXT_PUBLIC_MEDUSA_BACKEND_URL
 ENV NEXT_PUBLIC_PUBLISHABLE_KEY=$NEXT_PUBLIC_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 RUN npm run build
 

@@ -13,7 +13,6 @@ import {
   formatEmailDateTime,
 } from "../../../../utils/email"
 
-export const AUTHENTICATE = false
 
 const SAMPLE_NAMES: Record<EmailLocale, string> = {
   en: "John Smith",

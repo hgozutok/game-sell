@@ -106,8 +106,29 @@ export default function ProductCard({ product }: ProductCardProps) {
     setCurrencyCode(selectedCurrency.code)
   }, [selectedCurrency.code, product.variants, product.display_price, currencies])
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault()
+  // Gercek indirim verisi: compare_at / original_amount / metadata.compare_at_price.
+  // Hicbiri yoksa compareAtAmount 0 kalir ve eski fiyat hic gosterilmez.
+  const compareAtRaw = (() => {
+    const fromDisplay = Number((product.display_price as any)?.compare_at_price || 0)
+    if (fromDisplay > 0) return fromDisplay
+    const calc: any = product.variants?.[0]?.calculated_price
+    const original = Number(calc?.original_amount || 0)
+    if (original > 0) return original
+    const meta = Number((product.metadata as any)?.compare_at_price || 0)
+    return meta > 0 ? meta : 0
+  })()
+
+  const compareAtAmount =
+    compareAtRaw > 0 && amount > 0
+      ? convertAmount(
+          compareAtRaw,
+          product.display_price?.currency_code || 'usd',
+          currencyCode,
+          currencies || []
+        )
+      : 0
+
+  const handleAddToCart = (e: React.MouseEvent) => {    e.preventDefault()
     e.stopPropagation()
     
     if (!variantId) {
@@ -212,10 +233,20 @@ export default function ProductCard({ product }: ProductCardProps) {
                     {getCurrencySymbol(currencyCode)}
                     {(amount / 100).toFixed(2)}
                   </div>
-                  <div className="text-xs text-gray-500 line-through mt-1">
-                    {getCurrencySymbol(currencyCode)}
-                    {(amount / 100 * 1.4).toFixed(2)}
-                  </div>
+                  {/* Eski fiyat SADECE gercek bir indirim verisi varsa gosterilir.
+                      (compare_at / original_amount / metadata.compare_at_price)
+                      Veri yoksa uydurma fiyat basilmiyor. */}
+                  {compareAtAmount > amount && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-500 line-through">
+                        {getCurrencySymbol(currencyCode)}
+                        {(compareAtAmount / 100).toFixed(2)}
+                      </span>
+                      <span className="text-[10px] font-bold text-green-400">
+                        %{Math.round((1 - amount / compareAtAmount) * 100)}
+                      </span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <span className="text-gray-500 text-sm">{t('productCard.priceUnavailable')}</span>

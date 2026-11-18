@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useT } from '@/components/useT'
@@ -22,11 +22,68 @@ interface ProductCategory {
   is_internal: boolean
 }
 
+// Sayfa basina kart sayisi (4 kolon x 6 satir)
+const PER_PAGE = 24
+
+/** Dil bagimsiz sayfalama: ← 3 / 5 → */
+function Pager({
+  page,
+  total,
+  onChange,
+}: {
+  page: number
+  total: number
+  onChange: (page: number) => void
+}) {
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE))
+  if (pages <= 1) return null
+
+  return (
+    <div className="flex items-center justify-center gap-3 mt-8">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        aria-label="onceki-sayfa"
+        className="px-4 py-2 rounded-lg border border-gray-700 bg-[#1a1d24] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#ff6b35] transition"
+      >
+        ←
+      </button>
+      <span className="text-sm text-gray-400 tabular-nums">
+        {page} / {pages}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(pages, page + 1))}
+        disabled={page >= pages}
+        aria-label="sonraki-sayfa"
+        className="px-4 py-2 rounded-lg border border-gray-700 bg-[#1a1d24] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#ff6b35] transition"
+      >
+        →
+      </button>
+    </div>
+  )
+}
+
 export default function CategoriesPage() {
   const t = useT()
   const [collections, setCollections] = useState<Collection[]>([])
   const [genres, setGenres] = useState<ProductCategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [collectionPage, setCollectionPage] = useState(1)
+  const [genrePage, setGenrePage] = useState(1)
+  const collectionsRef = useRef<HTMLElement | null>(null)
+  const genresRef = useRef<HTMLElement | null>(null)
+
+  const gotoCollectionPage = (page: number) => {
+    setCollectionPage(page)
+    collectionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const gotoGenrePage = (page: number) => {
+    setGenrePage(page)
+    genresRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -40,6 +97,7 @@ export default function CategoriesPage() {
 
         if (collectionsResponse.data.collections) {
           setCollections(collectionsResponse.data.collections)
+          setCollectionPage(1)
         } else {
           console.warn('No collections in response:', collectionsResponse.data)
         }
@@ -50,6 +108,7 @@ export default function CategoriesPage() {
             (c) => c.parent_category_id === null && c.is_active !== false && c.is_internal !== false
           )
         )
+        setGenrePage(1)
       } catch (error: any) {
         console.error('Failed to fetch categories:', error)
         console.error('Error details:', {
@@ -78,6 +137,12 @@ export default function CategoriesPage() {
 
   const isEmpty = collections.length === 0 && genres.length === 0
 
+  const visibleCollections = collections.slice(
+    (collectionPage - 1) * PER_PAGE,
+    collectionPage * PER_PAGE
+  )
+  const visibleGenres = genres.slice((genrePage - 1) * PER_PAGE, genrePage * PER_PAGE)
+
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
       <div className="bg-[#15171c] border-b border-gray-800">
@@ -103,12 +168,12 @@ export default function CategoriesPage() {
         ) : (
           <div className="flex flex-col gap-y-12">
             {collections.length > 0 && (
-              <section>
+              <section ref={collectionsRef}>
                 <h2 className="text-2xl font-black text-white mb-6">
                   {t('catalog.platforms')}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {collections.map((collection) => (
+                  {visibleCollections.map((collection) => (
                     <Link
                       key={collection.id}
                       href={`/categories/${collection.handle}`}
@@ -132,16 +197,21 @@ export default function CategoriesPage() {
                     </Link>
                   ))}
                 </div>
+                <Pager
+                  page={collectionPage}
+                  total={collections.length}
+                  onChange={gotoCollectionPage}
+                />
               </section>
             )}
 
             {genres.length > 0 && (
-              <section>
+              <section ref={genresRef}>
                 <h2 className="text-2xl font-black text-white mb-6">
                   {t('catalog.genres')}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {genres.map((genre) => (
+                  {visibleGenres.map((genre) => (
                     <Link
                       key={genre.id}
                       href={`/categories/${genre.handle}`}
@@ -165,6 +235,7 @@ export default function CategoriesPage() {
                     </Link>
                   ))}
                 </div>
+                <Pager page={genrePage} total={genres.length} onChange={gotoGenrePage} />
               </section>
             )}
           </div>

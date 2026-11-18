@@ -5,6 +5,8 @@ import { runKinguinSync, syncKinguinPrices } from "../../../../utils/kinguin-syn
 const BodySchema = z.object({
   type: z.enum(["full", "price"]).default("full"),
   max_pages: z.number().min(1).max(1000).optional(),
+  // Tum katalogu bastan cekmek icin (last_sync_at yok sayilir). Uzun surer.
+  full_scan: z.boolean().optional(),
 })
 
 // Admin "Şimdi senkronize et". Varsayilan tam senkron; type=price sadece fiyat.
@@ -43,7 +45,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const summary =
     parsed.data.type === "price"
       ? await syncKinguinPrices(req.scope)
-      : await runKinguinSync(req.scope, { force: true, maxPages: parsed.data.max_pages })
+      : await runKinguinSync(req.scope, {
+          force: true,
+          maxPages: parsed.data.max_pages,
+          fullScan: parsed.data.full_scan === true,
+        })
 
   await auditLog.log({
     action: "sync.trigger",
@@ -51,6 +57,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     entity_id: null,
     diff: {
       type: parsed.data.type,
+      full_scan: parsed.data.full_scan === true,
       ...(parsed.data.max_pages !== undefined && { max_pages: parsed.data.max_pages }),
     },
     actor_id: (req as any).auth_context?.actor_id ?? null,

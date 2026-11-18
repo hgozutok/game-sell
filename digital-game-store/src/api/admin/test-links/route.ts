@@ -2,7 +2,6 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 
 // GET /admin/test-links - Test endpoint to check remoteLink functionality
-export const AUTHENTICATE = false
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {

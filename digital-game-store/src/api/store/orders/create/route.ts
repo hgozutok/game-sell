@@ -396,6 +396,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       'note',
     ]
     let paymentInstructions: Record<string, any> | null = null
+    let paymentReference: string | null = null
     if (requestedProvider === 'bank-transfer' || requestedProvider === 'bank_transfer') {
       paymentInstructions = {}
       for (const key of instructionKeys) {
@@ -404,6 +405,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           ''
         )
       }
+      // Musterinin havale aciklamasina yazacagi referans: siparis numarasina bagli,
+      // tahmin edilemez olmayan ama tekil bir kod (HUPI-<display_id>).
+      paymentReference = `HUPI-${order.display_id ?? order.id}`
     }
 
     await orderModule
@@ -419,6 +423,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               ? { payment_fee_minor: paymentFeeMinor, payment_fee_currency: cartCurrency }
               : {}),
             ...(paymentInstructions ? { payment_instructions: paymentInstructions } : {}),
+            ...(paymentReference
+              ? { payment_reference: paymentReference, payment_status: 'awaiting_transfer' }
+              : {}),
           },
         },
       ])
@@ -429,15 +436,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     res.status(201).json({
       order: {
         id: order.id,
+        display_id: order.display_id,
         status: order.status,
         email: order.email,
         total: order.total,
+        currency_code: order.currency_code,
         items: order.items,
       },
       payment: {
         collection_id: paymentCollection.id,
         session_id: paymentSession.id,
         provider: paymentSession.provider_id,
+        // Banka havalesinde musteriye gosterilecek referans ve hesap bilgileri
+        reference: paymentReference,
+        instructions: paymentInstructions,
       },
       message: 'Order created successfully',
     })

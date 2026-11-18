@@ -4,7 +4,6 @@ import { getCurrencyRates, calculateMultiCurrencyPrices, convertCurrencyAmount }
 import { normalizeKinguinRegion } from '../../../../utils/kinguin'
 import { listKinguinProduct } from '../../../../utils/kinguin-sync'
 
-export const AUTHENTICATE = false // Disable auth for development
 
 // Helper: Get or create collection by name
 async function getOrCreateCollection(productModule: any, name: string, logger: any) {
@@ -63,7 +62,10 @@ async function getOrCreateTag(productModule: any, value: string, logger: any) {
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
-    const { provider, margin_percentage, max_products = 100 } = req.body as any
+    const body = (req.body || {}) as any
+    const { provider, margin_percentage } = body
+    // max_products verilmezse veya 0 ise sinir yok: sarta uyan tum urunler listelenir
+    const max_products = Math.max(0, Number(body.max_products ?? 0))
 
     if (!provider) {
       return res.status(400).json({
@@ -129,13 +131,25 @@ async function runKinguinDumpImport(
 
   await backgroundJobs.updateBackgroundJobs({ id: jobId, status: 'running' })
 
-  try {
-    const rows = await kinguin.listKinguinProducts(
-      { store_listed: false, qty: { $gt: 0 }, price: { $gt: 0 } },
-      { take: max_products, order: { qty: 'DESC' } }
-    )
+  // Batch'li (keyset) tarama: 134k+ kayitta tum listeyi tek seferde cekmek
+  // (take'siz listKinguinProducts) bellegi sisirir. Her turda id > lastId
+  // ile ilerlenir; listelenen kayitlar zaten filtreden dustugu icin atlama olmaz,
+  // basarisizlar da bir sonraki turda geride kalir.
+  const BATCH = 200
+  const filter = { store_listed: false, qty: { $gt: 0 }, price: { $gt: 0 } }
 
-    if (!rows?.length) {
+  try {
+    let total = 0
+    try {
+      if (typeof kinguin.listAndCountKinguinProducts === 'function') {
+        const [, count] = await kinguin.listAndCountKinguinProducts(filter, { take: 1 })
+        total = Number(count) || 0
+      }
+    } catch {
+      total = 0
+    }
+
+    if (total === 0) {
       await backgroundJobs.completeJob(jobId, {
         message: 'Listelenecek yeni ürün yok (tüm stoklu ürünler listelenmiş)',
         imported_count: 0,
@@ -143,41 +157,57 @@ async function runKinguinDumpImport(
       return
     }
 
-    const total = rows.length
-    logger.info(`🚀 [kinguin-dump-import] ${total} listelenmemis urun bulundu, import basliyor`)
+    const limit = max_products > 0 ? Math.min(max_products, total) : total
+    const target = total
+    logger.info(
+      `🚀 [kinguin-dump-import] aday=${total}, hedef=${limit}, batch=${BATCH}`
+    )
 
+    let processed = 0
     let imported = 0
     let negative = 0
     let failed = 0
     const errors: string[] = []
+    let lastId: string | null = null
 
-    for (let i = 0; i < rows.length; i++) {
-      const kp = rows[i]
-      try {
-        const result = await listKinguinProduct(scope, kp, {
-          marginOverridePct: margin_percentage,
-          publish: true,
-        })
-        if (result.ok) imported++
-        else if (result.negative) negative++
-        else {
+    while (processed < limit) {
+      const take = Math.min(BATCH, limit - processed)
+      if (take <= 0) break
+
+      const rows = await kinguin.listKinguinProducts(
+        { ...filter, ...(lastId ? { id: { $gt: lastId } } : {}) },
+        { take, order: { id: 'ASC' } } as any
+      )
+      if (!rows?.length) break
+
+      for (const kp of rows) {
+        try {
+          const result = await listKinguinProduct(scope, kp, {
+            marginOverridePct: margin_percentage,
+            publish: true,
+          })
+          if (result.ok) imported++
+          else if (result.negative) negative++
+          else {
+            failed++
+            if (errors.length < 10) errors.push(`${kp.name}: ${result.error || 'bilinmeyen'}`)
+          }
+        } catch (e: any) {
           failed++
-          if (errors.length < 10) errors.push(`${kp.name}: ${result.error || 'bilinmeyen'}`)
+          if (errors.length < 10) errors.push(`${kp.name}: ${e?.message}`)
         }
-      } catch (e: any) {
-        failed++
-        if (errors.length < 10) errors.push(`${kp.name}: ${e?.message}`)
+        processed++
       }
 
-      if ((i + 1) % 10 === 0 || i === rows.length - 1) {
-        const progress = 5 + Math.round((90 * (i + 1)) / total)
-        await backgroundJobs
-          .updateJobProgress(jobId, progress, i + 1, total)
-          .catch(() => null)
-        logger.info(
-          `[kinguin-dump-import] ${i + 1}/${total} — imported=${imported}, negative=${negative}, failed=${failed}`
-        )
-      }
+      lastId = rows[rows.length - 1].id
+
+      const progress = target ? Math.min(95, 5 + Math.round((90 * processed) / target)) : 50
+      await backgroundJobs
+        .updateJobProgress(jobId, progress, processed, target)
+        .catch(() => null)
+      logger.info(
+        `[kinguin-dump-import] ${processed}/${target} — imported=${imported}, negative=${negative}, failed=${failed}`
+      )
     }
 
     logger.info(`✅ [kinguin-dump-import] tamamlandi: imported=${imported}, negative=${negative}, failed=${failed}`)
@@ -240,7 +270,7 @@ async function runImportInBackground(
     const defaultChannel = salesChannels?.[0]
 
     // Fetch products from provider
-    const availableProducts = await providerService.listAllProducts(max_products)
+    const availableProducts = await providerService.listAllProducts(max_products || undefined)
 
     if (!availableProducts || availableProducts.length === 0) {
       await backgroundJobs.completeJob(jobId, { message: 'No products available', imported_count: 0 })

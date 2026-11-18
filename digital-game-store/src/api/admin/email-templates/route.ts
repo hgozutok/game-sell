@@ -5,7 +5,6 @@ import {
   toEmailLocale,
 } from "../../../modules/email-template/locales"
 
-export const AUTHENTICATE = false
 
 const KEY_RE = /^[a-z0-9][a-z0-9-_]{1,60}$/
 

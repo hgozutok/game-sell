@@ -2,7 +2,6 @@ import { MedusaRequest, MedusaResponse } from '@medusajs/framework'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import KeyInventoryService from '../../../modules/key-inventory/service'
 
-export const AUTHENTICATE = false
 
 // GET /admin/products - ürün listesi (filtre + sayfalama)
 // Not: productModule.listProducts ilişki (relations) ile bu sürümde MikroORM

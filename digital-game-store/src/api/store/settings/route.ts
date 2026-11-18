@@ -5,14 +5,8 @@ import type { MedusaRequest, MedusaResponse} from '@medusajs/framework/http'
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
-    const originHeader = req.headers.origin
-    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin)
-      res.setHeader('Access-Control-Allow-Credentials', 'true')
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-publishable-api-key')
-    }
+    // CORS: STORE_CORS listesindeki origin'ler (global middleware). Istekteki
+    // Origin'i yansitmak baska sitelere oturumlu okuma izni verirdi.
     const storeSettingsModule = req.scope.resolve('storeSettings') as any
 
     const themeSettings = await storeSettingsModule.getThemeSettings()
@@ -35,7 +29,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const cartMaxTotalEur = await storeSettingsModule.getSettingValue('cart.max_total_eur', 0)
     const supportEmail = await storeSettingsModule.getSettingValue(
       'store.support_email',
-      'support@digitalgamestore.com'
+      process.env.SMTP_FROM_EMAIL || 'info@hupiplay.uk'
     )
     const logoUrl = await storeSettingsModule.getSettingValue('store.logo_url', '')
 
@@ -84,22 +78,28 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       return value ?? fallback
     }
 
-    const stripePublishableKey = await settingsValue(
-      'payment.stripe.publishable_key',
-      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
-    )
+    // Sadece publishable (pk_) anahtari disari verilir. DB'ye yanlislikla secret
+    // (sk_) yazilmissa bile bu uctan ASLA donmez — bu uc herkese acik.
+    const stripeKeyCandidates = [
+      await settingsValue('payment.stripe.publishable_key', ''),
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
+    ]
+    const stripePublishableKey =
+      stripeKeyCandidates.find(
+        (k) => typeof k === 'string' && k.trim().startsWith('pk_')
+      ) || ''
 
+    // DIKKAT: Burada uydurma hesap numarasi/IBAN varsayilani OLMAZ — musteri
+    // gercek olmayan bir hesaba para gondermemeli. Ayarlar bossa alan bos kalir
+    // ve arayuz "hesap bilgileri tanimlanmamis" uyarisi gosterir.
     const bankTransfer = {
-      bank_name: await settingsValue('payment.bank_transfer.bank_name', 'Barclays Bank UK'),
-      account_name: await settingsValue('payment.bank_transfer.account_name', 'Digital Game Store Ltd'),
-      iban: await settingsValue('payment.bank_transfer.iban', 'GB29NWBK60161331926819'),
-      account_number: await settingsValue('payment.bank_transfer.account_number', '12345678'),
-      sort_code: await settingsValue('payment.bank_transfer.sort_code', '20-00-00'),
-      swift: await settingsValue('payment.bank_transfer.swift', 'BARCGB22'),
-      note: await settingsValue(
-        'payment.bank_transfer.note',
-        'Please include the reference number in your payment description'
-      ),
+      bank_name: await settingsValue('payment.bank_transfer.bank_name', ''),
+      account_name: await settingsValue('payment.bank_transfer.account_name', ''),
+      iban: await settingsValue('payment.bank_transfer.iban', ''),
+      account_number: await settingsValue('payment.bank_transfer.account_number', ''),
+      sort_code: await settingsValue('payment.bank_transfer.sort_code', ''),
+      swift: await settingsValue('payment.bank_transfer.swift', ''),
+      note: await settingsValue('payment.bank_transfer.note', ''),
     }
 
     res.json({

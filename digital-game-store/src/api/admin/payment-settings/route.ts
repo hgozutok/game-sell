@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework'
 import StoreSettingsService from '../../../modules/store-settings/service'
 
-export const AUTHENTICATE = false
 
 // GET /admin/payment-settings - Get all payment settings
 export async function GET(req: MedusaRequest, res: MedusaResponse) {

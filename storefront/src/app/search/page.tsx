@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import ProductCard from '@/components/products/ProductCard'
@@ -12,11 +12,30 @@ import { useT } from '@/components/useT'
 function SearchPageContent() {
   const t = useT()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { cap, ready: priceCapReady, isOverCap } = usePriceCap()
   const query = searchParams.get('q') || ''
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [page, setPage] = useState(1)
+  const pageFromUrl = Math.max(1, Number(searchParams.get('page')) || 1)
+  const [page, setPage] = useState(pageFromUrl)
   const [limit, setLimit] = useState(24)
+
+  // Sayfa numarasi URL'de tutulur: yenileme / geri-ileri / paylasimda korunur.
+  const changePage = useCallback(
+    (next: number) => {
+      const safe = Math.max(1, next)
+      setPage(safe)
+      const params = new URLSearchParams(searchParams.toString())
+      if (safe > 1) params.set('page', String(safe))
+      else params.delete('page')
+      router.replace(`/search?${params.toString()}`, { scroll: false })
+    },
+    [router, searchParams]
+  )
+
+  useEffect(() => {
+    setPage(pageFromUrl)
+  }, [pageFromUrl])
 
   // Debounce the search query
   useEffect(() => {
@@ -27,10 +46,8 @@ function SearchPageContent() {
     return () => clearTimeout(timer)
   }, [query])
 
-  // Yeni aramada sayfa 1'e don
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedQuery])
+  // Yeni aramada sayfa 1'e donme isini URL yurutur: header yeni sorguya
+  // gecerken page parametresini gondermez, pageFromUrl=1 olur.
 
   // Arama tamamiyle sunucu tarafinda sayfalanir: tum sonuc seti inmez.
   const { data, isLoading, error } = useQuery({
@@ -153,7 +170,7 @@ function SearchPageContent() {
                     value={limit}
                     onChange={(e) => {
                       setLimit(Number(e.target.value))
-                      setPage(1)
+                      changePage(1)
                     }}
                     className="bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm"
                   >
@@ -165,7 +182,7 @@ function SearchPageContent() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                    onClick={() => changePage(page - 1)}
                     disabled={page === 1}
                     className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -175,7 +192,7 @@ function SearchPageContent() {
                     {t('catalog.pageOf', { page, total: totalPages })}
                   </span>
                   <button
-                    onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                    onClick={() => changePage(Math.min(totalPages, page + 1))}
                     disabled={page === totalPages}
                     className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >

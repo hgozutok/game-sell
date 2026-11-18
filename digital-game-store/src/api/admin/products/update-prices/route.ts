@@ -2,7 +2,6 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/currency'
 
-export const AUTHENTICATE = false // Disable auth for development
 
 /**
  * Update prices for all products from CodesWholesale API

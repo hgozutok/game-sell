@@ -1,4 +1,4 @@
-import { AbstractPaymentProvider } from '@medusajs/framework/utils'
+import { AbstractPaymentProvider, MedusaError } from '@medusajs/framework/utils'
 
 class MollieProviderService extends AbstractPaymentProvider {
   constructor(
@@ -11,13 +11,13 @@ class MollieProviderService extends AbstractPaymentProvider {
   static identifier = 'mollie'
 
   async initiatePayment(input: any): Promise<any> {
-    // In production, create Mollie payment here
-    return {
-      data: {
-        status: "pending",
-        mollie_payment_id: `MOLLIE-${Date.now()}`,
-      },
-    }
+    // DIKKAT: Bu saglayici gercek bir Mollie entegrasyonu degildir. Eskiden
+    // API'ye gitmeden "pending/authorized" donuyordu; musterinin para odemeden
+    // siparis verebilmesine yol aciyordu. Entegrasyon tamamlanana kadar kapali.
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      'Mollie odemesi yapilandirilmadi: saglayici entegrasyonu tamamlanmadi.'
+    )
   }
 
   async authorizePayment(input: any): Promise<any> {

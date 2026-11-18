@@ -3,7 +3,6 @@ import { z } from "zod"
 import KeyInventoryService from "../../../../modules/key-inventory/service"
 
 // Disable authentication for development
-export const AUTHENTICATE = false
 
 // GET /admin/digital-keys/:id - Get a specific digital key
 export async function GET(req: MedusaRequest, res: MedusaResponse) {

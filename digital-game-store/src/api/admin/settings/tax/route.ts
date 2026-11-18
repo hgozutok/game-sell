@@ -3,7 +3,6 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 const TAX_RATE_KEY = 'tax.rate'
 const DEFAULT_TAX_RATE = 20
 
-export const AUTHENTICATE = false
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const originHeader = req.headers.origin

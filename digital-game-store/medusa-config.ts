@@ -15,18 +15,24 @@ export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/medusa-store",
     http: {
-      storeCors: process.env.STORE_CORS || "http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk",
-      adminCors: process.env.ADMIN_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk",
-      authCors: process.env.AUTH_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk",
+      storeCors: process.env.STORE_CORS || "http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk,http://23.81.36.36,https://23.81.36.36",
+      adminCors: process.env.ADMIN_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk,http://23.81.36.36,https://23.81.36.36",
+      authCors: process.env.AUTH_CORS || "http://localhost:7001,http://localhost:7000,http://localhost:3000,http://localhost:8000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk,http://23.81.36.36,https://23.81.36.36",
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
     workerMode: process.env.WORKER_MODE === "server" ? "server" : process.env.WORKER_MODE === "worker" ? "worker" : "shared",
-    // Production modda cookie secure=true gelir (HTTPS zorunlu); lokal HTTP'de
-    // admin login loop'a dusmemesi icin acikca kapatilir.
+    // Production'da cerezler varsayilan olarak Secure gonderilir (HTTPS zorunlu).
+    // Yalnizca TLS sonlandirmasi olmayan ozel kurulumlarda COOKIE_SECURE=false
+    // ile kapatilabilir; aksi halde admin oturum cerezi duz HTTP'de tasinir.
     ...(process.env.NODE_ENV !== "production"
       ? {}
-      : { cookieOptions: { secure: false, sameSite: "lax" } }),
+      : {
+          cookieOptions: {
+            secure: process.env.COOKIE_SECURE !== "false",
+            sameSite: "lax" as const,
+          },
+        }),
   },
   admin: {
     backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
@@ -116,22 +122,40 @@ export default defineConfig({
                   resolve: "@medusajs/payment-stripe",
                   id: "stripe",
                   options: {
-                    api_key: process.env.STRIPE_API_KEY,
-                    webhooks: {
-                      secret: process.env.STRIPE_WEBHOOK_SECRET,
-                    },
+                    // Stripe eklentisi camelCase bekler: apiKey / webhookSecret
+                    apiKey: process.env.STRIPE_API_KEY,
+                    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
                   },
                 },
               ]
             : []),
-          {
-            resolve: "./src/modules/payment-providers/paypal",
-            id: "paypal",
-          },
-          {
-            resolve: "./src/modules/payment-providers/mollie",
-            id: "mollie",
-          },
+          // PayPal yalnizca kimlik bilgileri tanimliysa yuklenir.
+          // Anahtar yokken yuklenirse eskiden sahte "basarili" odeme donuyordu.
+          ...(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET
+            ? [
+                {
+                  resolve: "./src/modules/payment-providers/paypal",
+                  id: "paypal",
+                  options: {
+                    client_id: process.env.PAYPAL_CLIENT_ID,
+                    client_secret: process.env.PAYPAL_CLIENT_SECRET,
+                    environment: process.env.PAYPAL_ENV || "sandbox",
+                    api_base_url: process.env.PAYPAL_API_BASE_URL,
+                    webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+                  },
+                },
+              ]
+            : []),
+          // Mollie entegrasyonu henuz uygulanmadi; anahtar olsa bile sahte onay
+          // uretmemesi icin varsayilan olarak kapali.
+          ...(process.env.MOLLIE_API_KEY && process.env.MOLLIE_ENABLED === "true"
+            ? [
+                {
+                  resolve: "./src/modules/payment-providers/mollie",
+                  id: "mollie",
+                },
+              ]
+            : []),
           {
             resolve: "./src/modules/payment-providers/bank-transfer",
             id: "bank-transfer",

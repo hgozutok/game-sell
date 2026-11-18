@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { adminApi } from '@/lib/admin-api'
 
@@ -13,11 +13,21 @@ interface ProviderProduct {
 }
 
 export default function ProductImportPage() {
-  const [provider, setProvider] = useState<'codeswholesale' | 'kinguin'>('codeswholesale')
+  // Varsayilan Kinguin: tek aktif tedarikci; yanlislikla diger yola gitmesin.
+  const [provider, setProvider] = useState<'codeswholesale' | 'kinguin'>('kinguin')
   const [productIds, setProductIds] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [margin, setMargin] = useState(15)
   const [maxProducts, setMaxProducts] = useState(1000)
+  // Listelenmemis stoklu aday sayisi (Kinguin katalogundan)
+  const [candidates, setCandidates] = useState<number | null>(null)
+
+  useEffect(() => {
+    adminApi
+      .get('/admin/kinguin/stats')
+      .then((res) => setCandidates(Number(res.data?.unlisted ?? 0)))
+      .catch(() => setCandidates(null))
+  }, [])
   const [loading, setLoading] = useState(false)
   const [searching, setSearching] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -77,7 +87,10 @@ export default function ProductImportPage() {
           setResult({
             success: true,
             message: `✅ ${job.result?.imported_count || 0} ürün başarıyla içe aktarıldı!`,
-            details: `${job.result?.total_attempted || 0} ürün denendi.`
+            details:
+              `${job.processed_items ?? job.result?.total_attempted ?? 0} ürün denendi` +
+              (job.result?.skipped_negative ? `, ${job.result.skipped_negative} zararına (atlandı)` : '') +
+              (job.result?.failed_count ? `, ${job.result.failed_count} hatalı` : '')
           })
         } else if (job.status === 'failed') {
           clearInterval(pollInterval)
@@ -402,15 +415,21 @@ export default function ProductImportPage() {
                 </label>
                 <input
                   type="number"
-                  min="1"
-                  max="50000"
+                  min="0"
+                  max="200000"
                   value={maxProducts}
-                  onChange={(e) => setMaxProducts(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setMaxProducts(Math.max(0, parseInt(e.target.value) || 0))}
                   className="w-full px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Kinguin seçiliyken ürünler <b>yerel katalogdan</b> (API limiti yok) listelenmemiş
-                  stoklu ürünlerden çekilir. 5.000+ değerleri arka planda uzun sürebilir.
+                  stoklu ürünlerden çekilir. <b className="text-white">0 = tümü</b>.
+                  {candidates !== null && (
+                    <> Listelenmemiş aday: <b className="text-[#ff6b35]">{candidates.toLocaleString('tr-TR')}</b>.</>
+                  )}
+                  {maxProducts > 0 && (
+                    <> Tahmini süre: ~{Math.max(1, Math.round((maxProducts * 0.15) / 60))} dk.</>
+                  )}
                 </p>
               </div>
             )}

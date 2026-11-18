@@ -17,6 +17,9 @@ const KinguinSettings = model.define("kinguin_settings", {
   sync_stock: model.boolean().default(true),
   sync_info: model.boolean().default(false),
   sync_new_products: model.boolean().default(false),
+  // sync_new_products acikken bir senkronda magazaya listelenecek urun sayisi
+  // (0 = sinirsiz: katalogda listelenmemis kalmayana kadar)
+  sync_new_products_limit: model.number().default(0),
   hide_on_zero_stock: model.boolean().default(true),
   // Fiyatlandirma
   auto_reprice: model.boolean().default(true),

@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { sendTemplateEmail } from "../../../utils/email"
+import { sendTemplateEmail, readSmtpSettings } from "../../../utils/email"
 import {
   resolveEmailLocaleFromAcceptLanguage,
   toEmailLocale,
@@ -10,15 +10,8 @@ export const AUTHENTICATE = false
 /** POST /store/contact — iletisim formunu destek e-postasina gonderir */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
-    const originHeader = req.headers.origin
-    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
-    if (origin) {
-      res.setHeader("Access-Control-Allow-Origin", origin)
-      res.setHeader("Access-Control-Allow-Credentials", "true")
-      res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS")
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-publishable-api-key")
-    }
-
+    // CORS: yalnizca Medusa'nin STORE_CORS listesindeki origin'ler. Istekteki
+    // Origin'i yansitmak, baska sitelerin oturumlu istek atmasina izin verirdi.
     const body = (req.body || {}) as any
     const name = String(body.name || "").trim()
     const email = String(body.email || "").trim()
@@ -33,9 +26,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
 
     const storeSettings = req.scope.resolve("storeSettings") as any
-    const recipient = await storeSettings.getSettingValue("store.support_email", "")
+    // Destek adresi panelden tanimlanmamissa SMTP gonderen adresine dus:
+    // aksi halde yeni kurulumda iletisim formu sessizce 500 dondurur.
+    let recipient = String(
+      (await storeSettings.getSettingValue("store.support_email", "")) || ""
+    ).trim()
     if (!recipient) {
-      return res.status(500).json({ message: "Destek e-postası tanımlı değil" })
+      recipient = (
+        await readSmtpSettings(req.scope).catch(() => null as any)
+      )?.from_email || ""
+    }
+    if (!recipient) {
+      return res.status(503).json({
+        message:
+          "Destek e-postası tanımlı değil. Yönetim panelinden store.support_email ayarlayın.",
+      })
     }
 
     const locale =
@@ -65,14 +70,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 }
 
-export const OPTIONS = async (req: MedusaRequest, res: MedusaResponse) => {
-  const originHeader = req.headers.origin
-  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
-  if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin)
-    res.setHeader("Access-Control-Allow-Credentials", "true")
-    res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS")
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-publishable-api-key")
-  }
+export const OPTIONS = async (_req: MedusaRequest, res: MedusaResponse) => {
   res.status(204).end()
 }

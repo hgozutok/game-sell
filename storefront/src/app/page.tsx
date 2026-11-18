@@ -14,6 +14,44 @@ export default function Home() {
     <div className="min-h-screen bg-[#0a0b0d]">
       <Hero />
 
+      {/* hupiesim.com — seyahat eSIM tanıtımı (kardeş marka) */}
+      <section className="container mx-auto px-4 pt-8">
+        <a
+          href="https://hupiesim.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group block relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-[#15171c] to-[#0a0b0d] p-6 sm:p-8 hover:border-emerald-400/60 transition"
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-10">
+            <div className="flex-1">
+              <span className="inline-block mb-3 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
+                {t('home.esimBadge')}
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white mb-2 group-hover:text-emerald-300 transition-colors">
+                {t('home.esimTitle')}
+              </h2>
+              <p className="text-gray-400 max-w-2xl">{t('home.esimDesc')}</p>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <span className="px-3 py-1 rounded-full bg-[#1a1d24] border border-gray-700 text-xs text-gray-300">
+                  ✓ {t('home.esimFeature1')}
+                </span>
+                <span className="px-3 py-1 rounded-full bg-[#1a1d24] border border-gray-700 text-xs text-gray-300">
+                  ✓ {t('home.esimFeature2')}
+                </span>
+                <span className="px-3 py-1 rounded-full bg-[#1a1d24] border border-gray-700 text-xs text-gray-300">
+                  ✓ {t('home.esimFeature3')}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <span className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-[#0a0b0d] font-black group-hover:bg-emerald-400 transition">
+                {t('home.esimCta')} ↗
+              </span>
+            </div>
+          </div>
+        </a>
+      </section>
+
       {/* Hero Slider */}
       <section className="container mx-auto px-4 py-8">
         <HomeSlider />

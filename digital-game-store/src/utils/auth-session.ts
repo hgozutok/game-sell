@@ -3,6 +3,7 @@
 // boylece /store/* route'larindaki req.auth.actor_id gercek customer ile dolar.
 import { ContainerRegistrationKeys, generateJwtToken } from "@medusajs/framework/utils"
 import crypto from "crypto"
+import { readSmtpSettings } from "./email"
 
 export interface SocialProviderConfig {
   enabled: boolean
@@ -52,10 +53,41 @@ export async function getAuthSettings(scope: any): Promise<AuthSettings> {
   const backendUrl =
     String(config?.projectConfig?.backendUrl || process.env.MEDUSA_BACKEND_URL || "http://localhost:9000")
 
+  // E-posta dogrulamasi yalnizca SMTP gercekten yapilandirilmissa zorunlu olur.
+  // Aksi halde kayit olan kullanici ne dogrulama e-postasi alabilir ne de giris
+  // yapabilir; bu da production'da kullaniciyi kilitler.
+  //
+  // Oncelik: panel ayari > AUTH_EMAIL_VERIFICATION_REQUIRED ortam degiskeni > true.
+  // Ortam degiskeni, panel/veritabani ayari yokken (yeni kurulum) dogrulamayi
+  // kapatabilmek icin var; Gmail gibi DKIM'siz gecici SMTP'lerde kullanilir.
+  const dbVerification = await getVal("auth.email_verification_required", null)
+  const requestedVerification =
+    dbVerification === null || dbVerification === undefined
+      ? String(process.env.AUTH_EMAIL_VERIFICATION_REQUIRED || "true") !== "false"
+      : dbVerification !== false && dbVerification !== "false"
+
+  let smtpReady = false
+  if (requestedVerification) {
+    try {
+      const smtp = await readSmtpSettings(scope)
+      smtpReady = Boolean(smtp.enabled && smtp.host && smtp.from_email)
+    } catch {
+      smtpReady = false
+    }
+    if (!smtpReady) {
+      try {
+        const logger = scope.resolve("logger") as any
+        logger?.warn?.(
+          "[auth] e-posta dogrulamasi istendi ancak SMTP yapilandirilmamis — dogrulama devre disi"
+        )
+      } catch {
+        /* logger yoksa sessiz gec */
+      }
+    }
+  }
+
   return {
-    verificationRequired:
-      (await getVal("auth.email_verification_required", true)) !== false &&
-      (await getVal("auth.email_verification_required", true)) !== "false",
+    verificationRequired: requestedVerification && smtpReady,
     frontendUrl: frontendUrl.replace(/\/+$/, ""),
     backendUrl: backendUrl.replace(/\/+$/, ""),
     google: readProvider(map, "google"),

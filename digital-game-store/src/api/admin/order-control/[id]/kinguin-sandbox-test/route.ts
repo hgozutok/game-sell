@@ -1,7 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 
-export const AUTHENTICATE = false
 
 const SANDBOX_BASE =
   process.env.KINGUIN_SANDBOX_BASE_URL || "https://gateway.sandbox.kinguin.net/esa/api"

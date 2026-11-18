@@ -87,6 +87,7 @@ export interface SyncSummary {
   pendingApprovals?: number
   hidden?: number
   unhidden?: number
+  listed?: number
   logId?: string
 }
 
@@ -470,12 +471,31 @@ export async function shouldRunSync(container: any): Promise<{ due: boolean; rea
 }
 
 /**
+ * Baslamis ama henuz bitmemis (heartbeat'i taze) bir sync var mi?
+ * Zombi kayitlar (heartbeat eskimis) engel olmaz — reapStaleSyncLogs temizler.
+ */
+export async function hasLiveSync(container: any, maxAgeMs = 2 * 60 * 1000): Promise<string | null> {
+  const { kinguin } = await getServices(container)
+  const running = (await kinguin.listSyncLogs({ status: "running" }).catch(() => [])) as any[]
+  const now = Date.now()
+  for (const log of running || []) {
+    const hb = log.heartbeat_at
+      ? new Date(log.heartbeat_at).getTime()
+      : log.started_at
+        ? new Date(log.started_at).getTime()
+        : NaN
+    if (Number.isFinite(hb) && now - hb < maxAgeMs) return String(log.id)
+  }
+  return null
+}
+
+/**
  * Tam senkron: katalog -> yerel kinguin_product; fiyat/stok senkronu listelenenlere uygular.
  * Job tarafindan (interval dolunca) ve admin "sync-now" ile (force) calistirilir.
  */
 export async function runKinguinSync(
   container: any,
-  opts: { force?: boolean; updatedSince?: Date; maxPages?: number } = {}
+  opts: { force?: boolean; updatedSince?: Date; maxPages?: number; fullScan?: boolean } = {}
 ): Promise<SyncSummary> {
   const { kinguin, productModule, logger } = await getServices(container)
 
@@ -484,12 +504,20 @@ export async function runKinguinSync(
     if (!due) return { status: "skipped", reason }
   }
 
+  // Ayni anda iki sync calistirmayi engelle (schedule + admin cakismasi)
+  const liveId = await hasLiveSync(container)
+  if (liveId) {
+    logger.warn(`[kinguin-sync] atlandi: baska bir sync hala calisiyor (${liveId})`)
+    return { status: "skipped", reason: `sync zaten calisiyor (${liveId})` }
+  }
+
   const settings = await kinguin.getSettings()
   const log = await kinguin.startSyncLog("full", {
     sync_prices: settings.sync_prices,
     sync_stock: settings.sync_stock,
     sync_info: settings.sync_info,
     max_pages: opts.maxPages ?? null,
+    full_scan: opts.fullScan === true,
   })
 
   const summary: SyncSummary = { status: "completed", logId: log.id }
@@ -500,7 +528,11 @@ export async function runKinguinSync(
 
   try {
     // 1) Katalog senkronu — yerel kinguin_product tablosu
-    const lastSync = opts.updatedSince ?? (settings.last_sync_at ? new Date(settings.last_sync_at) : undefined)
+    // fullScan: last_sync_at yok sayilir, tum katalog bastan cekilir (tek seferlik
+    // tam tarama). Aksi halde last_sync_at'ten beri degisenler (artimli) gelir.
+    const lastSync = opts.fullScan
+      ? undefined
+      : opts.updatedSince ?? (settings.last_sync_at ? new Date(settings.last_sync_at) : undefined)
     let total = 0
     let added = 0
     let updated = 0
@@ -524,7 +556,9 @@ export async function runKinguinSync(
       lastSync
         ? { updatedSince: lastSync.toISOString(), sortBy: "updatedAt", sortType: "desc" }
         : { sortBy: "updatedAt", sortType: "desc" },
-      opts.maxPages ?? 1000
+      // Katalog 130k+ urun; sayfa limiti katalogu sessizce kessin diye yok.
+      // (100 sayfalik x MAX_PAGE_SIZE; itemCount bitince dogal olarak durur.)
+      opts.maxPages ?? 100000
     )
 
     for await (const product of iterator) {
@@ -535,11 +569,12 @@ export async function runKinguinSync(
       total++
       try {
         const existing = await kinguin.listKinguinProducts({ kinguin_id: product.kinguinId })
+        // Mevcut kayit zaten okundu; upsert icinde tekrar sorgulanmasin
+        // (tam taramada bu, kayit basina bir fazla SELECT demek).
+        await kinguin.upsertLocalProduct(product, existing[0])
         if (existing.length === 0) {
-          await kinguin.upsertLocalProduct(product)
           added++
         } else {
-          await kinguin.upsertLocalProduct(product)
           updated++
         }
       } catch (e: any) {
@@ -562,19 +597,41 @@ export async function runKinguinSync(
     let listedTotal = 0
 
     if (!canceled && (settings.sync_prices || settings.sync_stock)) {
-      const listed = await kinguin.listKinguinProducts({ store_listed: true })
-      const totalWithListed = total + listed.length
-      listedTotal = listed.length
-      let processed = 0
-      for (const kp of listed as KinguinProductRow[]) {
-        if (await isCanceled()) {
-          canceled = true
-          break
+      // Listelenmis urun sayisi 100k+'ya cikabilir; hepsini tek seferde cekmek
+      // bellegi sisirir. Keyset (id > lastId) ile 200'luk partiler halinde gezilir.
+      let listedTotalCount = 0
+      try {
+        if (typeof kinguin.listAndCountKinguinProducts === "function") {
+          const [, cnt] = await kinguin.listAndCountKinguinProducts({ store_listed: true }, { take: 1 })
+          listedTotalCount = Number(cnt) || 0
         }
-        processed++
-        listedProcessed = processed
-        await writeProgress(total + processed, totalWithListed)
-        try {
+      } catch {
+        listedTotalCount = 0
+      }
+      listedTotal = listedTotalCount
+      const totalWithListed = total + listedTotalCount
+      const PRICE_BATCH = 200
+      let processed = 0
+      let lastPriceId: string | null = null
+      let priceBatchGuard = 0
+
+      while (!canceled && priceBatchGuard++ < 10000) {
+        const listed = (await kinguin.listKinguinProducts(
+          { store_listed: true, ...(lastPriceId ? { id: { $gt: lastPriceId } } : {}) },
+          { take: PRICE_BATCH, order: { id: "ASC" } } as any
+        )) as KinguinProductRow[]
+        if (!listed.length) break
+        lastPriceId = listed[listed.length - 1].id
+
+        for (const kp of listed) {
+          if (await isCanceled()) {
+            canceled = true
+            break
+          }
+          processed++
+          listedProcessed = processed
+          await writeProgress(total + processed, totalWithListed || total + processed)
+          try {
           // ---- Fiyat ----
           if (settings.sync_prices && settings.auto_reprice && kp.medusa_variant_id) {
             const computed = await computePriceForKinguinProduct(container, kp, settings)
@@ -634,10 +691,69 @@ export async function runKinguinSync(
               }
             }
           }
-        } catch (e: any) {
-          if (errors.length < 10) errors.push(`sync ${kp.kinguin_id}: ${e?.message}`)
+          } catch (e: any) {
+            if (errors.length < 10) errors.push(`sync ${kp.kinguin_id}: ${e?.message}`)
+          }
         }
       }
+    }
+
+    // 3) Katalog -> magaza esitlemesi (sync_new_products)
+    // Acikken, henuz listelenmemis stoklu/fiyatli kayitlardan en fazla
+    // sync_new_products_limit kadari magazaya listelenir (0 = sinirsiz).
+    // Yeni urunun fiyati listKinguinProduct icinde hesaplanip yazilir.
+    let listedNew = 0
+    let listBlockedNegative = 0
+    let listFailedNew = 0
+
+    if (!canceled && settings.sync_new_products) {
+      const rawLimit = Number(settings.sync_new_products_limit ?? 0)
+      const listLimit = Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : 0
+      const candFilter = { store_listed: false, qty: { $gt: 0 }, price: { $gt: 0 } }
+      let lastCandidateId: string | null = null
+      let listGuard = 0
+
+      while (!canceled && listGuard++ < 10000) {
+        const attempted = listedNew + listBlockedNegative + listFailedNew
+        if (listLimit > 0 && attempted >= listLimit) break
+        const take = listLimit > 0 ? Math.min(200, listLimit - attempted) : 200
+        if (take <= 0) break
+
+        const batch = (await kinguin.listKinguinProducts(
+          { ...candFilter, ...(lastCandidateId ? { id: { $gt: lastCandidateId } } : {}) },
+          { take, order: { id: "ASC" } } as any
+        )) as KinguinProductRow[]
+        if (!batch.length) break
+        lastCandidateId = batch[batch.length - 1].id
+
+        for (const kp of batch) {
+          if (await isCanceled()) {
+            canceled = true
+            break
+          }
+          try {
+            const r = await listKinguinProduct(container, kp, {})
+            if (r.ok) listedNew++
+            else if (r.negative) listBlockedNegative++
+            else {
+              listFailedNew++
+              if (errors.length < 10) errors.push(`listele ${kp.kinguin_id}: ${r.error || "bilinmeyen"}`)
+            }
+          } catch (e: any) {
+            listFailedNew++
+            if (errors.length < 10) errors.push(`listele ${kp.kinguin_id}: ${e?.message}`)
+          }
+          await writeProgress(
+            total + listedProcessed + listedNew + listFailedNew,
+            Math.max(expectedTotal, total) + (listLimit > 0 ? listLimit : listedNew + listFailedNew)
+          )
+        }
+      }
+
+      summary.listed = listedNew
+      logger.info(
+        `[kinguin-sync] magazaya listelenen: ${listedNew}, zararina atlanan: ${listBlockedNegative}, hatali: ${listFailedNew}`
+      )
     }
 
     summary.repriced = repriced
@@ -660,6 +776,9 @@ export async function runKinguinSync(
           repriced,
           hidden,
           unhidden,
+          listed_new: listedNew,
+          list_blocked_negative: listBlockedNegative,
+          list_failed: listFailedNew,
           mode: lastSync ? "incremental" : "full",
           cancel_reason: "admin",
         },
@@ -684,6 +803,9 @@ export async function runKinguinSync(
         repriced,
         hidden,
         unhidden,
+        listed_new: listedNew,
+        list_blocked_negative: listBlockedNegative,
+        list_failed: listFailedNew,
         mode: lastSync ? "incremental" : "full",
       },
     })

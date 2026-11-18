@@ -142,11 +142,30 @@ export default function Header() {
             <Link href="/new-releases" className="text-gray-300 hover:text-[#ff6b35] transition font-medium">
               {t('nav.newReleases')}
             </Link>
+            <a
+              href="https://hupiesim.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('nav.esimTitle')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-bold hover:bg-emerald-500/20 hover:border-emerald-400 transition"
+            >
+              {t('nav.esim')}
+            </a>
           </div>
 
           {/* Right Side Actions */}
           <div className="hidden md:flex items-center gap-4">
-            <div className="relative">
+            <form
+              className="relative"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const q = searchQuery.trim()
+                if (q.length >= 2) {
+                  searchTouchedRef.current = true
+                  router.push(`/search?q=${encodeURIComponent(q)}`)
+                }
+              }}
+            >
               <input 
                 type="search" 
                 placeholder={t('nav.searchPlaceholder')}
@@ -155,10 +174,12 @@ export default function Header() {
                   searchTouchedRef.current = true
                   setSearchQuery(e.target.value)
                 }}
+                aria-label={t('nav.searchPlaceholder')}
                 className="bg-[#1a1d24] border border-gray-700 text-white px-4 py-2 rounded-lg w-64 focus:border-[#ff6b35] focus:outline-none"
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
                   aria-label={t('nav.clearSearch')}
                   className="absolute end-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
@@ -166,7 +187,7 @@ export default function Header() {
                   ✕
                 </button>
               )}
-            </div>
+            </form>
 
             <LanguageSwitcher />
 
@@ -210,6 +231,16 @@ export default function Header() {
                 </div>
               )}
             </div>
+
+            <a
+              href="https://hupiesim.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('nav.esimTitle')}
+              className="inline-flex lg:hidden items-center gap-1 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-sm font-bold hover:bg-emerald-500/20 transition"
+            >
+              {t('nav.esim')}
+            </a>
 
             <Link href="/cart" className="relative text-gray-300 hover:text-[#ff6b35] transition">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,6 +326,16 @@ export default function Header() {
               )}
             </div>
 
+            <a
+              href="https://hupiesim.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('nav.esimTitle')}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition"
+            >
+              {t('nav.esim')}
+            </a>
+
             <Link
               href="/cart"
               aria-label={t('nav.cart')}
@@ -371,6 +412,17 @@ export default function Header() {
             <Link href="/deals" className="block py-2 text-[#ff6b35] font-bold" onClick={() => setIsMenuOpen(false)}>
               {t('nav.deals')}
             </Link>
+            <a
+              href="https://hupiesim.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('nav.esimTitle')}
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-bold"
+            >
+              <span>{t('nav.esim')}</span>
+              <span className="text-xs text-emerald-300/80">hupiesim.com ↗</span>
+            </a>
             <Link href="/cart" className="block py-2 text-gray-300 hover:text-[#ff6b35]" onClick={() => setIsMenuOpen(false)}>
               {t('nav.cart')}
             </Link>

@@ -1,7 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
 
-export const AUTHENTICATE = false // Disable auth for development
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {

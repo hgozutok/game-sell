@@ -2,7 +2,6 @@ import { MedusaRequest, MedusaResponse } from '@medusajs/framework'
 import { Modules } from '@medusajs/framework/utils'
 
 // Disable authentication for development
-export const AUTHENTICATE = false
 
 // DELETE /admin/products/:id - Delete/Archive a product
 export async function DELETE(req: MedusaRequest, res: MedusaResponse) {

@@ -12,6 +12,8 @@ const UpdateSchema = z.object({
   sync_stock: z.boolean().optional(),
   sync_info: z.boolean().optional(),
   sync_new_products: z.boolean().optional(),
+  // 0 = sinirsiz
+  sync_new_products_limit: z.number().min(0).max(200000).optional(),
   hide_on_zero_stock: z.boolean().optional(),
   auto_reprice: z.boolean().optional(),
   max_price_change_pct: z.number().min(1).max(500).optional(),

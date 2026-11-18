@@ -52,6 +52,21 @@ export const common: MessageTable = {
     fr: 'NOUVEAUTÉS',
     ar: 'إصدارات جديدة',
   },
+  // Kardeş marka: hupiesim.com (seyahat eSIM)
+  'nav.esim': {
+    en: 'eSIM ✈️',
+    tr: 'eSIM ✈️',
+    de: 'eSIM ✈️',
+    fr: 'eSIM ✈️',
+    ar: 'eSIM ✈️',
+  },
+  'nav.esimTitle': {
+    en: 'Travel data plans — hupiesim.com',
+    tr: 'Seyahat internet paketleri — hupiesim.com',
+    de: 'Reise-Datentarife — hupiesim.com',
+    fr: 'Forfaits data voyage — hupiesim.com',
+    ar: 'باقات إنترنت السفر — hupiesim.com',
+  },
   'nav.cart': {
     en: 'CART',
     tr: 'SEPET',

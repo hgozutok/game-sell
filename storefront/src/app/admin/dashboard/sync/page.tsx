@@ -31,6 +31,7 @@ type SyncSettings = {
   sync_stock: boolean
   sync_info: boolean
   sync_new_products: boolean
+  sync_new_products_limit: number
   hide_on_zero_stock: boolean
   auto_reprice: boolean
   last_sync_at?: string | null
@@ -53,6 +54,7 @@ const defaultSettings: SyncSettings = {
   sync_stock: true,
   sync_info: false,
   sync_new_products: false,
+  sync_new_products_limit: 0,
   hide_on_zero_stock: true,
   auto_reprice: true,
   last_sync_at: null,
@@ -71,6 +73,8 @@ function formatDateTime(value?: string | null) {
 
 export default function SyncPage() {
   const [syncing, setSyncing] = useState(false)
+  // Tam tarama: last_sync_at yok sayilir, katalog bastan cekilir (uzun surer).
+  const [fullScan, setFullScan] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [logs, setLogs] = useState<SyncLog[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
@@ -107,6 +111,7 @@ export default function SyncPage() {
         sync_stock: s.sync_stock !== false,
         sync_info: s.sync_info === true,
         sync_new_products: s.sync_new_products === true,
+        sync_new_products_limit: Number(s.sync_new_products_limit ?? 0),
         hide_on_zero_stock: s.hide_on_zero_stock !== false,
         auto_reprice: s.auto_reprice !== false,
         last_sync_at: s.last_sync_at || null,
@@ -172,7 +177,10 @@ export default function SyncPage() {
     setResult(null)
 
     try {
-      const response = await adminApi.post('/admin/products/sync')
+      const response = await adminApi.post('/admin/products/sync', {
+        type: 'full',
+        full_scan: fullScan,
+      })
       setResult({
         success: true,
         message: response.data?.message || '✅ Senkronizasyon başlatıldı',
@@ -215,6 +223,7 @@ export default function SyncPage() {
         sync_stock: settings.sync_stock,
         sync_info: settings.sync_info,
         sync_new_products: settings.sync_new_products,
+        sync_new_products_limit: Number(settings.sync_new_products_limit || 0),
         hide_on_zero_stock: settings.hide_on_zero_stock,
         auto_reprice: settings.auto_reprice,
       })
@@ -294,6 +303,20 @@ export default function SyncPage() {
                 Senkronizasyon arka planda çalışıyor; kayıtlar birkaç saniyede bir yenilenir.
               </p>
             )}
+            <label className="flex items-start gap-2 mt-4 text-xs text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={fullScan}
+                onChange={() => setFullScan((v) => !v)}
+                disabled={syncing}
+                className="mt-0.5 w-4 h-4 rounded"
+              />
+              <span>
+                <span className="text-white font-medium">Tam tarama</span> — tüm katalog
+                baştan çekilir (≈134 bin kayıt, ~30 dk). Kapalıyken yalnızca son senkron
+                sonrası değişenler gelir.
+              </span>
+            </label>
           </div>
 
           {/* Scheduled Sync */}
@@ -403,6 +426,31 @@ export default function SyncPage() {
                   </label>
                 ))}
               </div>
+
+              {settings.sync_new_products && (
+                <div className="max-w-xs">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Senkron başına listelenecek yeni ürün
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={settings.sync_new_products_limit}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sync_new_products_limit: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    <b className="text-white">0 = sınırsız</b> — senkron, katalogda listelenmemiş
+                    ürün kalmayana kadar mağazaya ekler (uzun sürebilir). Örn. 500 → her senkronda
+                    en fazla 500 yeni ürün.
+                  </p>
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-3">
                 <button

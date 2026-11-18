@@ -1,6 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 
-export const AUTHENTICATE = false // Disable auth for development
 
 /**
  * Search products from external providers (CWS or Kinguin)

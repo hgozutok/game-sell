@@ -1,0 +1,46 @@
+# Yerel / on-yayin e-posta testi icin Compose eklentisi.
+#
+# Kullanim:
+#   docker compose -f docker-compose.yml -f docker-compose.mailpit.yml up -d --build backend worker mailpit
+#   MAILPIT_URL=http://localhost:8025 ... node digital-game-store/scripts/smoke-auth-email.mjs
+#
+# Mailpit yalnizca 127.0.0.1'e acilir; production'da bu dosyayi kullanmayin.
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: dgs-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "127.0.0.1:8025:8025"
+    expose:
+      - "1025"
+
+  backend:
+    environment:
+      STORE_URL: http://localhost:13000
+      SMTP_ENABLED: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: info@hupiplay.uk
+      SMTP_FROM_NAME: HUPIPLAY
+      SMTP_TLS_REJECT_UNAUTHORIZED: "false"
+
+  worker:
+    environment:
+      STORE_URL: http://localhost:13000
+      SMTP_ENABLED: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: info@hupiplay.uk
+      SMTP_FROM_NAME: HUPIPLAY
+      SMTP_TLS_REJECT_UNAUTHORIZED: "false"

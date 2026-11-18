@@ -31,6 +31,10 @@ function CheckoutSuccessContent() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const method = searchParams.get('method') || ''
+  const refFromUrl = searchParams.get('ref') || ''
+  const noFromUrl = searchParams.get('no') || ''
+  // Banka havalesinde müşteriye gösterilecek referans kodu
+  const bankReference = refFromUrl || (noFromUrl ? `HUPI-${noFromUrl}` : '')
   const [bank, setBank] = useState<Record<string, string> | null>(null)
 
   // Banka havalesi secildiyse admin paneldeki hesap bilgilerini goster
@@ -92,20 +96,33 @@ function CheckoutSuccessContent() {
           </div>
 
           {/* Bank Transfer Details */}
-          {bank && (
+          {(bank || bankReference) && (
             <div className="gaming-card p-8 mb-6 border border-[#ff6b35]/40">
               <h2 className="text-2xl font-black text-white mb-2">{t('success.bankTitle')}</h2>
               <p className="text-sm text-gray-400 mb-6">
                 {t('success.bankDesc')}
               </p>
+
+              {bankReference && (
+                <div className="mb-6 rounded-xl border border-[#ff6b35]/50 bg-[#ff6b35]/10 p-4">
+                  <div className="text-[11px] uppercase tracking-wide text-[#ff6b35] mb-1">
+                    {t('success.bank.reference')}
+                  </div>
+                  <div className="text-2xl font-black text-white font-mono break-all select-all">
+                    {bankReference}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-400">{t('success.bank.referenceHint')}</p>
+                </div>
+              )}
+
               <dl className="grid sm:grid-cols-2 gap-4 text-sm">
                 {[
-                  [t('success.bank.bankName'), bank.bank_name],
-                  [t('success.bank.accountName'), bank.account_name],
-                  [t('success.bank.iban'), bank.iban],
-                  [t('success.bank.accountNumber'), bank.account_number],
-                  [t('success.bank.sortCode'), bank.sort_code],
-                  [t('success.bank.swift'), bank.swift],
+                  [t('success.bank.bankName'), bank?.bank_name],
+                  [t('success.bank.accountName'), bank?.account_name],
+                  [t('success.bank.iban'), bank?.iban],
+                  [t('success.bank.accountNumber'), bank?.account_number],
+                  [t('success.bank.sortCode'), bank?.sort_code],
+                  [t('success.bank.swift'), bank?.swift],
                 ]
                   .filter(([, value]) => Boolean(value))
                   .map(([label, value]) => (
@@ -115,7 +132,10 @@ function CheckoutSuccessContent() {
                     </div>
                   ))}
               </dl>
-              {bank.note && <p className="mt-4 text-xs text-gray-500">{bank.note}</p>}
+              {!bank?.iban && !bank?.account_number && (
+                <p className="mt-4 text-sm text-amber-400">{t('success.bank.missing')}</p>
+              )}
+              {bank?.note && <p className="mt-4 text-xs text-gray-500">{bank.note}</p>}
             </div>
           )}
 

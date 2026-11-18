@@ -26,6 +26,49 @@ export const SMTP_SETTING_KEYS = {
   fromName: "email.smtp.from_name",
 } as const
 
+/**
+ * SMTP ayarlari once `store_setting` tablosundan, orada bos olan alanlar
+ * ortam degiskenlerinden okunur. Boylece VPS'te `.env` ile yapilandirma
+ * yapilabilir; panelden kaydedilen deger her zaman ortam degerini ezer.
+ */
+function envBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === "") return fallback
+  return value === "true" || value === "1"
+}
+
+function envString(value: string | undefined): string {
+  return String(value || "").trim()
+}
+
+/**
+ * "Hupi eSIM <info@hupiplay.uk>" veya "info@hupiplay.uk" bicimindeki
+ * degeri e-posta + gorunen ada ayirir. Saglayicilarin cogu (ve Gmail)
+ * From basligini bu bicimde bekler.
+ */
+export function parseFromHeader(value: string | undefined): {
+  email: string
+  name: string
+} {
+  const raw = envString(value).replace(/^["']|["']$/g, "").trim()
+  if (!raw) return { email: "", name: "" }
+
+  const bracketed = raw.match(/^(.*?)<\s*([^<>\s]+@[^<>\s]+)\s*>$/)
+  if (bracketed) {
+    return {
+      name: bracketed[1].trim().replace(/^["']|["']$/g, "").trim(),
+      email: bracketed[2].trim(),
+    }
+  }
+
+  const plain = raw.match(/[^<>\s,;]+@[^<>\s,;]+/)
+  return { email: plain ? plain[0] : "", name: "" }
+}
+
+export interface SmtpSettingsSource {
+  enabled: "db" | "env" | "default"
+  host: "db" | "env" | "none"
+}
+
 export interface SmtpSettings {
   enabled: boolean
   host: string
@@ -71,30 +114,72 @@ export function encodePassword(password: string): string {
 
 export async function readSmtpSettings(container: any): Promise<SmtpSettings> {
   const storeSettings = container.resolve("storeSettings") as any
-  const get = async (key: string, fallback: any = "") =>
-    storeSettings.getSettingValue(key, fallback)
+  // null = ayar DB'de hic yok (ortam degiskenine dus); "" = bilerek bos.
+  const get = async (key: string): Promise<any> => {
+    try {
+      const setting = await storeSettings.getSetting(key)
+      return setting ? setting.value : null
+    } catch {
+      return null
+    }
+  }
 
-  const [enabled, host, port, secure, user, passwordRaw, fromEmail, fromName] =
+  const [enabledDb, hostDb, portDb, secureDb, userDb, passwordRaw, fromEmailDb, fromNameDb] =
     await Promise.all([
-      get(SMTP_SETTING_KEYS.enabled, false),
-      get(SMTP_SETTING_KEYS.host, ""),
-      get(SMTP_SETTING_KEYS.port, 587),
-      get(SMTP_SETTING_KEYS.secure, false),
-      get(SMTP_SETTING_KEYS.user, ""),
-      get(SMTP_SETTING_KEYS.password, ""),
-      get(SMTP_SETTING_KEYS.fromEmail, ""),
-      get(SMTP_SETTING_KEYS.fromName, ""),
+      get(SMTP_SETTING_KEYS.enabled),
+      get(SMTP_SETTING_KEYS.host),
+      get(SMTP_SETTING_KEYS.port),
+      get(SMTP_SETTING_KEYS.secure),
+      get(SMTP_SETTING_KEYS.user),
+      get(SMTP_SETTING_KEYS.password),
+      get(SMTP_SETTING_KEYS.fromEmail),
+      get(SMTP_SETTING_KEYS.fromName),
     ])
 
+  const dbString = (value: any): string =>
+    value === null || value === undefined ? "" : String(value).trim()
+
+  const envEnabled = envBool(process.env.SMTP_ENABLED, false)
+  const enabled =
+    enabledDb === null || enabledDb === undefined
+      ? envEnabled
+      : enabledDb === true || enabledDb === "true"
+
+  const envPort = Number(process.env.SMTP_PORT || 0)
+  const port =
+    Number(portDb) ||
+    (Number.isFinite(envPort) && envPort > 0 ? envPort : 587)
+
+  const secure =
+    secureDb === null || secureDb === undefined
+      ? envBool(process.env.SMTP_SECURE, port === 465)
+      : secureDb === true || secureDb === "true"
+
+  const user = dbString(userDb) || envString(process.env.SMTP_USER)
+  // SMTP_FROM="Ad <adres>" bicimini de kabul et; ayri alanlar onceliklidir.
+  const envFrom = parseFromHeader(process.env.SMTP_FROM)
+  const fromEmail =
+    dbString(fromEmailDb) ||
+    envString(process.env.SMTP_FROM_EMAIL) ||
+    envFrom.email
+  const fromName =
+    dbString(fromNameDb) ||
+    envString(process.env.SMTP_FROM_NAME) ||
+    envFrom.name
+
   return {
-    enabled: enabled === true || enabled === "true",
-    host: String(host || "").trim(),
-    port: Number(port) || 587,
-    secure: secure === true || secure === "true",
-    user: String(user || "").trim(),
-    password: parseStoredPassword(passwordRaw),
-    from_email: String(fromEmail || "").trim(),
-    from_name: String(fromName || "").trim(),
+    enabled,
+    host: dbString(hostDb) || envString(process.env.SMTP_HOST),
+    port,
+    secure,
+    user,
+    // SMTP_PASS: saglayicilarin (ve Gmail'in) dokumantasyonunda yaygin ad.
+    password:
+      parseStoredPassword(passwordRaw) ||
+      envString(process.env.SMTP_PASSWORD) ||
+      envString(process.env.SMTP_PASS),
+    from_email: fromEmail,
+    from_name: fromName,
   }
 }
 
@@ -343,14 +428,19 @@ export async function sendTemplateEmail(
       },
     })
 
-    const fromName = smtp.from_name || storeName
+    // Baslik enjeksiyonunu engelle: ad alaninda tirnak/satir sonu olamaz.
+    const fromName = String(smtp.from_name || storeName)
+      .replace(/[\r\n"<>]+/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .slice(0, 120)
     const info = await transport.sendMail({
       from: `"${fromName}" <${smtp.from_email}>`,
       to: options.to,
       subject,
       html: rendered.html,
       text: rendered.text || undefined,
-      replyTo: options.replyTo,
+      replyTo: options.replyTo || supportEmail || undefined,
     })
 
     logger?.info?.(

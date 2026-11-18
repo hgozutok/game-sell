@@ -6,7 +6,6 @@ import {
 } from "../../../utils/email"
 import { normalizeEmailLocale } from "../../../modules/email-template/locales"
 
-export const AUTHENTICATE = false
 
 /** GET /admin/email-settings — SMTP ayarlari (sifre asla donmez) */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
@@ -45,6 +45,47 @@ interface Product {
   }
 }
 
+const PER_PAGE = 24
+
+/** Dil bagimsiz sayfalama: ← 3 / 5 → */
+function Pager({
+  page,
+  total,
+  onChange,
+}: {
+  page: number
+  total: number
+  onChange: (page: number) => void
+}) {
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE))
+  if (pages <= 1) return null
+  return (
+    <div className="flex items-center justify-center gap-3 mt-10">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        aria-label="onceki-sayfa"
+        className="px-4 py-2 rounded-lg border border-gray-700 bg-[#1a1d24] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#ff6b35] transition"
+      >
+        ←
+      </button>
+      <span className="text-sm text-gray-400 tabular-nums">
+        {page} / {pages}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(pages, page + 1))}
+        disabled={page >= pages}
+        aria-label="sonraki-sayfa"
+        className="px-4 py-2 rounded-lg border border-gray-700 bg-[#1a1d24] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#ff6b35] transition"
+      >
+        →
+      </button>
+    </div>
+  )
+}
+
 export default function CategoryPage() {
   const t = useT()
   const { isOverCap } = usePriceCap()
@@ -57,8 +98,27 @@ export default function CategoryPage() {
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState('featured')
   const [filterPlatform, setFilterPlatform] = useState('all')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const prevSlugRef = useRef<string | null>(null)
+
+  const gotoPage = (next: number) => {
+    setPage(next)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   useEffect(() => {
+    // Slug degistiginde ilk sayfaya don
+    if (prevSlugRef.current !== slug) {
+      prevSlugRef.current = slug
+      if (page !== 1) {
+        setPage(1)
+        return
+      }
+    }
+
+    const offset = (page - 1) * PER_PAGE
+
     const fetchData = async () => {
       try {
         // Slug can be a platform collection OR a genre product category;
@@ -72,19 +132,19 @@ export default function CategoryPage() {
           console.log('Found collection:', foundCollection)
           setCategory({ id: foundCollection.id, title: foundCollection.title, handle: foundCollection.handle, kind: 'collection' })
 
-          // Fetch products in this collection
-          const productsResponse = await api.get(`/store/collections/${foundCollection.id}/products`, {
+          // Platform (collection) urunleri: koleksiyona ozel bir urun ucu yok,
+          // standart /store/products collection_id ile sayfalanir.
+          const productsResponse = await api.get('/store/products', {
             params: {
-              limit: 50,
-              hideZeroPrice: 'false',
-              hideZeroStock: 'false',
+              collection_id: foundCollection.id,
+              limit: PER_PAGE,
+              offset,
             },
           })
 
-          console.log('Products response:', productsResponse.data)
           if (productsResponse.data.products) {
-            console.log('Setting products:', productsResponse.data.products.length)
             setProducts(productsResponse.data.products)
+            setTotal(Number(productsResponse.data.count) || productsResponse.data.products.length)
           }
           return
         }
@@ -105,14 +165,14 @@ export default function CategoryPage() {
           const productsResponse = await api.get('/store/products', {
             params: {
               category_id: foundCategory.id,
-              limit: 50,
+              limit: PER_PAGE,
+              offset,
             },
           })
 
-          console.log('Products response:', productsResponse.data)
           if (productsResponse.data.products) {
-            console.log('Setting products:', productsResponse.data.products.length)
             setProducts(productsResponse.data.products)
+            setTotal(Number(productsResponse.data.count) || productsResponse.data.products.length)
           }
           return
         }
@@ -126,7 +186,7 @@ export default function CategoryPage() {
     }
 
     fetchData()
-  }, [slug])
+  }, [slug, page])
 
   // Filter and sort products
   // Note: Price and stock filtering should be done by backend API
@@ -195,7 +255,7 @@ export default function CategoryPage() {
             </p>
             <div className="mt-6">
               <span className="text-[#ff6b35] font-bold text-lg">
-                {products.length} {t('catalog.gamesAvailable')}
+                {total || products.length} {t('catalog.gamesAvailable')}
               </span>
             </div>
           </div>
@@ -251,11 +311,14 @@ export default function CategoryPage() {
 
         {/* Products Grid */}
         {sortedProducts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {sortedProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {sortedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+            <Pager page={page} total={total} onChange={gotoPage} />
+          </>
         ) : (
           <div className="text-center py-20">
             <div className="text-8xl mb-4 opacity-20">🎮</div>

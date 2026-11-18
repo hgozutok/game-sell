@@ -271,8 +271,11 @@ class KinguinService extends MedusaService({
 
   // ===================== Yerel katalog kayitlari =====================
 
-  async upsertLocalProduct(data: KinguinProductData): Promise<any> {
-    const existing = await this.listKinguinProducts({ kinguin_id: data.kinguinId })
+  async upsertLocalProduct(data: KinguinProductData, existingRow?: any): Promise<any> {
+    // Cagiran taraf kaydi zaten okuduysa (senkron dongusu) tekrar SELECT atma.
+    const existing = existingRow
+      ? [existingRow]
+      : await this.listKinguinProducts({ kinguin_id: data.kinguinId })
 
     // NaN guard: API bazen bozuk releaseDate/ageRating donderir; NaN binding
     // postgres'te "column nan does not exist" hatasina yol acar.
@@ -344,6 +347,7 @@ class KinguinService extends MedusaService({
     sync_stock: boolean
     sync_info: boolean
     sync_new_products: boolean
+    sync_new_products_limit: number
     hide_on_zero_stock: boolean
     auto_reprice: boolean
     max_price_change_pct: number
@@ -490,7 +494,41 @@ class KinguinService extends MedusaService({
 
   // ===================== Sync log =====================
 
+  /**
+   * Süreci ölen (crash / container restart) syncleri temizler:
+   * "running" durup heartbeat'i eskimiş kayıtlar failed yapılır.
+   * Aksi halde DB'de sonsuza kadar "running" kalan zombi kayıtlar birikir.
+   */
+  async reapStaleSyncLogs(maxAgeSeconds = 180): Promise<number> {
+    const cutoff = Date.now() - maxAgeSeconds * 1000
+    const running = (await this.listSyncLogs({ status: "running" })) as any[]
+    let reaped = 0
+    for (const log of running || []) {
+      const refMs = log.heartbeat_at
+        ? new Date(log.heartbeat_at).getTime()
+        : log.started_at
+          ? new Date(log.started_at).getTime()
+          : NaN
+      if (!Number.isFinite(refMs) || refMs >= cutoff) continue
+      await this.updateSyncLogs({
+        id: log.id,
+        status: "failed",
+        finished_at: new Date(),
+        heartbeat_at: new Date(),
+        errors: ["heartbeat zaman aşımı — süreç kesildi (crash/restart), senkron sonlandırıldı"],
+        details: {
+          ...(log.details && typeof log.details === "object" ? log.details : {}),
+          reaped_reason: "heartbeat_timeout",
+        },
+      } as any)
+      reaped++
+    }
+    return reaped
+  }
+
   async startSyncLog(type: "full" | "price" | "stock" | "import" | "order_status", details?: any): Promise<any> {
+    // Süreci ölmüş eski syncları başta temizle (zombi "running" kalmasın)
+    await this.reapStaleSyncLogs().catch(() => undefined)
     const now = new Date()
     return await this.createSyncLogs({
       type,

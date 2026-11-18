@@ -1,6 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
-export const AUTHENTICATE = false
 
 /** GET /admin/email-templates/:id */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {

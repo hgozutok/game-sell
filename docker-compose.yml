@@ -67,9 +67,18 @@ services:
       - "6379"
 
   backend:
-    build: ./digital-game-store
+    build:
+      context: ./digital-game-store
+      args:
+        # Admin paneli bundle'ina build zamaninda islenir
+        MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://localhost:9000}
     container_name: dgs-backend
     restart: unless-stopped
+    # Sunucu DNS'i sallantili oldugunda docker servis adlari (redis/postgres)
+    # EAI_AGAIN veriyor; guvenilir public yedek DNS'ler ekle.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,21 +92,60 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
       MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://localhost:9000}
-      STORE_CORS: ${STORE_CORS:-http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk}
-      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:7001,http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk}
-      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000,http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk}
-      KINGUIN_API_KEY: ${KINGUIN_API_KEY}
-      KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://api.kinguin.net}
+      # E-posta sablonlarindaki site adresi ve dogrulama baglantilari
+      STORE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      # --- E-posta / SMTP (panelden kaydedilen deger bu ortam degerini ezer) ---
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Bazi saglayicilarin (Gmail) dokumantasyonundaki adlar; ikisi de kabul edilir
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
+      # false: SMTP olsa bile kayit e-postasi dogrulamasi istenmez (DKIM'siz gecici SMTP icin)
+      AUTH_EMAIL_VERIFICATION_REQUIRED: ${AUTH_EMAIL_VERIFICATION_REQUIRED:-true}
+      # TLS sonlandirmasi yoksa false yapin; HTTPS'te varsayilan secure=true
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      STORE_CORS: ${STORE_CORS:-http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk,http://23.81.36.36,https://23.81.36.36}
+      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:7001,http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk,http://23.81.36.36,https://23.81.36.36}
+      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000,http://localhost:3000,http://localhost:13000,http://localhost:13100,https://hupiplay.uk,https://www.hupiplay.uk,http://23.81.36.36,https://23.81.36.36}
+      # :? -> anahtar tanimli degilse compose hata verir (sessizce bos anahtarla
+      # ayaga kalkip tum sync'leri 401'e dusurmesin).
+      KINGUIN_API_KEY: ${KINGUIN_API_KEY:?KINGUIN_API_KEY tanimli degil (.env)}
+      # ESA API gateway; api.kinguin.net kullanilan eski/yanlis host.
+      KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://gateway.kinguin.net/esa/api}
       KINGUIN_ORDER_MODE: ${KINGUIN_ORDER_MODE:-readonly}
+      # --- Odeme saglayicilari (bos ise saglayici yuklenmez) ---
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_ENV: ${PAYPAL_ENV:-sandbox}
+      PAYPAL_API_BASE_URL: ${PAYPAL_API_BASE_URL:-}
+      PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
+      MOLLIE_ENABLED: ${MOLLIE_ENABLED:-false}
       DIGITAL_KEY_ENCRYPTION_KEY: ${DIGITAL_KEY_ENCRYPTION_KEY}
       FULFILL_MAX_RETRIES: ${FULFILL_MAX_RETRIES:-4}
     ports:
       - "${BACKEND_PORT:-9000}:9000"
 
   worker:
-    build: ./digital-game-store
+    build:
+      context: ./digital-game-store
+      args:
+        MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://localhost:9000}
     container_name: dgs-worker
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,9 +159,23 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
-      KINGUIN_API_KEY: ${KINGUIN_API_KEY}
-      KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://api.kinguin.net}
+      KINGUIN_API_KEY: ${KINGUIN_API_KEY:?KINGUIN_API_KEY tanimli degil (.env)}
+      KINGUIN_BASE_URL: ${KINGUIN_BASE_URL:-https://gateway.kinguin.net/esa/api}
       DIGITAL_KEY_ENCRYPTION_KEY: ${DIGITAL_KEY_ENCRYPTION_KEY}
+      STORE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      # Siparis/teslimat e-postalari worker'dan gonderilir
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Bazi saglayicilarin (Gmail) dokumantasyonundaki adlar; ikisi de kabul edilir
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
       WORKER_MODE: worker
     command: ["node", "dist/workers/worker.js"]
 
@@ -124,8 +186,12 @@ services:
         # Tarayici bundle'ina islenir — VPS'te backend'in PUBLIC adresi olmali
         NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://localhost:9000}
         NEXT_PUBLIC_PUBLISHABLE_KEY: ${NEXT_PUBLIC_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
     container_name: dgs-storefront
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     depends_on:
       - backend
     environment:

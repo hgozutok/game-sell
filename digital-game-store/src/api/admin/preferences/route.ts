@@ -2,7 +2,6 @@ import { MedusaRequest, MedusaResponse } from '@medusajs/framework'
 import UserPreferencesService from '../../../modules/user-preferences/service'
 
 // Disable authentication for development
-export const AUTHENTICATE = false
 
 // GET /admin/preferences - Get all preferences
 export async function GET(req: MedusaRequest, res: MedusaResponse) {

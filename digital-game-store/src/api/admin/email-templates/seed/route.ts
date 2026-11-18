@@ -1,6 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
-export const AUTHENTICATE = false
 
 /** POST /admin/email-templates/seed — eksik varsayilan sablonlari yukler */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {

@@ -3,7 +3,6 @@ import { Modules } from '@medusajs/framework/utils'
 
 // POST /admin/products/sync-collections
 // Sync existing products with collections (genres, platform) and create missing collections
-export const AUTHENTICATE = false
 
 async function getOrCreateCollection(productModule: any, title: string, logger: any) {
   const safe = title.trim()

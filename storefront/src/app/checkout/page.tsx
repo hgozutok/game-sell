@@ -277,8 +277,25 @@ export default function CheckoutPage() {
         // Clear cart
         clearCart()
 
+        // Basari sayfasina referans/siparis no tasi: misafir kullanicida
+        // /store/orders/:id kimlik dogrulamasi istedigi icin bilgiler URL'den gelir.
+        const successParams = new URLSearchParams()
+        successParams.set('order_id', orderId)
+        successParams.set('method', data.paymentMethod)
+        const ref = response.data?.payment?.reference
+        if (ref) successParams.set('ref', String(ref))
+        const displayId = response.data?.order?.display_id
+        if (displayId) successParams.set('no', String(displayId))
+        const orderTotal = response.data?.order?.total
+        if (orderTotal !== undefined && orderTotal !== null) {
+          successParams.set('total', String(orderTotal))
+        }
+        if (response.data?.order?.currency_code) {
+          successParams.set('cc', String(response.data.order.currency_code))
+        }
+
         // Redirect to success page
-        router.push(`/checkout/success?order_id=${orderId}&method=${encodeURIComponent(data.paymentMethod)}`)
+        router.push(`/checkout/success?${successParams.toString()}`)
 
         toast.success(t('checkout.orderPlaced'), {
           style: {

@@ -1,6 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
-export const AUTHENTICATE = false
 
 type SettingInput = {
   key: string

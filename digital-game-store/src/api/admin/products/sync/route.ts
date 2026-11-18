@@ -10,6 +10,8 @@ const STALE_AFTER_MS = 2 * 60 * 1000
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const type: "full" | "price" = (req.body as any)?.type === "price" ? "price" : "full"
+  // full_scan: last_sync_at yok sayilir, tum katalog bastan cekilir (uzun surer).
+  const fullScan = (req.body as any)?.full_scan === true
 
   if (running) {
     return res.status(409).json({
@@ -51,7 +53,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       const summary =
         type === "price"
           ? await syncKinguinPrices(scope)
-          : await runKinguinSync(scope, { force: true })
+          : await runKinguinSync(scope, { force: true, fullScan })
       logger.info(`[admin/products/sync] ${type} tamamlandi: ${JSON.stringify(summary)}`)
     } catch (e: any) {
       logger.error(`[admin/products/sync] hata: ${e?.message}`)
@@ -63,6 +65,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   res.status(202).json({
     started: true,
     type,
+    full_scan: fullScan,
     message:
       type === "price"
         ? "Fiyat senkronizasyonu arka planda baslatildi."

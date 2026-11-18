@@ -54,3 +54,4 @@ Thumbs.db
 # Yerel veritabani (proje klasoru ile tasinir, git'e girmez)
 db-data/
 
+/publish

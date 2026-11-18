@@ -11,6 +11,18 @@ import {
 
 const connection = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
+  // DNS/connect kopmalarinda (EAI_AGAIN, ETIMEDOUT) surec calismaya devam etsin;
+  // ioredis kendi reconnect stratejisiyle tekrar dener.
+  retryStrategy: (times) => Math.min(times * 2000, 30000),
+  enableOfflineQueue: true,
+})
+
+connection.on("error", (err) => {
+  console.warn(`[worker] redis baglanti hatasi (otomatik yeniden denenecek): ${err?.message || err}`)
+})
+
+connection.on("reconnecting", () => {
+  console.warn("[worker] redis yeniden baglaniyor...")
 })
 
 // Key Fulfillment Queue

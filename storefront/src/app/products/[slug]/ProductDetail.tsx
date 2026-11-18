@@ -189,6 +189,28 @@ export default function ProductDetailClient() {
     setAmount(0)
   }, [selectedCurrency.code, product, selectedVariant, currencies])
 
+  // Gercek indirim verisi (compare_at / original_amount / metadata.compare_at_price).
+  // Yoksa indirim blogu hic gosterilmez.
+  const detailCompareAtRaw = (() => {
+    const fromDisplay = Number((product?.display_price as any)?.compare_at_price || 0)
+    if (fromDisplay > 0) return fromDisplay
+    const calc: any = (product?.variants?.[selectedVariant] as any)?.calculated_price
+    const original = Number(calc?.original_amount || 0)
+    if (original > 0) return original
+    const meta = Number((product?.metadata as any)?.compare_at_price || 0)
+    return meta > 0 ? meta : 0
+  })()
+
+  const detailCompareAt =
+    detailCompareAtRaw > 0 && amount > 0
+      ? convertAmount(
+          detailCompareAtRaw,
+          product?.display_price?.currency_code || 'usd',
+          selectedCurrency.code,
+          currencies
+        )
+      : 0
+
   const handleAddToCart = () => {
     if (!product) return
     if (isOverCap(product)) return
@@ -402,15 +424,24 @@ export default function ProductDetailClient() {
                     {getCurrencySymbol(selectedCurrency.code)}
                     {(amount / 100).toFixed(2)}
                   </div>
-                  <div className="text-sm text-gray-600 line-through">
-                    {getCurrencySymbol(selectedCurrency.code)}
-                    {((amount / 100) * 1.4).toFixed(2)}
+                  {detailCompareAt > amount && (
+                    <div className="text-sm text-gray-600 line-through">
+                      {getCurrencySymbol(selectedCurrency.code)}
+                      {(detailCompareAt / 100).toFixed(2)}
+                    </div>
+                  )}
+                </div>
+                {detailCompareAt > amount && (
+                  <div className="text-right">
+                    <div className="text-green-500 font-bold text-xl mb-1">
+                      -%{Math.round((1 - amount / detailCompareAt) * 100)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {t('product.youSave')} {getCurrencySymbol(selectedCurrency.code)}
+                      {((detailCompareAt - amount) / 100).toFixed(2)}
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-green-500 font-bold text-xl mb-1">-30%</div>
-                  <div className="text-xs text-gray-500">{t('product.youSave')} {selectedCurrency.symbol}{((amount / 100) * 0.4).toFixed(2)}</div>
-                </div>
+                )}
               </div>
 
               {/* Variant Selection */}

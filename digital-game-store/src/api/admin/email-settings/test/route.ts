@@ -5,7 +5,6 @@ import {
   toEmailLocale,
 } from "../../../../modules/email-template/locales"
 
-export const AUTHENTICATE = false
 
 /** POST /admin/email-settings/test — kayitli SMTP ayarlariyla test maili gonderir */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {

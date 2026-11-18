@@ -2,7 +2,6 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { fulfillDigitalOrderWorkflow } from '../../../../../workflows/fulfill-digital-order'
 
-export const AUTHENTICATE = false // Enable auth in production
 
 /**
  * POST /admin/order-control/:id/fulfill
