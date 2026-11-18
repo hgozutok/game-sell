@@ -134,7 +134,8 @@ services:
       DIGITAL_KEY_ENCRYPTION_KEY: ${DIGITAL_KEY_ENCRYPTION_KEY}
       FULFILL_MAX_RETRIES: ${FULFILL_MAX_RETRIES:-4}
     ports:
-      - "${BACKEND_PORT:-9000}:9000"
+      # Yalnizca loopback'e baglanir: disariya acilan tek yol Nginx (443).
+      - "127.0.0.1:${BACKEND_PORT:-9000}:9000"
 
   worker:
     build:
@@ -205,7 +206,9 @@ services:
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       PORT: 3000
     ports:
-      - "${STOREFRONT_PORT:-3000}:3000"
+      # Yalnizca loopback'e baglanir: magazaya erisim Cloudflare Tunnel
+      # (veya opsiyonel yerel Nginx) uzerinden yapilir.
+      - "127.0.0.1:${STOREFRONT_PORT:-3000}:3000"
 
 volumes:
   # Postgres artik bind mount (./db-data/postgres) — isimli volume yok.

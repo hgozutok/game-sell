@@ -64,8 +64,9 @@ export default function ProductCollection({ title, filter, viewAllLink }: Produc
             break
         }
 
-        // Add fields parameter to include variant pricing
-        params.fields = '*variants,*variants.prices'
+        // Medusa 2.11'de `*variants` / `images` wildcard'i cok buyuk katalogda
+        // "Maximum call stack size exceeded" ile 500 veriyor; acik alan listesi kullan.
+        params.fields = 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code'
         
         const response = await api.get("/store/products", { params })
         

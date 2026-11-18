@@ -2,6 +2,11 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { getAuthSettings, mintCustomerJwt, sanitizeCustomer } from '../../../../utils/auth-session'
 import { clientIp, rateLimit, verifyCaptcha } from '../../../../utils/bot-protection'
+import {
+  ACCOUNT_DISABLED_CODE,
+  ACCOUNT_DISABLED_MESSAGE,
+  isCustomerDisabled,
+} from '../../../../utils/customer-status'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -41,6 +46,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     if (!customer || !customer.has_account) {
       return res.status(401).json({ code: 'invalid_credentials', message: 'Geçersiz e-posta veya şifre' })
+    }
+
+    // Yonetici tarafindan pasiflestirilen hesap giris yapamaz.
+    if (isCustomerDisabled(customer.metadata)) {
+      return res.status(403).json({
+        code: ACCOUNT_DISABLED_CODE,
+        message: ACCOUNT_DISABLED_MESSAGE,
+      })
     }
 
     // E-posta dogrulama kapisi

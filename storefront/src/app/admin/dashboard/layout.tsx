@@ -21,6 +21,7 @@ const navGroups: Array<{
       { label: 'Genel Bakış', href: '/admin/dashboard', icon: '📊' },
       { label: 'Ürünler', href: '/admin/dashboard/products', icon: '📦' },
       { label: 'Siparişler', href: '/admin/dashboard/orders', icon: '🧾' },
+      { label: 'Kullanıcılar', href: '/admin/dashboard/customers', icon: '👥' },
       { label: 'Dijital Anahtarlar', href: '/admin/dashboard/keys', icon: '🔑' },
     ],
   },

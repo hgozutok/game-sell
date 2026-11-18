@@ -132,11 +132,13 @@ export default function CategoryPage() {
           console.log('Found collection:', foundCollection)
           setCategory({ id: foundCollection.id, title: foundCollection.title, handle: foundCollection.handle, kind: 'collection' })
 
-          // Platform (collection) urunleri: koleksiyona ozel bir urun ucu yok,
-          // standart /store/products collection_id ile sayfalanir.
+          // Platform (collection) urunleri: Medusa v2'de collection_id array
+          // formatinda gonderilmeli (axios bunu collection_id[]=X olarak serialize eder).
+          // fields: stack overflow'a neden olan *variants wildcard yerine acik liste.
           const productsResponse = await api.get('/store/products', {
             params: {
-              collection_id: foundCollection.id,
+              'collection_id[]': foundCollection.id,
+              fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
               limit: PER_PAGE,
               offset,
             },
@@ -160,11 +162,11 @@ export default function CategoryPage() {
           console.log('Found product category:', foundCategory)
           setCategory({ id: foundCategory.id, title: foundCategory.name, handle: foundCategory.handle, kind: 'category' })
 
-          // Standart /store/products bilinmeyen parametreleri 400 ile reddeder;
-          // hideZero* yalnizca custom collections/products route'unda var.
+          // Medusa v2: category_id de array formatinda gonderilmeli.
           const productsResponse = await api.get('/store/products', {
             params: {
-              category_id: foundCategory.id,
+              'category_id[]': foundCategory.id,
+              fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
               limit: PER_PAGE,
               offset,
             },

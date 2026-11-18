@@ -14,10 +14,10 @@ export default function ProductGrid() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['products', page, limit],
     queryFn: async () => {
-      // Use Medusa's built-in products endpoint with limit and offset
+      // Medusa 2.11: `*variants` wildcard'i stack overflow veriyor (500).
       const response = await api.get('/store/products', {
         params: {
-          fields: 'id,title,handle,description,thumbnail,*variants,*variants.prices,metadata',
+          fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
           limit: limit,
           offset: (page - 1) * limit,
         }
