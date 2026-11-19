@@ -1,0 +1,49 @@
+# HUPIPLAY (Full Documentation for LLMs)
+
+> HUPIPLAY is a licensed and authorized digital gaming marketplace providing genuine activation CD keys, gaming subscriptions, and gift cards with instant automated digital delivery.
+
+Website: https://hupiplay.uk
+API: https://api.hupiplay.uk
+Support: info@hupiplay.uk
+
+## Overview
+HUPIPLAY connects gamers worldwide with authentic digital games at competitive prices. The store features an extensive catalog of over 70,000 published digital game keys across all major gaming platforms:
+- **PC:** Steam, Epic Games Store, GOG.com, EA App (Origin), Ubisoft Connect, Battle.net, Rockstar Games Launcher
+- **PlayStation:** PS4 and PS5 digital games, PlayStation Network (PSN) wallet top-ups, PlayStation Plus subscriptions
+- **Xbox:** Xbox Series X|S, Xbox One digital codes, Xbox Game Pass Ultimate, Xbox Live Gold
+- **Nintendo:** Nintendo Switch digital download codes and eShop prepaid cards
+
+## Key Features
+- **Instant Digital Delivery:** Keys are delivered automatically via email and displayed on the user order confirmation screen immediately after successful payment confirmation.
+- **Global Currency Support:** Live pricing and checkout available in USD ($), EUR (€), GBP (£), TRY (₺), and SAR (ر.س).
+- **Internationalization:** Full multilingual interface supporting English, Turkish, German, French, and Arabic.
+- **Secure Payments:** Industry-standard checkout via Stripe (Visa, MasterCard, American Express), PayPal, and direct bank transfers.
+
+## Core Navigation & Links
+- **Homepage:** https://hupiplay.uk/
+- **Catalog & All Products:** https://hupiplay.uk/products
+- **Categories (Genres & Platforms):** https://hupiplay.uk/categories
+- **Special Deals & Discounts:** https://hupiplay.uk/deals
+- **New Releases & Pre-orders:** https://hupiplay.uk/new-releases
+- **Gaming News & Blog:** https://hupiplay.uk/blog
+- **Product Search:** https://hupiplay.uk/search?q={query}
+
+## Customer Support & Assistance
+- **How It Works (Activation Guide):** https://hupiplay.uk/how-it-works
+- **About HUPIPLAY:** https://hupiplay.uk/about
+- **Frequently Asked Questions (FAQ):** https://hupiplay.uk/faq
+- **Contact Us:** https://hupiplay.uk/contact
+
+## Legal & Compliance
+- **Terms of Service:** https://hupiplay.uk/terms
+- **Privacy Policy (GDPR Compliant):** https://hupiplay.uk/privacy
+- **Cookie Policy:** https://hupiplay.uk/cookies
+- **Refund & Cancellation Policy:** https://hupiplay.uk/returns
+- **Digital Delivery Terms:** https://hupiplay.uk/delivery
+
+## Sitemaps & Feeds
+- **Sitemap Index:** https://hupiplay.uk/sitemap.xml
+- **Static Pages & Articles Sitemap:** https://hupiplay.uk/sitemap/0.xml
+- **Product Catalog Sitemaps:** https://hupiplay.uk/sitemap/1.xml through https://hupiplay.uk/sitemap/10.xml
+- **Robots Configuration:** https://hupiplay.uk/robots.txt
+- **LLM Summary:** https://hupiplay.uk/llms.txt

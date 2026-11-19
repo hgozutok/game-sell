@@ -1,0 +1,31 @@
+# HUPIPLAY
+
+> HUPIPLAY is a premier digital video game store and authorized distribution platform providing digital game keys, gaming gift cards, game time cards, and downloadable content (DLC) with instant automated delivery.
+
+HUPIPLAY offers thousands of authentic activation keys for PC (Steam, Epic Games, GOG, EA App, Ubisoft Connect, Battle.net), PlayStation Network (PS4/PS5), Xbox Series X|S / Xbox One, and Nintendo Switch. Payments are securely processed via Stripe (credit and debit cards), PayPal, and bank transfers, supporting multiple global currencies (EUR, USD, GBP, TRY, SAR) and multilingual interfaces (English, Turkish, German, French, Arabic).
+
+## Core Store Pages
+- [Home](https://hupiplay.uk/): Official storefront and featured gaming offers.
+- [All Products](https://hupiplay.uk/products): Complete catalog of video game keys and digital activation codes.
+- [Categories](https://hupiplay.uk/categories): Browse games by genre, platform, and publisher.
+- [Deals & Discounts](https://hupiplay.uk/deals): Exclusive gaming sales, discounts, and daily deals.
+- [New Releases](https://hupiplay.uk/new-releases): Latest gaming releases and pre-orders.
+- [Blog](https://hupiplay.uk/blog): Gaming news, reviews, guides, and activation tutorials.
+
+## Customer Support & Information
+- [How It Works](https://hupiplay.uk/how-it-works): Guide to digital key purchasing, automated delivery, and game activation.
+- [About Us](https://hupiplay.uk/about): Company background, mission, and authentic key sourcing.
+- [FAQ](https://hupiplay.uk/faq): Frequently asked questions regarding digital orders, keys, and account management.
+- [Contact Support](https://hupiplay.uk/contact): Customer service, ticketing, and business inquiries (info@hupiplay.uk).
+
+## Legal & Policies
+- [Terms of Service](https://hupiplay.uk/terms): User agreement and conditions of sale.
+- [Privacy Policy](https://hupiplay.uk/privacy): GDPR-compliant data protection and user privacy terms.
+- [Cookie Policy](https://hupiplay.uk/cookies): Details on cookies and tracking technologies.
+- [Return & Refund Policy](https://hupiplay.uk/returns): Digital key refund policy and consumer rights.
+- [Delivery Information](https://hupiplay.uk/delivery): Instant email and dashboard delivery details for digital keys.
+
+## Technical & Sitemaps
+- [Sitemap Index](https://hupiplay.uk/sitemap.xml): Primary XML sitemap index for search engines.
+- [Static Pages Sitemap](https://hupiplay.uk/sitemap/0.xml): Sitemap covering static routes, categories, and articles.
+- [Product Sitemaps](https://hupiplay.uk/sitemap/1.xml): Chunked catalog sitemaps for 70,000+ digital game products.
