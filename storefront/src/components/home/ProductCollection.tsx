@@ -45,32 +45,28 @@ export default function ProductCollection({ title, filter, viewAllLink }: Produc
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        let params: any = { limit: 12 }
-        
-        // Apply filters based on collection type
+        const params: any = { limit: 12 }
+
+        // Koleksiyon türüne göre sıralama / filtreleme
         switch (filter) {
           case "featured":
-            // TODO: Filter by featured metadata when backend is ready
+            params.sort_by = "popular"
             break
           case "discounted":
-            // TODO: Filter by discount when backend is ready
+            params.sort_by = "popular"
             break
           case "bestsellers":
-            // TODO: Order by sales count when backend is ready
+            params.sort_by = "popular"
             break
           case "new":
-            // Get recently added products
-            params.order = "-created_at"
+            params.sort_by = "newest"
             break
         }
 
-        // Medusa 2.11'de `*variants` / `images` wildcard'i cok buyuk katalogda
-        // "Maximum call stack size exceeded" ile 500 veriyor; acik alan listesi kullan.
-        params.fields = 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code'
-        
-        const response = await api.get("/store/products", { params })
-        
-        if (response.data.products) {
+        // Medusa 2 çekirdek /store/products yerine yüksek performanslı /store/products/search kullanılır
+        const response = await api.get("/store/products/search", { params })
+
+        if (response.data?.products) {
           setProducts(response.data.products)
         }
       } catch (error) {
