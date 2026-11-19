@@ -183,6 +183,22 @@ export async function readSmtpSettings(container: any): Promise<SmtpSettings> {
   }
 }
 
+/** Admin bildirimlerinin gonderilecegi e-posta adresini cozer. */
+export async function getAdminEmail(container: any): Promise<string> {
+  try {
+    const storeSettings = container.resolve("storeSettings") as any
+    const adminEmail =
+      (await storeSettings.getSettingValue("store.admin_email", "")) ||
+      process.env.ADMIN_EMAIL ||
+      (await storeSettings.getSettingValue("store.support_email", "")) ||
+      process.env.SMTP_FROM_EMAIL ||
+      "info@hupiplay.uk"
+    return String(adminEmail).trim()
+  } catch {
+    return process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL || "info@hupiplay.uk"
+  }
+}
+
 /** Sablonlarda ve tablo basliklarinda kullanilan dile ozel metinler. */
 export interface EmailUiText {
   /** Dil tespit edilemediginde kullanilan hitap. */

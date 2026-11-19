@@ -137,6 +137,10 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-true}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      FACEBOOK_OAUTH_ENABLED: ${FACEBOOK_OAUTH_ENABLED:-true}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-info@hupiplay.uk}
     ports:
       # Yalnizca loopback'e baglanir: disariya acilan tek yol Nginx (443).
       - "127.0.0.1:${BACKEND_PORT:-9000}:9000"

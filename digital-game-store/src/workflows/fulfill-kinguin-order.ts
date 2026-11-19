@@ -21,6 +21,7 @@ import {
 import { encryptKeys, decryptKeys } from "../utils/key-crypto"
 import {
   sendTemplateEmail,
+  getAdminEmail,
   buildTableHtml,
   escapeHtmlValue,
   emailUiText,
@@ -530,6 +531,23 @@ const deliverKeysStep = createStep(
             keys_html: keysHtml,
           },
         })
+
+        // Admine key teslimat raporu gonder
+        const adminEmail = await getAdminEmail(container)
+        if (adminEmail) {
+          await sendTemplateEmail(container, {
+            to: adminEmail,
+            templateKey: "admin-keys-delivered",
+            locale: "tr",
+            data: {
+              order_number: order?.display_id ? String(order.display_id) : input.orderId,
+              customer_name: `${order?.billing_address?.first_name || ""} ${order?.billing_address?.last_name || ""}`.trim() || String(to).split("@")[0],
+              customer_email: to,
+              keys_html: keysHtml,
+            },
+            silent: true,
+          }).catch((err: any) => logger.warn(`[fulfill-kinguin] admin key raporu hatasi: ${err?.message}`))
+        }
       }
     } catch (e: any) {
       logger.warn(`[fulfill-kinguin] e-posta hatasi (akis suruyor): ${e?.message}`)

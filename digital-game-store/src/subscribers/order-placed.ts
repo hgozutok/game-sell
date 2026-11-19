@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import { fulfillKinguinOrderWorkflow } from "../workflows/fulfill-kinguin-order"
 import {
   sendTemplateEmail,
+  getAdminEmail,
   buildTableHtml,
   escapeHtmlValue,
   emailUiText,
@@ -126,6 +127,56 @@ export default async function orderPlacedHandler({
           currency: String(order.currency_code || "").toUpperCase(),
         },
       })
+
+      // Banka havalesi secildiyse musteriye IBAN ve referans bilgileri gonder
+      const isBankTransfer =
+        order.metadata?.payment_method === 'bank-transfer' ||
+        order.metadata?.payment_method === 'bank_transfer'
+      if (isBankTransfer && order.metadata?.payment_instructions) {
+        const inst = order.metadata.payment_instructions as any
+        await sendTemplateEmail(container, {
+          to: order.email,
+          templateKey: "order-bank-transfer",
+          locale,
+          customerId: order.customer_id,
+          data: {
+            customer_name:
+              order.billing_address?.first_name ||
+              String(order.email).split("@")[0] ||
+              ui.customer,
+            order_number: order.display_id ? String(order.display_id) : order.id,
+            total: `${(Number(order.total || 0) / 100).toFixed(2)} ${String(
+              order.currency_code || ""
+            ).toUpperCase()}`,
+            bank_name: inst?.bank_name || "-",
+            account_name: inst?.account_name || "-",
+            iban: inst?.iban || "-",
+            payment_reference: order.metadata?.payment_reference || `HUPI-${order.display_id || order.id}`,
+          },
+          silent: true,
+        }).catch((err: any) => logger.warn(`[order-placed] havale talimat e-postasi hatasi: ${err?.message}`))
+      }
+
+      // Admine yeni siparis bildirimi gonder
+      const adminEmail = await getAdminEmail(container)
+      if (adminEmail) {
+        await sendTemplateEmail(container, {
+          to: adminEmail,
+          templateKey: "admin-new-order",
+          locale: "tr",
+          data: {
+            order_number: order.display_id ? String(order.display_id) : order.id,
+            customer_name: `${order.billing_address?.first_name || ""} ${order.billing_address?.last_name || ""}`.trim() || String(order.email).split("@")[0],
+            customer_email: order.email,
+            payment_method: String(order.metadata?.payment_method || "Online"),
+            total: `${(Number(order.total || 0) / 100).toFixed(2)} ${String(
+              order.currency_code || ""
+            ).toUpperCase()}`,
+            items_html: itemsHtml,
+          },
+          silent: true,
+        }).catch((err: any) => logger.warn(`[order-placed] admin siparis bildirimi hatasi: ${err?.message}`))
+      }
     } catch (e: any) {
       logger.warn(`[order-placed] onay e-postasi gonderilemedi: ${e?.message}`)
     }

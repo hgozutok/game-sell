@@ -461,6 +461,304 @@ function build(
   }))
 }
 
+interface AdminNewUserCopy {
+  name: string
+  subject: string
+  title: string
+  heading: string
+  body: string
+}
+
+const ADMIN_NEW_USER: Record<Locale, AdminNewUserCopy> = {
+  en: {
+    name: "New User Registration (Admin)",
+    subject: "[Admin] New User Registered: {{customer_name}} ({{customer_email}})",
+    title: "New User Registered",
+    heading: "New User Registration 👤",
+    body: "A new user has registered on the store.",
+  },
+  tr: {
+    name: "Yeni Kullanıcı Bildirimi (Admin)",
+    subject: "[Admin] Yeni Kullanıcı Kaydı: {{customer_name}} ({{customer_email}})",
+    title: "Yeni Kullanıcı Kaydı",
+    heading: "Yeni Kullanıcı Kaydı 👤",
+    body: "Mağazaya yeni bir kullanıcı kayıt oldu.",
+  },
+  de: {
+    name: "Neuer Benutzer (Admin)",
+    subject: "[Admin] Neuer Benutzer registriert: {{customer_name}} ({{customer_email}})",
+    title: "Neuer Benutzer registriert",
+    heading: "Neue Benutzerregistrierung 👤",
+    body: "Ein neuer Benutzer hat sich registriert.",
+  },
+  fr: {
+    name: "Nouvel utilisateur (Admin)",
+    subject: "[Admin] Nouvel utilisateur inscrit : {{customer_name}} ({{customer_email}})",
+    title: "Nouvel utilisateur",
+    heading: "Nouvel utilisateur inscrit 👤",
+    body: "Un nouvel utilisateur s'est inscrit.",
+  },
+  ar: {
+    name: "مستخدم جديد (المشرف)",
+    subject: "[المشرف] تسجيل مستخدم جديد: {{customer_name}} ({{customer_email}})",
+    title: "تسجيل مستخدم جديد",
+    heading: "تسجيل مستخدم جديد 👤",
+    body: "تم تسجيل مستخدم جديد في المتجر.",
+  },
+}
+
+function adminNewUser(locale: Locale): string {
+  const copy = ADMIN_NEW_USER[locale]
+  return layout(
+    locale,
+    copy.title,
+    `<h1 style="margin:0 0 12px;font-size:22px;color:#111827;">${copy.heading}</h1>
+   <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">
+     ${copy.body}
+   </p>
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e8ee;border-radius:8px;border-collapse:separate;overflow:hidden;margin:12px 0 16px;">
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #e6e8ee;">Ad Soyad:</td><td style="padding:10px 14px;font-size:14px;color:#111827;font-weight:700;border-bottom:1px solid #e6e8ee;">{{customer_name}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">E-posta:</td><td style="padding:10px 14px;font-size:14px;color:#111827;border-bottom:1px solid #e6e8ee;"><a href="mailto:{{customer_email}}" style="color:#ff6b35;">{{customer_email}}</a></td></tr>
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Kayıt Tarihi:</td><td style="padding:10px 14px;font-size:14px;color:#111827;border-bottom:1px solid #e6e8ee;">{{registration_date}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;">Doğrulama Durumu:</td><td style="padding:10px 14px;font-size:14px;color:#f59e0b;font-weight:600;">{{verification_status}}</td></tr>
+   </table>`
+  )
+}
+
+interface AdminNewOrderCopy {
+  name: string
+  subject: string
+  title: string
+  heading: string
+  body: string
+}
+
+const ADMIN_NEW_ORDER: Record<Locale, AdminNewOrderCopy> = {
+  en: {
+    name: "New Order Notification (Admin)",
+    subject: "[Admin] New Order: #{{order_number}} — {{total}} ({{customer_name}})",
+    title: "New Order Received",
+    heading: "New Order Received 🛒",
+    body: "A new order has been placed on {{store_name}}.",
+  },
+  tr: {
+    name: "Yeni Sipariş Bildirimi (Admin)",
+    subject: "[Admin] Yeni Sipariş: #{{order_number}} — {{total}} ({{customer_name}})",
+    title: "Yeni Sipariş Alındı",
+    heading: "Yeni Sipariş Alındı 🛒",
+    body: "{{store_name}} mağazasında yeni bir sipariş oluşturuldu.",
+  },
+  de: {
+    name: "Neue Bestellung (Admin)",
+    subject: "[Admin] Neue Bestellung: #{{order_number}} — {{total}} ({{customer_name}})",
+    title: "Neue Bestellung erhalten",
+    heading: "Neue Bestellung erhalten 🛒",
+    body: "Eine neue Bestellung wurde aufgegeben.",
+  },
+  fr: {
+    name: "Nouvelle commande (Admin)",
+    subject: "[Admin] Nouvelle commande : n°{{order_number}} — {{total}} ({{customer_name}})",
+    title: "Nouvelle commande reçue",
+    heading: "Nouvelle commande reçue 🛒",
+    body: "Une nouvelle commande a été passée.",
+  },
+  ar: {
+    name: "طلب جديد (المشرف)",
+    subject: "[المشرف] طلب جديد: رقم {{order_number}} — {{total}} ({{customer_name}})",
+    title: "تم استلام طلب جديد",
+    heading: "تم استلام طلب جديد 🛒",
+    body: "تم إنشاء طلب جديد في المتجر.",
+  },
+}
+
+function adminNewOrder(locale: Locale): string {
+  const copy = ADMIN_NEW_ORDER[locale]
+  return layout(
+    locale,
+    copy.title,
+    `<h1 style="margin:0 0 12px;font-size:22px;color:#111827;">${copy.heading}</h1>
+   <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">
+     ${copy.body}
+   </p>
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e8ee;border-radius:8px;border-collapse:separate;overflow:hidden;margin:12px 0 16px;">
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #e6e8ee;">Sipariş No:</td><td style="padding:10px 14px;font-size:14px;color:#111827;font-weight:700;border-bottom:1px solid #e6e8ee;">#{{order_number}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Müşteri:</td><td style="padding:10px 14px;font-size:14px;color:#111827;border-bottom:1px solid #e6e8ee;">{{customer_name}} ({{customer_email}})</td></tr>
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Ödeme Yöntemi:</td><td style="padding:10px 14px;font-size:14px;color:#111827;border-bottom:1px solid #e6e8ee;">{{payment_method}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;">Toplam Tutar:</td><td style="padding:10px 14px;font-size:16px;color:#10b981;font-weight:700;">{{total}}</td></tr>
+   </table>
+   <h2 style="margin:16px 0 8px;font-size:16px;color:#111827;">Sipariş Edilen Ürünler:</h2>
+   {{items_html}}`
+  )
+}
+
+interface AdminKeysDeliveredCopy {
+  name: string
+  subject: string
+  title: string
+  heading: string
+  body: string
+}
+
+const ADMIN_KEYS_DELIVERED: Record<Locale, AdminKeysDeliveredCopy> = {
+  en: {
+    name: "Keys Delivered Report (Admin)",
+    subject: "[Admin] Keys Delivered: #{{order_number}} ({{customer_name}})",
+    title: "Keys Delivered",
+    heading: "Keys Delivered Report 🔑",
+    body: "Digital keys have been successfully delivered for order #{{order_number}}.",
+  },
+  tr: {
+    name: "Key Teslimat Raporu (Admin)",
+    subject: "[Admin] Anahtarlar Teslim Edildi: #{{order_number}} ({{customer_name}})",
+    title: "Anahtarlar Teslim Edildi",
+    heading: "Anahtar Teslimat Raporu 🔑",
+    body: "#{{order_number}} numaralı sipariş için lisans anahtarları müşteriye başarıyla iletildi.",
+  },
+  de: {
+    name: "Schlüssel geliefert (Admin)",
+    subject: "[Admin] Schlüssel geliefert: #{{order_number}} ({{customer_name}})",
+    title: "Schlüssel geliefert",
+    heading: "Schlüssel-Lieferbericht 🔑",
+    body: "Die Schlüssel für Bestellung #{{order_number}} wurden geliefert.",
+  },
+  fr: {
+    name: "Clés livrées (Admin)",
+    subject: "[Admin] Clés livrées : n°{{order_number}} ({{customer_name}})",
+    title: "Clés livrées",
+    heading: "Rapport de livraison de clés 🔑",
+    body: "Les clés pour la commande n°{{order_number}} ont été livrées.",
+  },
+  ar: {
+    name: "تم تسليم المفاتيح (المشرف)",
+    subject: "[المشرف] تم تسليم المفاتيح: رقم {{order_number}} ({{customer_name}})",
+    title: "تم تسليم المفاتيح",
+    heading: "تقرير تسليم المفاتيح 🔑",
+    body: "تم تسليم المفاتيح الرقمية بنجاح للطلب رقم {{order_number}}.",
+  },
+}
+
+function adminKeysDelivered(locale: Locale): string {
+  const copy = ADMIN_KEYS_DELIVERED[locale]
+  return layout(
+    locale,
+    copy.title,
+    `<h1 style="margin:0 0 12px;font-size:22px;color:#111827;">${copy.heading}</h1>
+   <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">
+     ${copy.body}
+   </p>
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e8ee;border-radius:8px;border-collapse:separate;overflow:hidden;margin:12px 0 16px;">
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #e6e8ee;">Sipariş No:</td><td style="padding:10px 14px;font-size:14px;color:#111827;font-weight:700;border-bottom:1px solid #e6e8ee;">#{{order_number}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Alıcı E-posta:</td><td style="padding:10px 14px;font-size:14px;color:#111827;border-bottom:1px solid #e6e8ee;">{{customer_email}}</td></tr>
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;">Teslim Zamanı:</td><td style="padding:10px 14px;font-size:14px;color:#111827;">{{now}}</td></tr>
+   </table>
+   <h2 style="margin:16px 0 8px;font-size:16px;color:#111827;">Teslim Edilen Lisans Anahtarları:</h2>
+   {{keys_html}}`
+  )
+}
+
+interface OrderBankTransferCopy {
+  name: string
+  subject: string
+  title: string
+  heading: string
+  body: string
+  note: string
+}
+
+const ORDER_BANK_TRANSFER: Record<Locale, OrderBankTransferCopy> = {
+  en: {
+    name: "Bank Transfer Instructions",
+    subject: "{{store_name}} — Payment instructions for Order #{{order_number}}",
+    title: "Bank Transfer Instructions",
+    heading: "Bank Transfer Details 🏦",
+    body: "Hi {{customer_name}}, thank you for your order. Please transfer the total amount to our bank account below:",
+    note: "Important: Please include only your reference code in the bank transfer description so we can verify your payment automatically.",
+  },
+  tr: {
+    name: "Banka Havalesi / EFT Talimatı",
+    subject: "{{store_name}} — Sipariş #{{order_number}} için Havale / EFT Bilgileri",
+    title: "Havale / EFT Bilgileri",
+    heading: "Havale / EFT ile Ödeme Bilgileri 🏦",
+    body: "Merhaba {{customer_name}}, siparişiniz oluşturuldu. Lütfen sipariş tutarını aşağıdaki banka hesabımıza gönderiniz:",
+    note: "Önemli: Ödemenizin otomatik eşleşebilmesi için havale/EFT açıklama kısmına yalnızca referans kodunuzu yazınız.",
+  },
+  de: {
+    name: "Banküberweisung",
+    subject: "{{store_name}} — Zahlungsanweisungen für Bestellung #{{order_number}}",
+    title: "Banküberweisung",
+    heading: "Banküberweisungsdaten 🏦",
+    body: "Hallo {{customer_name}}, bitte überweisen Sie den Betrag auf unser Bankkonto:",
+    note: "Wichtig: Bitte geben Sie als Verwendungszweck nur Ihren Referenzcode an.",
+  },
+  fr: {
+    name: "Virement bancaire",
+    subject: "{{store_name}} — Instructions de paiement pour la commande n°{{order_number}}",
+    title: "Virement bancaire",
+    heading: "Instructions de virement bancaire 🏦",
+    body: "Bonjour {{customer_name}}, veuillez effectuer le virement sur notre compte bancaire :",
+    note: "Important : Veuillez indiquer uniquement votre code de référence dans le libellé du virement.",
+  },
+  ar: {
+    name: "التحويل البنكي",
+    subject: "{{store_name}} — تعليمات الدفع للطلب رقم {{order_number}}",
+    title: "تعليمات التحويل البنكي",
+    heading: "تفاصيل التحويل البنكي 🏦",
+    body: "مرحبًا {{customer_name}}، يُرجى تحويل إجمالي المبلغ إلى حسابنا البنكي أدناه:",
+    note: "هام: يُرجى كتابة رمز المرجع فقط في خانة وصف التحويل البنكي.",
+  },
+}
+
+function orderBankTransfer(locale: Locale): string {
+  const copy = ORDER_BANK_TRANSFER[locale]
+  return layout(
+    locale,
+    copy.title,
+    `<h1 style="margin:0 0 12px;font-size:22px;color:#111827;">${copy.heading}</h1>
+   <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">
+     ${copy.body}
+   </p>
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e8ee;border-radius:8px;border-collapse:separate;overflow:hidden;margin:12px 0 16px;">
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #e6e8ee;">Sipariş No:</td><td style="padding:10px 14px;font-size:14px;color:#111827;font-weight:700;border-bottom:1px solid #e6e8ee;">#{{order_number}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Ödenecek Tutar:</td><td style="padding:10px 14px;font-size:16px;color:#10b981;font-weight:700;border-bottom:1px solid #e6e8ee;">{{total}}</td></tr>
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Banka Adı:</td><td style="padding:10px 14px;font-size:14px;color:#111827;font-weight:600;border-bottom:1px solid #e6e8ee;">{{bank_name}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">Hesap Sahibi:</td><td style="padding:10px 14px;font-size:14px;color:#111827;border-bottom:1px solid #e6e8ee;">{{account_name}}</td></tr>
+     <tr style="background:#f8f9fb;"><td style="padding:10px 14px;font-size:13px;color:#6b7280;border-bottom:1px solid #e6e8ee;">IBAN:</td><td style="padding:10px 14px;font-size:14px;color:#111827;font-family:monospace;font-weight:700;border-bottom:1px solid #e6e8ee;">{{iban}}</td></tr>
+     <tr><td style="padding:10px 14px;font-size:13px;color:#6b7280;background:#fff8f0;">Açıklama (Referans):</td><td style="padding:10px 14px;font-size:16px;color:#ff6b35;font-weight:800;background:#fff8f0;font-family:monospace;">{{payment_reference}}</td></tr>
+   </table>
+   <div style="padding:12px 16px;background:#fff8f0;border-left:4px solid #ff6b35;border-radius:4px;font-size:13px;color:#9a3412;line-height:1.5;">
+     ${copy.note}
+   </div>`
+  )
+}
+
+const ADMIN_NEW_USER_COPY = Object.fromEntries(
+  SUPPORTED_EMAIL_LOCALES.map((locale) => [
+    locale,
+    { name: ADMIN_NEW_USER[locale].name, subject: ADMIN_NEW_USER[locale].subject },
+  ])
+) as Record<Locale, { name: string; subject: string }>
+
+const ADMIN_NEW_ORDER_COPY = Object.fromEntries(
+  SUPPORTED_EMAIL_LOCALES.map((locale) => [
+    locale,
+    { name: ADMIN_NEW_ORDER[locale].name, subject: ADMIN_NEW_ORDER[locale].subject },
+  ])
+) as Record<Locale, { name: string; subject: string }>
+
+const ADMIN_KEYS_DELIVERED_COPY = Object.fromEntries(
+  SUPPORTED_EMAIL_LOCALES.map((locale) => [
+    locale,
+    { name: ADMIN_KEYS_DELIVERED[locale].name, subject: ADMIN_KEYS_DELIVERED[locale].subject },
+  ])
+) as Record<Locale, { name: string; subject: string }>
+
+const ORDER_BANK_TRANSFER_COPY = Object.fromEntries(
+  SUPPORTED_EMAIL_LOCALES.map((locale) => [
+    locale,
+    { name: ORDER_BANK_TRANSFER[locale].name, subject: ORDER_BANK_TRANSFER[locale].subject },
+  ])
+) as Record<Locale, { name: string; subject: string }>
+
 const ORDER_KEYS_COPY = Object.fromEntries(
   SUPPORTED_EMAIL_LOCALES.map((locale) => [
     locale,
@@ -500,6 +798,10 @@ export const DEFAULT_EMAIL_TEMPLATES: DefaultEmailTemplate[] = [
   ...build("verify-email", VERIFY_COPY, verifyEmail),
   ...build("order-digital-keys", ORDER_KEYS_COPY, orderDigitalKeys),
   ...build("order-confirmation", ORDER_CONFIRMATION_COPY, orderConfirmation),
+  ...build("order-bank-transfer", ORDER_BANK_TRANSFER_COPY, orderBankTransfer),
+  ...build("admin-new-user", ADMIN_NEW_USER_COPY, adminNewUser),
+  ...build("admin-new-order", ADMIN_NEW_ORDER_COPY, adminNewOrder),
+  ...build("admin-keys-delivered", ADMIN_KEYS_DELIVERED_COPY, adminKeysDelivered),
   ...build("contact-form", CONTACT_COPY, contactForm),
   ...build("smtp-test", SMTP_TEST_COPY, smtpTest),
 ]

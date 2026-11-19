@@ -2,7 +2,7 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { createCustomerAccountWorkflow } from '@medusajs/core-flows'
 import { getAuthSettings, randomToken, sanitizeCustomer } from '../../../../utils/auth-session'
-import { sendTemplateEmail } from '../../../../utils/email'
+import { sendTemplateEmail, getAdminEmail } from '../../../../utils/email'
 import {
   resolveEmailLocaleFromAcceptLanguage,
   toEmailLocale,
@@ -152,27 +152,34 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         silent: true,
       })
       if (mail.sent) {
-        logger.info(`[auth] kayit + dogrulama e-postasi: ${normalizedEmail}`)
+        logger.info(`[auth] kayit + dogrulama e-postasi gonderildi: ${normalizedEmail}`)
       } else {
-        // Gonderim basarisizsa kullaniciyi kilitlemeyelim: dogrulama postasi
-        // hic ulasmadigi icin hesap "dogrulanmis" sayilir ve durum loglanir.
         logger.warn(
-          `[auth] kayit alindi ancak dogrulama e-postasi gonderilemedi (${normalizedEmail}): ${mail.error || 'bilinmeyen hata'}`
+          `[auth] dogrulama e-postasi gonderilemedi (${normalizedEmail}): ${mail.error || 'bilinmeyen hata'}`
         )
-        await customerModule
-          .updateCustomers(customer.id, {
-            metadata: {
-              ...(customer.metadata || {}),
-              email_verified: true,
-              email_verification_token: null,
-              email_verification_expires: null,
-            },
-          })
-          .catch((e: any) =>
-            logger.warn(`[auth] dogrulama durumu guncellenemedi: ${e?.message}`)
-          )
-        requiresVerification = false
       }
+    }
+
+    // 5) Admine yeni kullanici bildirimi gonder
+    try {
+      const adminEmail = await getAdminEmail(req.scope)
+      if (adminEmail) {
+        await sendTemplateEmail(req.scope, {
+          to: adminEmail,
+          templateKey: 'admin-new-user',
+          locale: 'tr',
+          data: {
+            customer_name: `${String(first_name).trim()} ${String(last_name).trim()}`,
+            customer_email: normalizedEmail,
+            registration_date: new Date().toLocaleString('tr-TR'),
+            verification_status: requiresVerification ? 'Doğrulama Bekliyor' : 'Doğrulandı',
+          },
+          silent: true,
+        })
+        logger.info(`[auth] admine yeni uye bildirimi gonderildi -> ${adminEmail}`)
+      }
+    } catch (adminErr: any) {
+      logger.warn(`[auth] admine bildirim e-postasi gonderilemedi: ${adminErr?.message}`)
     }
 
     res.status(201).json({

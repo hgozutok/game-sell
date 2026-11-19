@@ -58,10 +58,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     // E-posta dogrulama kapisi
     const settings = await getAuthSettings(req.scope)
-    if (settings.verificationRequired && customer.metadata?.email_verified === false) {
+    if (settings.verificationRequired && !customer.metadata?.email_verified) {
       return res.status(403).json({
         code: 'email_not_verified',
-        message: 'E-postanız doğrulanmamış. Gelen kutunuzdaki bağlantıya tıklayın.',
+        message: 'E-postanız henüz doğrulanmamış. Lütfen gelen kutunuzdaki aktivasyon bağlantısına tıklayın.',
         email: customer.email,
       })
     }

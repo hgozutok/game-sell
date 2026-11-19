@@ -119,6 +119,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         metadata: { email_verified: true, email_verified_at: new Date().toISOString(), social_provider: provider },
       })
       logger.info(`[oauth] yeni musteri: ${profile.email} (${provider})`)
+
+      try {
+        const { getAdminEmail, sendTemplateEmail } = await import('../../../../../utils/email')
+        const adminEmail = await getAdminEmail(req.scope)
+        if (adminEmail) {
+          await sendTemplateEmail(req.scope, {
+            to: adminEmail,
+            templateKey: 'admin-new-user',
+            locale: 'tr',
+            data: {
+              customer_name: `${profile.firstName} ${profile.lastName}`,
+              customer_email: profile.email,
+              registration_date: new Date().toLocaleString('tr-TR'),
+              verification_status: `Doğrulandı (${provider})`,
+            },
+            silent: true,
+          })
+        }
+      } catch (err: any) {
+        logger.warn(`[oauth] admin bildirim hatasi: ${err?.message}`)
+      }
     } else if (customer.metadata?.email_verified !== true) {
       await customerModule.updateCustomers(customer.id, {
         metadata: { ...(customer.metadata || {}), email_verified: true, social_provider: provider },
