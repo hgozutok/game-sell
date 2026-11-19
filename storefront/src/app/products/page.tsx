@@ -72,8 +72,11 @@ export default function ProductsPage() {
     queryFn: async () => {
       const rate = Number(selectedCurrency.rate) || 1
       // Secilen kur -> USD (min/max cinsinden major unit)
-      const minUsd = priceMin > 0 ? priceMin / rate : undefined
-      const maxUsd = priceMax > 0 ? priceMax / rate : undefined
+      // Yalnizca kullanici varsayilan araliktan (0 - 1000) farkli bir fiyat filtrelediyse gonder
+      const hasMin = priceMin > 0
+      const hasMax = priceMax < 1000
+      const minUsd = hasMin ? priceMin / rate : undefined
+      const maxUsd = hasMax ? priceMax / rate : undefined
 
       const response = await api.get('/store/products/search', {
         params: {
@@ -99,9 +102,10 @@ export default function ProductsPage() {
         count: response.data.count || 0,
       }
     },
-    enabled: priceCapReady,
+    placeholderData: (previousData) => previousData,
   })
 
+  const showSkeleton = isLoading || !data
   const products = data?.products || []
   const totalCount = data?.count || 0
   const totalPages = Math.ceil(totalCount / limit)
@@ -247,15 +251,15 @@ export default function ProductsPage() {
         </div>
 
         {/* Products Grid */}
-        {isLoading ? (
+        {showSkeleton ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="card">
-                <div className="bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse h-56" />
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="gaming-card overflow-hidden">
+                <div className="bg-gradient-to-br from-[#1a1d24] to-[#252a34] animate-pulse h-56" />
                 <div className="p-5 space-y-3">
-                  <div className="h-6 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
-                  <div className="h-8 bg-gray-200 rounded animate-pulse w-1/2" />
+                  <div className="h-6 bg-[#252a34] rounded animate-pulse" />
+                  <div className="h-4 bg-[#252a34] rounded animate-pulse w-3/4" />
+                  <div className="h-8 bg-[#252a34] rounded animate-pulse w-1/2" />
                 </div>
               </div>
             ))}
@@ -263,8 +267,8 @@ export default function ProductsPage() {
         ) : error ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">😕</div>
-            <h3 className="text-2xl font-bold mb-2">{t('catalog.loadFailedTitle')}</h3>
-            <p className="text-gray-600 mb-6">{t('catalog.loadFailedDesc')}</p>
+            <h3 className="text-2xl font-bold mb-2 text-white">{t('catalog.loadFailedTitle')}</h3>
+            <p className="text-gray-400 mb-6">{t('catalog.loadFailedDesc')}</p>
             <button
               onClick={() => window.location.reload()}
               className="btn-primary"
@@ -272,11 +276,11 @@ export default function ProductsPage() {
               {t('catalog.tryAgain')}
             </button>
           </div>
-        ) : !data || products.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🎮</div>
-            <h3 className="text-2xl font-bold mb-2">{t('catalog.noProductsAvailable')}</h3>
-            <p className="text-gray-600 mb-6">{t('catalog.checkBack')}</p>
+            <h3 className="text-2xl font-bold mb-2 text-white">{t('catalog.noProductsAvailable')}</h3>
+            <p className="text-gray-400 mb-6">{t('catalog.checkBack')}</p>
           </div>
         ) : (
           <>
