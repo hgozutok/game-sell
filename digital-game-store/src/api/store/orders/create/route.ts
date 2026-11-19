@@ -364,6 +364,44 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
 
+    // PayPal: kullaniciyi PayPal onay sayfasina yonlendir.
+    // completeCartWorkflow SONRA cagrilir (musteri PayPal'da onaylayip dondukten sonra).
+    if (String(paymentSession.provider_id || requestedProvider).includes('paypal')) {
+      const paypalOrderId = paymentSession.data?.id
+      const isSandbox = String(process.env.PAYPAL_ENV || '').toLowerCase() === 'sandbox'
+      const fallbackApprove = paypalOrderId
+        ? `${isSandbox ? 'https://www.sandbox.paypal.com' : 'https://www.paypal.com'}/checkoutnow?token=${paypalOrderId}`
+        : null
+
+      const approveUrl =
+        paymentSession.data?.approve_url ||
+        (paymentSession.data?.links || []).find((l: any) => l.rel === 'approve' || l.rel === 'payer-action')?.href ||
+        (paymentSession.data?.links || []).find((l: any) => l.method === 'GET' && l.rel !== 'self')?.href ||
+        fallbackApprove
+
+      logger.info(`[PayPal] Session data: ${JSON.stringify(paymentSession.data)} -> approveUrl: ${approveUrl}`)
+
+      if (!approveUrl) {
+        logger.error(`[PayPal] approveUrl alinamadi! Session:`, paymentSession)
+        return res.status(400).json({
+          message: 'PayPal onay bağlantısı oluşturulamadı. Lütfen tekrar deneyin.',
+        })
+      }
+
+      return res.status(201).json({
+        requires_redirect: true,
+        cart_id: cart.id,
+        payment: {
+          collection_id: paymentCollection.id,
+          session_id: paymentSession.id,
+          provider: paymentSession.provider_id,
+          paypal_order_id: paypalOrderId || null,
+          approve_url: approveUrl,
+        },
+        message: 'PayPal onay sayfasina yonlendiriliyor',
+      })
+    }
+
     // 4) Dijital teslimat kargo metodu (completeCart requires_shipping kontrolu)
     //    Modul seviyesinde eklenir — fulfillment context validasyonu atlanir.
     await cartModule.addShippingMethods(cart.id, [

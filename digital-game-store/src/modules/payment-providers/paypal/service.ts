@@ -167,6 +167,11 @@ export class PayPalProviderService extends AbstractPaymentProvider<PayPalOptions
     const value = this.toAmount(input.amount)
     const sessionId = input?.data?.session_id || input?.context?.idempotency_key
 
+    // Storefront base URL — PayPal return/cancel redirect'i icin
+    const storefrontUrl = process.env.STOREFRONT_URL || 'https://hupiplay.uk'
+    const returnUrl = `${storefrontUrl}/checkout/paypal-return`
+    const cancelUrl = `${storefrontUrl}/checkout`
+
     const order = await this.request('post', '/v2/checkout/orders', {
       intent: 'CAPTURE',
       purchase_units: [
@@ -180,10 +185,17 @@ export class PayPalProviderService extends AbstractPaymentProvider<PayPalOptions
         brand_name: 'HUPIPLAY',
         user_action: 'PAY_NOW',
         shipping_preference: 'NO_SHIPPING',
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
       },
     })
 
-    const approve = (order?.links || []).find((l: any) => l.rel === 'approve')?.href
+    const isSandbox = (String(this.client_.defaults.baseURL || '').includes('sandbox'))
+    const fallbackApprove = `${isSandbox ? 'https://www.sandbox.paypal.com' : 'https://www.paypal.com'}/checkoutnow?token=${order.id}`
+    const approve =
+      (order?.links || []).find((l: any) => l.rel === 'approve' || l.rel === 'payer-action')?.href ||
+      (order?.links || []).find((l: any) => l.method === 'GET' && l.rel !== 'self')?.href ||
+      fallbackApprove
 
     return {
       id: String(order.id),
@@ -193,7 +205,8 @@ export class PayPalProviderService extends AbstractPaymentProvider<PayPalOptions
         status: String(order.status || 'CREATED'),
         currency_code: currency,
         amount: value,
-        approve_url: approve || null,
+        approve_url: approve,
+        links: order?.links || [],
         session_id: sessionId || null,
       },
     }

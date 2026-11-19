@@ -300,6 +300,22 @@ export default function CheckoutPage() {
         return
       }
 
+      // PayPal: kullaniciyi PayPal onay sayfasina yonlendir.
+      // PayPal geri donunce /checkout/paypal-return?token=...&cart_id=... sayfasina gelir.
+      if (response.data.requires_redirect && response.data.payment?.approve_url) {
+        const approveUrl = new URL(response.data.payment.approve_url)
+        // PayPal return/cancel URL'lerini ekle (PayPal application_context'e cekmiyor,
+        // server-side'da set edilmedi; PayPal varsayilan redirect'i kullanir).
+        // cart_id'yi localStorage'a kaydet, return sayfasinda kullanalim.
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('paypal_pending_cart_id', response.data.cart_id)
+          localStorage.setItem('paypal_pending_locale', locale || 'en')
+        }
+        // Kullaniciyi PayPal onay sayfasina gonder
+        window.location.href = approveUrl.toString()
+        return
+      }
+
       if (response.data.order) {
         const orderId = response.data.order.id
         
