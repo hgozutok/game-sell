@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { getAuthSettings, mintCustomerJwt } from '../../../../../utils/auth-session'
+import { getAdminEmail, sendTemplateEmail } from '../../../../../utils/email'
 
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token'
 const GOOGLE_USERINFO = 'https://openidconnect.googleapis.com/v1/userinfo'
@@ -121,7 +122,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       logger.info(`[oauth] yeni musteri: ${profile.email} (${provider})`)
 
       try {
-        const { getAdminEmail, sendTemplateEmail } = await import('../../../../../utils/email')
         const adminEmail = await getAdminEmail(req.scope)
         if (adminEmail) {
           await sendTemplateEmail(req.scope, {
