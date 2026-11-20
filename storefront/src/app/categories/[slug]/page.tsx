@@ -1,19 +1,27 @@
-'use client'
-
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import Link from 'next/link'
-import { api } from '@/lib/api'
-import ProductCard from '@/components/products/ProductCard'
-import { usePriceCap } from '@/hooks/usePriceCap'
-import { useT } from '@/components/useT'
+import CategoryClient from './CategoryClient'
 
-interface Collection {
-  id: string
-  title: string
-  handle: string
-  created_at: string
-  updated_at: string
+const API_URL =
+  process.env.MEDUSA_BACKEND_URL_SERVER ||
+  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+  'http://localhost:9000'
+const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY || ''
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hupiplay.uk'
+
+export const dynamic = 'force-dynamic'
+
+const PER_PAGE = 20
+
+interface PageProps {
+  params: { slug: string }
+  searchParams: {
+    page?: string
+    sort?: string
+    platform?: string
+  }
 }
 
 interface ResolvedCategory {
@@ -23,351 +31,268 @@ interface ResolvedCategory {
   kind: 'collection' | 'category'
 }
 
-interface Product {
-  id: string
-  title: string
-  handle?: string
-  thumbnail?: string
-  variants: Array<{
-    id: string
-    calculated_price?: {
-      calculated_amount: number
-      currency_code: string
+/** Sunucu tarafinda kategoriyi/koleksiyonu ve bagli urunleri ceker */
+async function fetchCategoryData(slug: string, page: number) {
+  const headers = PUBLISHABLE_KEY ? { 'x-publishable-api-key': PUBLISHABLE_KEY } : undefined
+  const offset = (page - 1) * PER_PAGE
+
+  try {
+    // 1) Koleksiyon (Platform) kontrolu
+    const collectionsRes = await fetch(`${API_URL}/store/collections?limit=100`, {
+      headers,
+      next: { revalidate: 3600 },
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+
+    const foundCol = (collectionsRes?.collections || []).find(
+      (c: any) => c.handle?.toLowerCase() === slug.toLowerCase()
+    )
+
+    let category: ResolvedCategory | null = null
+
+    if (foundCol) {
+      category = {
+        id: foundCol.id,
+        title: foundCol.title,
+        handle: foundCol.handle,
+        kind: 'collection',
+      }
+    } else {
+      // 2) Urun Kategorisi (Tur/Genre) kontrolu
+      const catRes = await fetch(`${API_URL}/store/product-categories?limit=200`, {
+        headers,
+        next: { revalidate: 3600 },
+      }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+
+      const foundCat = (catRes?.product_categories || []).find(
+        (c: any) => c.handle?.toLowerCase() === slug.toLowerCase()
+      )
+
+      if (foundCat) {
+        category = {
+          id: foundCat.id,
+          title: foundCat.name,
+          handle: foundCat.handle,
+          kind: 'category',
+        }
+      }
     }
-    prices?: Array<{
-      amount: number
-      currency_code: string
-    }>
-  }>
-  metadata?: {
-    platform?: string
-    region?: string
+
+    if (!category) return null
+
+    // 3) Urunleri cek
+    const q = new URLSearchParams()
+    q.set('limit', String(PER_PAGE))
+    q.set('offset', String(offset))
+
+    if (category.kind === 'collection') {
+      q.set('collection_id', category.id)
+    } else {
+      q.set('category_id', category.id)
+    }
+
+    const searchRes = await fetch(`${API_URL}/store/products/search?${q.toString()}`, {
+      headers,
+      cache: 'no-store',
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+
+    const products = searchRes?.products || []
+    const total = searchRes?.count || products.length
+
+    return { category, products, total }
+  } catch (error) {
+    console.error(`[category/page] fetchCategoryData(${slug}) hatasi:`, error)
+    return null
   }
 }
 
-const PER_PAGE = 24
+/** Dinamik SEO Metadata */
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+  const { slug } = params
+  const page = Math.max(1, parseInt(searchParams.page || '1', 10) || 1)
+  const data = await fetchCategoryData(slug, page)
 
-/** Dil bagimsiz sayfalama: ← 3 / 5 → */
-function Pager({
-  page,
-  total,
-  onChange,
-}: {
-  page: number
-  total: number
-  onChange: (page: number) => void
-}) {
-  const pages = Math.max(1, Math.ceil(total / PER_PAGE))
-  if (pages <= 1) return null
+  if (!data || !data.category) {
+    return {
+      title: 'Kategori Bulunamadı | HUPIPLAY',
+      robots: { index: false, follow: false },
+    }
+  }
+
+  const { category } = data
+  const baseTitle = `${category.title} Games`
+  const title = page > 1 ? `${baseTitle} (Page ${page}) | HUPIPLAY` : `${baseTitle} | HUPIPLAY`
+  const canonical = page > 1 ? `${SITE_URL}/categories/${slug}?page=${page}` : `${SITE_URL}/categories/${slug}`
+  const description = `Buy ${category.title} digital game keys at best prices. Instant delivery via email with secure checkout at HUPIPLAY.`
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      siteName: 'HUPIPLAY',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
+  }
+}
+
+function CategorySkeleton() {
   return (
-    <div className="flex items-center justify-center gap-3 mt-10">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(1, page - 1))}
-        disabled={page <= 1}
-        aria-label="onceki-sayfa"
-        className="px-4 py-2 rounded-lg border border-gray-700 bg-[#1a1d24] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#ff6b35] transition"
-      >
-        ←
-      </button>
-      <span className="text-sm text-gray-400 tabular-nums">
-        {page} / {pages}
-      </span>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(pages, page + 1))}
-        disabled={page >= pages}
-        aria-label="sonraki-sayfa"
-        className="px-4 py-2 rounded-lg border border-gray-700 bg-[#1a1d24] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#ff6b35] transition"
-      >
-        →
-      </button>
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="gaming-card overflow-hidden">
+            <div className="bg-gradient-to-br from-[#1a1d24] to-[#252a34] animate-pulse h-56" />
+            <div className="p-5 space-y-3">
+              <div className="h-6 bg-[#252a34] rounded animate-pulse" />
+              <div className="h-4 bg-[#252a34] rounded animate-pulse w-3/4" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-export default function CategoryPage() {
-  const t = useT()
-  const { isOverCap } = usePriceCap()
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const slug = params.slug as string
+export default async function CategoryPage({ params, searchParams }: PageProps) {
+  const { slug } = params
+  const page = Math.max(1, parseInt(searchParams.page || '1', 10) || 1)
+  const sort = searchParams.sort || 'featured'
+  const platform = searchParams.platform || 'all'
 
-  const [category, setCategory] = useState<ResolvedCategory | null>(null)
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState('featured')
-  const [filterPlatform, setFilterPlatform] = useState('all')
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
-  const prevSlugRef = useRef<string | null>(null)
-
-  const gotoPage = (next: number) => {
-    setPage(next)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const data = await fetchCategoryData(slug, page)
+  if (!data || !data.category) {
+    notFound()
   }
 
-  useEffect(() => {
-    // Slug degistiginde ilk sayfaya don
-    if (prevSlugRef.current !== slug) {
-      prevSlugRef.current = slug
-      if (page !== 1) {
-        setPage(1)
-        return
-      }
-    }
+  const { category, products, total } = data
 
-    const offset = (page - 1) * PER_PAGE
+  // JSON-LD: ItemList Sema Verisi
+  const itemListJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: `${category.title} Games`,
+    numberOfItems: products.length,
+    itemListElement: products.map((product: any, idx: number) => ({
+      '@type': 'ListItem',
+      position: (page - 1) * PER_PAGE + idx + 1,
+      name: product.title,
+      url: `${SITE_URL}/products/${product.handle || product.id}`,
+    })),
+  }
 
-    const fetchData = async () => {
-      try {
-        // Slug can be a platform collection OR a genre product category;
-        // resolve collections first, fall back to product categories.
-        const collectionsResponse = await api.get('/store/collections', { params: { limit: 100 } })
-        const collections = collectionsResponse.data.collections || []
-
-        const foundCollection = collections.find((col: Collection) => col.handle === slug)
-
-        if (foundCollection) {
-          console.log('Found collection:', foundCollection)
-          setCategory({ id: foundCollection.id, title: foundCollection.title, handle: foundCollection.handle, kind: 'collection' })
-
-          let productsData: any[] = []
-          let totalCount = 0
-
-          try {
-            const searchRes = await api.get('/store/products/search', {
-              params: {
-                collection_id: foundCollection.id,
-                limit: PER_PAGE,
-                offset,
-              },
-            })
-            if (searchRes.data?.products) {
-              productsData = searchRes.data.products
-              totalCount = Number(searchRes.data.count) || productsData.length
-            }
-          } catch (searchErr) {
-            console.warn('Search endpoint failed, falling back to /store/products:', searchErr)
-            const fallbackRes = await api.get('/store/products', {
-              params: {
-                collection_id: foundCollection.id,
-                fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
-                limit: PER_PAGE,
-                offset,
-              },
-            })
-            if (fallbackRes.data?.products) {
-              productsData = fallbackRes.data.products
-              totalCount = Number(fallbackRes.data.count) || productsData.length
-            }
-          }
-
-          setProducts(productsData)
-          setTotal(totalCount)
-          return
-        }
-
-        // Fall back to Medusa product categories (genres)
-        const categoriesResponse = await api
-          .get('/store/product-categories', { params: { limit: 200 } })
-          .catch(() => null)
-        const allCategories = categoriesResponse?.data?.product_categories || []
-        const foundCategory = allCategories.find((cat: any) => cat.handle === slug)
-
-        if (foundCategory) {
-          console.log('Found product category:', foundCategory)
-          setCategory({ id: foundCategory.id, title: foundCategory.name, handle: foundCategory.handle, kind: 'category' })
-
-          let productsData: any[] = []
-          let totalCount = 0
-
-          try {
-            const searchRes = await api.get('/store/products/search', {
-              params: {
-                category_id: foundCategory.id,
-                limit: PER_PAGE,
-                offset,
-              },
-            })
-            if (searchRes.data?.products) {
-              productsData = searchRes.data.products
-              totalCount = Number(searchRes.data.count) || productsData.length
-            }
-          } catch (searchErr) {
-            console.warn('Search endpoint failed, falling back to /store/products:', searchErr)
-            const fallbackRes = await api.get('/store/products', {
-              params: {
-                category_id: foundCategory.id,
-                fields: 'id,title,handle,description,thumbnail,metadata,variants.id,variants.title,variants.prices.amount,variants.prices.currency_code',
-                limit: PER_PAGE,
-                offset,
-              },
-            })
-            if (fallbackRes.data?.products) {
-              productsData = fallbackRes.data.products
-              totalCount = Number(fallbackRes.data.count) || productsData.length
-            }
-          }
-
-          setProducts(productsData)
-          setTotal(totalCount)
-          return
-        }
-
-        console.warn('No collection or category found for slug:', slug)
-      } catch (error) {
-        console.error('Failed to fetch category data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [slug, page])
-
-  // Filter and sort products
-  // Note: Price and stock filtering should be done by backend API
-  const filteredProducts = products.filter((product) => {
-    // Admin tarafinda belirlenen listeleme ust fiyat limiti (EUR)
-    if (isOverCap(product)) return false
-
-    // Filter by platform
-    if (filterPlatform === 'all') return true
-    return product.metadata?.platform?.toLowerCase() === filterPlatform.toLowerCase()
-  })
-
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortBy === 'price-asc') {
-      const priceA = a.variants[0]?.calculated_price?.calculated_amount || a.variants[0]?.prices?.[0]?.amount || 0
-      const priceB = b.variants[0]?.calculated_price?.calculated_amount || b.variants[0]?.prices?.[0]?.amount || 0
-      return priceA - priceB
-    }
-    if (sortBy === 'price-desc') {
-      const priceA = a.variants[0]?.calculated_price?.calculated_amount || a.variants[0]?.prices?.[0]?.amount || 0
-      const priceB = b.variants[0]?.calculated_price?.calculated_amount || b.variants[0]?.prices?.[0]?.amount || 0
-      return priceB - priceA
-    }
-    if (sortBy === 'name') {
-      return a.title.localeCompare(b.title)
-    }
-    return 0
-  })
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0b0d] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#ff6b35]"></div>
-      </div>
-    )
+  // JSON-LD: BreadcrumbList Sema Verisi
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Home',
+        item: SITE_URL,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Categories',
+        item: `${SITE_URL}/categories`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: category.title,
+        item: `${SITE_URL}/categories/${slug}`,
+      },
+      ...(page > 1
+        ? [
+            {
+              '@type': 'ListItem',
+              position: 4,
+              name: `Page ${page}`,
+              item: `${SITE_URL}/categories/${slug}?page=${page}`,
+            },
+          ]
+        : []),
+    ],
   }
 
   return (
     <div className="min-h-screen bg-[#0a0b0d]">
-      {/* Breadcrumb */}
+      {/* Schema.org Yapılandırılmış Verileri */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+
+      {/* Breadcrumb Bar */}
       <div className="bg-[#15171c] border-b border-gray-800">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Link href="/" className="text-gray-400 hover:text-[#ff6b35] transition">
-              {t('catalog.home')}
+        <div className="container mx-auto px-4 py-3">
+          <nav aria-label="Ekmek Kırıntısı" className="flex items-center gap-2 text-sm text-gray-400">
+            <Link href="/" className="hover:text-white transition">
+              Home
             </Link>
-            <span className="text-gray-600">/</span>
-            <Link href="/categories" className="text-gray-400 hover:text-[#ff6b35] transition">
-              {t('catalog.categories')}
+            <span>/</span>
+            <Link href="/categories" className="hover:text-white transition">
+              Categories
             </Link>
-            <span className="text-gray-600">/</span>
-            <span className="text-white font-semibold">{category?.title || slug}</span>
-          </div>
+            <span>/</span>
+            <span className="text-white font-semibold">{category.title}</span>
+            {page > 1 && <span className="text-[#ff6b35] font-semibold">(Page {page})</span>}
+          </nav>
         </div>
       </div>
 
-      {/* Category Header */}
+      {/* Category Header (SSR) */}
       <div className="bg-gradient-to-br from-[#1a1d24] to-[#0a0b0d] border-b border-gray-800">
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-6xl font-black text-white mb-4">
-              {category?.title || slug.toUpperCase()}
+              {category.title}
+              {page > 1 && (
+                <span className="text-[#ff6b35] text-3xl md:text-4xl ms-3">
+                  (Page {page})
+                </span>
+              )}
             </h1>
             <p className="text-xl text-gray-400">
-              {category?.kind === 'category' ? t('catalog.exploreGenre') : t('catalog.exploreCollection')}
+              {category.kind === 'category'
+                ? `Explore the best ${category.title} games with instant delivery`
+                : `Explore games available on ${category.title}`}
             </p>
             <div className="mt-6">
               <span className="text-[#ff6b35] font-bold text-lg">
-                {total || products.length} {t('catalog.gamesAvailable')}
+                {total.toLocaleString('tr-TR')} Games Available
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Filters and Sort */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div className="flex flex-wrap gap-4">
-            {/* Platform Filter */}
-            <div>
-              <label className="text-gray-400 text-sm mb-2 block">{t('catalog.platform')}</label>
-              <select
-                value={filterPlatform}
-                onChange={(e) => setFilterPlatform(e.target.value)}
-                className="bg-[#15171c] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-              >
-                <option value="all">{t('catalog.allPlatforms')}</option>
-                <option value="steam">Steam</option>
-                <option value="epic">Epic Games</option>
-                <option value="origin">Origin</option>
-                <option value="uplay">Uplay</option>
-                <option value="gog">GOG</option>
-              </select>
-            </div>
-
-            {/* Sort */}
-            <div>
-              <label className="text-gray-400 text-sm mb-2 block">{t('catalog.sortBy')}</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-[#15171c] border border-gray-700 text-white px-4 py-2 rounded-lg focus:border-[#ff6b35] focus:outline-none"
-              >
-                <option value="featured">{t('catalog.featured')}</option>
-                <option value="price-asc">{t('catalog.priceAsc')}</option>
-                <option value="price-desc">{t('catalog.priceDesc')}</option>
-                <option value="name">{t('catalog.nameAsc')}</option>
-              </select>
-            </div>
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex gap-2">
-            <button className="p-2 bg-[#ff6b35] text-white rounded-lg">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Products Grid */}
-        {sortedProducts.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {sortedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-            <Pager page={page} total={total} onChange={gotoPage} />
-          </>
-        ) : (
-          <div className="text-center py-20">
-            <div className="text-8xl mb-4 opacity-20">🎮</div>
-            <h3 className="text-2xl font-bold text-white mb-2">{t('catalog.noProducts')}</h3>
-            <p className="text-gray-400 mb-6">{t('catalog.noProductsDesc')}</p>
-            <Link href="/products" className="btn-primary">
-              {t('catalog.browseAll')}
-            </Link>
-          </div>
-        )}
-      </div>
+      {/* Urun Izgarasi ve Kalici Sayfalama */}
+      <Suspense fallback={<CategorySkeleton />}>
+        <CategoryClient
+          initialProducts={products}
+          initialTotal={total}
+          category={category}
+          slug={slug}
+          currentPage={page}
+          currentSort={sort}
+          currentPlatform={platform}
+          perPage={PER_PAGE}
+        />
+      </Suspense>
     </div>
   )
 }

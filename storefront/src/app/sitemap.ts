@@ -56,6 +56,7 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
       "/cookies",
       "/returns",
       "/delivery",
+      "/digital-product-policy",
       "/blog",
       "/about",
     ].map((path) => ({

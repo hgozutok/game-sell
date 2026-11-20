@@ -9,6 +9,7 @@ import { content } from './content'
 import { errors } from './errors'
 import { home } from './home'
 import { legal } from './legal'
+import { digitalPolicy } from './digitalPolicy'
 
 /**
  * Tum mesaj tablolari tek bir sozlukte birlestirilir.
@@ -25,7 +26,8 @@ export const MESSAGES: Record<string, MessageEntry> = {
   ...errors,
   ...content,
   ...legal,
+  ...digitalPolicy,
 }
 
 /** Ayni anahtarin iki farkli namespace'te tanimlanmasini yakalar (gelistirme uyarisi). */
-export const MESSAGE_TABLES = { common, home, catalog, cart, checkout, auth, account, errors, content, legal }
+export const MESSAGE_TABLES = { common, home, catalog, cart, checkout, auth, account, errors, content, legal, digitalPolicy }

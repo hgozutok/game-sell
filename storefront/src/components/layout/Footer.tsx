@@ -33,7 +33,12 @@ type SocialLink = { id: string; label: string; icon: string; href: string }
 
 export default function Footer() {
   const t = useT()
-  const [paymentBadges, setPaymentBadges] = useState<string[] | null>(null)
+  const [paymentBadges, setPaymentBadges] = useState<string[]>([
+    'VISA',
+    'MASTERCARD',
+    'PAYPAL',
+    'BANK TRANSFER',
+  ])
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([])
 
   useEffect(() => {
@@ -126,6 +131,7 @@ export default function Footer() {
               <li><Link href="/faq" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.faq')}</Link></li>
               <li><Link href="/returns" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.returnsPolicy')}</Link></li>
               <li><Link href="/delivery" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.deliveryPolicy')}</Link></li>
+              <li><Link href="/digital-product-policy" className="text-gray-400 hover:text-[#ff6b35] transition">{t('content.digitalPolicy.title')}</Link></li>
               <li><Link href="/how-it-works" className="text-gray-400 hover:text-[#ff6b35] transition">{t('footer.howItWorks')}</Link></li>
             </ul>
           </div>
@@ -146,17 +152,11 @@ export default function Footer() {
         <div className="border-t border-gray-800 pt-8 mb-8">
           <h4 className="text-white font-bold mb-4 text-sm uppercase">{t('footer.paymentsTitle')}</h4>
           <div className="flex flex-wrap gap-3">
-            {paymentBadges === null ? (
-              <div className="text-gray-500 text-xs">{t('footer.paymentsLoading')}</div>
-            ) : paymentBadges.length > 0 ? (
-              paymentBadges.map((method) => (
-                <div key={method} className="bg-[#1a1d24] border border-gray-800 px-4 py-2 rounded-lg text-gray-400 text-xs font-bold">
-                  {BADGE_LABEL_KEYS[method] ? t(BADGE_LABEL_KEYS[method]) : method}
-                </div>
-              ))
-            ) : (
-              <div className="text-gray-500 text-xs">{t('footer.paymentsEmpty')}</div>
-            )}
+            {paymentBadges.map((method) => (
+              <div key={method} className="bg-[#1a1d24] border border-gray-800 px-4 py-2 rounded-lg text-gray-400 text-xs font-bold">
+                {BADGE_LABEL_KEYS[method] ? t(BADGE_LABEL_KEYS[method]) : method}
+              </div>
+            ))}
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import ProductDetailClient from './ProductDetail'
 
 const API_URL =
@@ -150,44 +151,90 @@ export default async function ProductPage({
   const { slug } = params
   const product = await fetchProduct(slug)
 
-  // JSON-LD: Product schema (Google zengin sonuclar)
-  const price = product?.variants?.[0]?.prices?.find((p) => p.currency_code === 'usd')
-  const meta2 = product?.metadata || {}
-  const bits2 = [meta2.platform, meta2.region].filter(Boolean) as string[]
-  const jsonLdDescription = product
-    ? toDescription(product.description || '') ||
-      `Buy ${product.title} digital game key${bits2.length ? ` (${bits2.join(', ')})` : ''} with instant email delivery.`
-    : undefined
+  if (!product) {
+    notFound()
+  }
 
-  const jsonLd = product
-    ? {
-        '@context': 'https://schema.org',
-        '@type': 'Product',
-        name: product.title,
-        description: jsonLdDescription,
-        image: [product.thumbnail, ...(product.images || []).map((i) => i.url)].filter(Boolean),
-        sku: product.handle || product.id,
-        category: product.metadata?.platform || undefined,
-        brand: { '@type': 'Brand', name: 'HUPIPLAY' },
-        offers: {
-          '@type': 'Offer',
-          url: `${SITE_URL}/products/${product.handle || product.id}`,
-          priceCurrency: 'USD',
-          price: price ? (price.amount / 100).toFixed(2) : undefined,
-          availability: 'https://schema.org/InStock',
-          seller: { '@type': 'Organization', name: 'HUPIPLAY' },
-        },
-      }
-    : null
+  // JSON-LD: Product schema (Google zengin sonuclar)
+  const price = product.variants?.[0]?.prices?.find((p) => p.currency_code === 'usd')
+  const meta2 = product.metadata || {}
+  const bits2 = [meta2.platform, meta2.region].filter(Boolean) as string[]
+  const jsonLdDescription =
+    toDescription(product.description || '') ||
+    `Buy ${product.title} digital game key${bits2.length ? ` (${bits2.join(', ')})` : ''} with instant email delivery.`
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.title,
+    description: jsonLdDescription,
+    image: [product.thumbnail, ...(product.images || []).map((i) => i.url)].filter(Boolean),
+    sku: product.handle || product.id,
+    category: product.metadata?.platform || undefined,
+    brand: { '@type': 'Brand', name: 'HUPIPLAY' },
+    offers: {
+      '@type': 'Offer',
+      url: `${SITE_URL}/products/${product.handle || product.id}`,
+      priceCurrency: 'USD',
+      price: price ? (price.amount / 100).toFixed(2) : undefined,
+      availability: 'https://schema.org/InStock',
+      seller: { '@type': 'Organization', name: 'HUPIPLAY' },
+    },
+  }
+
+  // JSON-LD: BreadcrumbList schema
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Home',
+        item: SITE_URL,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Products',
+        item: `${SITE_URL}/products`,
+      },
+      ...(product.metadata?.platform
+        ? [
+            {
+              '@type': 'ListItem',
+              position: 3,
+              name: product.metadata.platform,
+              item: `${SITE_URL}/products?platform=${encodeURIComponent(product.metadata.platform)}`,
+            },
+            {
+              '@type': 'ListItem',
+              position: 4,
+              name: product.title,
+              item: `${SITE_URL}/products/${product.handle || product.id}`,
+            },
+          ]
+        : [
+            {
+              '@type': 'ListItem',
+              position: 3,
+              name: product.title,
+              item: `${SITE_URL}/products/${product.handle || product.id}`,
+            },
+          ]),
+    ],
+  }
 
   return (
     <>
-      {jsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      )}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <ProductDetailClient initialProduct={product as any} />
     </>
   )

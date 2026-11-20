@@ -62,7 +62,7 @@ export default function FAQPage() {
   return (
     <PolicyLayout
       title={t('content.faq.title')}
-      lastUpdated={formatDate('2025-10-27', locale, { day: 'numeric', month: 'long', year: 'numeric' })}
+      lastUpdated={formatDate('2026-11-20', locale, { day: 'numeric', month: 'long', year: 'numeric' })}
     >
       <div className="space-y-8">
         <p className="text-gray-300 text-lg">
