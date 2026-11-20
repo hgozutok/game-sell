@@ -19,7 +19,7 @@ import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
  */
 
 const MAX_LIMIT = 100
-const DEFAULT_LIMIT = 24
+const DEFAULT_LIMIT = 20
 const MAX_OFFSET = 10000
 const MIN_QUERY_LENGTH = 2
 const BASE_CURRENCY = 'usd'

@@ -22,8 +22,8 @@ interface ProductCategory {
   is_internal: boolean
 }
 
-// Sayfa basina kart sayisi (4 kolon x 6 satir)
-const PER_PAGE = 24
+// Sayfa basina kart sayisi (4 kolon x 5 satir = 20 kart)
+const PER_PAGE = 20
 
 /** Dil bagimsiz sayfalama: ← 3 / 5 → */
 function Pager({
