@@ -127,7 +127,19 @@ export function rateLimit(
 }
 
 export function clientIp(req: any): string {
+  // 1) X-Real-IP — nginx ($remote_addr) tarafindan set edilir, istemci
+  //    degeri EZER. Guvenilir birincil kaynak.
+  const real = req.headers?.['x-real-ip']
+  if (typeof real === 'string' && real.trim()) return real.split(',')[0].trim()
+
+  // 2) X-Forwarded-For: istemci SAHTE deger ekleyebilir; nginx
+  //    ($proxy_add_x_forwarded_for) gercek IP'yi SONA ekler. Ilk degil SON
+  //    girisi al — aksi halde XFF spoofing ile IP blok atlaniyordu.
   const fwd = req.headers?.['x-forwarded-for']
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim()
+  if (typeof fwd === 'string' && fwd.trim()) {
+    const parts = fwd.split(',').map((s) => s.trim()).filter(Boolean)
+    if (parts.length) return parts[parts.length - 1]
+  }
+
   return req.ip || 'unknown'
 }

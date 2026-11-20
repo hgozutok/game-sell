@@ -104,5 +104,29 @@ export function customerAdminView(customer: any) {
     active: !isCustomerDisabled(metadata),
     disabled_at: metadata.disabled_at || null,
     email_verified: metadata.email_verified === true,
+    // Bot tespiti icin yakalanan IP'ler (kayit/giris/siparis aninda yazilir)
+    last_ip: typeof metadata.last_ip === "string" ? metadata.last_ip : null,
+    ips: Array.isArray(metadata.ips) ? metadata.ips.slice(-5).map(String) : [],
+  }
+}
+
+/**
+ * Musteri metadata'sina IP izi ekler (kayit/giris/siparis aninda cagirilir).
+ * last_ip = en son gorulen IP; ips = bilinen son 5 IP (botun tum adresleri).
+ * Yalnizca IP alanlarini doner — cagiran taraf mevcut metadata ile spread eder.
+ */
+export function buildCustomerIpMetadata(
+  metadata: any,
+  ip: unknown
+): Record<string, any> {
+  const normalized = String(ip || "").trim()
+  if (!normalized || normalized === "unknown") return {}
+  const current =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}
+  const knownIps: string[] = Array.isArray(current.ips) ? current.ips.map(String) : []
+  const merged = Array.from(new Set([...knownIps, normalized])).slice(-5)
+  return {
+    last_ip: normalized,
+    ips: merged,
   }
 }

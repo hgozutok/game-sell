@@ -1,5 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework/subscribers"
 import { Modules } from "@medusajs/framework/utils"
+import { cancelOrderWorkflow } from "@medusajs/core-flows"
 import { fulfillKinguinOrderWorkflow } from "../workflows/fulfill-kinguin-order"
 import {
   sendTemplateEmail,
@@ -11,6 +12,8 @@ import {
 } from "../utils/email"
 import { evaluatePurchaseVelocity, evaluateCustomerVelocity } from "../utils/velocity-guard"
 import { convertOrderTotalToCurrency } from "../utils/currency"
+import { checkEmailBlacklist } from "../utils/email-blacklist"
+import { buildCustomerIpMetadata } from "../utils/customer-status"
 
 /**
  * order.placed — odenen dijital siparisleri fulfillment kuyruguna alir.
@@ -46,6 +49,113 @@ export default async function orderPlacedHandler({
   if (!order) {
     logger.warn(`[order-placed] siparis bulunamadi: ${orderId}`)
     return
+  }
+
+  // ---- Siparis IP izi: log + audit kaydi + musteri ips[] birlestirme ----
+  // customer_ip (siparis olusturma) + complete_ip (sepet tamamlama istegi).
+  // Sahte siparislere de iz kalmasi icin fraud-iptalinden ONCE calisir.
+  try {
+    const ipTrail = Array.from(
+      new Set(
+        [order.metadata?.customer_ip, order.metadata?.complete_ip]
+          .filter((ip: any) => typeof ip === "string" && ip && ip !== "unknown")
+          .map(String)
+      )
+    )
+    logger.info(
+      `[order-ip] ${orderId} email=${order.email || "-"} ips=${ipTrail.join(",") || "yok"}`
+    )
+
+    const auditLog = container.resolve("auditLog") as any
+    await auditLog
+      .log({
+        action: "order.ip_log",
+        entity: "order",
+        entity_id: orderId,
+        diff: { ips: ipTrail, email: order.email, total: order.total },
+        actor_email: "system:order-ip",
+      })
+      .catch(() => null)
+
+    // IP'leri musterinin ips[] listesine birlestir — kullanici listesindeki
+    // "IP Engelle" butonu bu iz uzerinden calisir. customer_id yoksa (misafir)
+    // e-posta ile musteri bulunur (botun standart API siparisleri misafirdi).
+    let customerId: string | null = order.customer_id || null
+    const customerModule = container.resolve(Modules.CUSTOMER) as any
+    if (!customerId && order.email) {
+      const found = await customerModule
+        .listCustomers({ email: String(order.email).toLowerCase() })
+        .catch(() => [])
+      customerId = found?.[0]?.id || null
+    }
+    if (customerId) {
+      const customer = await customerModule
+        .retrieveCustomer(customerId)
+        .catch(() => null)
+      if (customer) {
+        let mergedMetadata = { ...(customer.metadata || {}) }
+        for (const ip of ipTrail) {
+          mergedMetadata = {
+            ...mergedMetadata,
+            ...buildCustomerIpMetadata(mergedMetadata, ip),
+          }
+        }
+        if (mergedMetadata.ips?.length) {
+          await customerModule
+            .updateCustomers(customerId, { metadata: mergedMetadata })
+            .catch(() => null)
+        }
+      }
+    }
+  } catch (e: any) {
+    logger.warn(`[order-placed] ${orderId}: ip izi yazilamadi: ${e?.message}`)
+  }
+
+  // ---- Son savunma: sahte siparisi IPTAL et, e-posta SPAM'i uretme ----
+  // Bir sekil (yeni bir bypass) olusmussa: kara listeli e-posta veya 0 tutarli
+  // siparis -> cancelOrderWorkflow ile iptal, hicbir bildirim e-postasi YOK.
+  // (fulfillment zaten tahsilat kapisiyla para harcamadan duruyor; burada
+  // siparis kaydini ve e-posta gurultusunu temizliyoruz.)
+  const blacklistCheck = await checkEmailBlacklist(container, order.email).catch(
+    () =>
+      ({
+        blocked: false,
+        kind: undefined,
+        match: undefined,
+      }) as Awaited<ReturnType<typeof checkEmailBlacklist>>
+  )
+  const totalMinor = Number(order.total || 0)
+  if (blacklistCheck.blocked || totalMinor <= 0) {
+    const reason = blacklistCheck.blocked
+      ? `kara listeli e-posta (${blacklistCheck.kind}=${blacklistCheck.match})`
+      : `0 tutarli siparis`
+    logger.warn(
+      `[order-placed] ${orderId}: SAHTE SIPARIS iptal ediliyor — ${reason}`
+    )
+    try {
+      await cancelOrderWorkflow(container).run({
+        input: { order_id: orderId },
+      })
+      logger.warn(`[order-placed] ${orderId}: iptal edildi (${reason})`)
+    } catch (e: any) {
+      // iptal edilemezse (odeme/cancel kurali) en azindan kuyruga dusur,
+      // e-posta atma
+      logger.warn(`[order-placed] ${orderId}: cancel hatasi: ${e?.message}`)
+      await orderModule
+        .updateOrders([
+          {
+            id: orderId,
+            metadata: {
+              ...(order.metadata || {}),
+              fulfillment_state: "canceled_fraud",
+              fulfillment_error: `Sahte siparis — iptal: ${reason}`,
+              fulfillment_updated_at: new Date().toISOString(),
+            },
+          },
+        ])
+        .catch(() => null)
+    }
+    return // hicbir e-posta gonderilmez
   }
 
   let lineItems: any[] = []
@@ -328,10 +438,10 @@ export default async function orderPlacedHandler({
     const attempts = Number(fresh?.metadata?.fulfillment_attempts || 0) + 1
     const max = Number(process.env.FULFILL_MAX_RETRIES || 4)
     const code = e?.code || e?.details?.code
-    // readonly/zarar/bakiye guard'lari tekrar denemeyi gereksiz kilar — dogrudan kuyruk
+    // readonly/zarar/bakiye/tahsilat guard'lari tekrar denemeyi gereksiz kilar — dogrudan kuyruk
     const manual =
       code === "READONLY" || code === "NEGATIVE_MARGIN" || code === "BALANCE" ||
-      code === "ORDER_LIMIT" ||
+      code === "ORDER_LIMIT" || code === "PAYMENT_NOT_CAPTURED" ||
       e?.name === "KinguinOrderModeError" || e?.name === "KinguinInsufficientBalanceError"
     await orderModule.updateOrders([
       {

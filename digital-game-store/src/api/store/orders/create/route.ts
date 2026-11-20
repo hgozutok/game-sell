@@ -15,6 +15,8 @@ import {
   requireVerifiedCustomerForOrder,
 } from '../../../../utils/order-guard'
 import { verifyEmailNotBlacklisted } from '../../../../utils/email-blacklist'
+import { buildCustomerIpMetadata } from '../../../../utils/customer-status'
+import { clientIp } from '../../../../utils/bot-protection'
 import {
   resolveEmailLocaleFromAcceptLanguage,
   toEmailLocale,
@@ -203,10 +205,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           currentMetadata.prefs && typeof currentMetadata.prefs === 'object'
             ? currentMetadata.prefs
             : {}
+        // Siparis IP'si musteriye de yazilir — kullanici listesinden IP engelleme
+        // bu iz uzerinden yapilir (botun tum adresleri ips[]'de birikir).
+        const ipPatch = buildCustomerIpMetadata(currentMetadata, clientIp(req))
         await customerModule
           .updateCustomers(customer.id, {
             metadata: {
               ...currentMetadata,
+              ...ipPatch,
               prefs: {
                 ...currentPrefs,
                 locale: orderLocale,
@@ -233,6 +239,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         payment_method: payment_method || 'paypal',
         payment_status: 'pending',
         locale: orderLocale,
+        // Siparis IP'si — bot teshisi + musteri IP engelleme icin iz
+        customer_ip: clientIp(req),
       },
     }
 

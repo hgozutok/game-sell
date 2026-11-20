@@ -1,10 +1,12 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { clientIp } from "../../../utils/bot-protection"
 import {
   addWhitelistIp,
   blockIp,
   getAutoBlockConfig,
   getBlocklist,
   getWhitelist,
+  isIpBlocked,
   isPrivateIp,
   normalizeIp,
   removeWhitelistIp,
@@ -46,7 +48,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       getWhitelist(req.scope),
       getAutoBlockConfig(req.scope),
     ])
-    res.json({ blocked, whitelist, config })
+    // Teshis: bu isteğin sunucuda algılanan IP'si ve kara liste durumu.
+    // Panelin gördüğü IP, engellediğiniz IP ile uyuşmuyorsa proxy/başlık
+    // zincirinde bir uydurma (spoof) veya yapılandırma farkı vardır.
+    const yourIp = normalizeIp(clientIp(req))
+    const yourIpBlocked = (await isIpBlocked(req.scope, yourIp)).blocked
+    res.json({ blocked, whitelist, config, your_ip: yourIp, your_ip_blocked: yourIpBlocked })
   } catch (error: any) {
     res.status(500).json({ message: "Engel listesi okunamadı", error: error?.message })
   }

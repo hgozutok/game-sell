@@ -15,6 +15,8 @@ type CustomerRow = {
   active: boolean
   disabled_at: string | null
   email_verified: boolean
+  last_ip: string | null
+  ips: string[]
   order_count: number
   total_spent: number
   currency_code: string | null
@@ -74,6 +76,9 @@ export default function AdminCustomersPage() {
   const [newDomain, setNewDomain] = useState('')
   const [blacklistBusy, setBlacklistBusy] = useState(false)
 
+  // IP engel listesi — kullanici satirindan "IP Engelle" icin
+  const [blockedIps, setBlockedIps] = useState<string[]>([])
+
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<'all' | 'active' | 'disabled'>('all')
@@ -121,11 +126,62 @@ export default function AdminCustomersPage() {
     } catch {
       // panel acilirken tekrar denenebilir; sessiz gec
     }
+    try {
+      const res = await adminApi.get('/admin/ip-blocklist')
+      setBlockedIps((res.data?.blocked || []).map((e: { ip: string }) => e.ip))
+    } catch {
+      // sessiz gec
+    }
   }, [])
 
   useEffect(() => {
     loadBlacklist()
   }, [loadBlacklist])
+
+  const customerKnownIps = (customer: CustomerRow): string[] => {
+    const set = new Set<string>([...(customer.ips || [])])
+    if (customer.last_ip) set.add(customer.last_ip)
+    return Array.from(set)
+  }
+
+  const blockCustomerIps = async (customer: CustomerRow) => {
+    const ips = customerKnownIps(customer)
+    if (ips.length === 0) return
+    if (
+      !window.confirm(
+        `${ips.join(', ')} IP adres(ler)i süresiz engellensin mi?\n\nBu adreslerden gelen tüm istekler (kayıt, giriş, sipariş) 403 alır.`
+      )
+    ) {
+      return
+    }
+
+    setBusyId(customer.id)
+    setMessage(null)
+    try {
+      const blocked = new Set(blockedIps)
+      for (const ip of ips) {
+        if (blocked.has(ip)) continue
+        const res = await adminApi.post('/admin/ip-blocklist', {
+          ip,
+          reason: `musteri ${customer.email} — kullanici listesinden`,
+          permanent: true,
+        })
+        ;(res.data?.blocked || []).forEach((e: { ip: string }) => blocked.add(e.ip))
+      }
+      setBlockedIps(Array.from(blocked))
+      setMessage({
+        ok: true,
+        text: `${ips.length} IP engellendi: ${ips.join(', ')}`,
+      })
+    } catch (e: any) {
+      setMessage({
+        ok: false,
+        text: e?.response?.data?.message || 'IP engellenemedi',
+      })
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const isEmailBlacklisted = (email: string) => {
     const lower = String(email || '').toLowerCase()
@@ -465,6 +521,22 @@ export default function AdminCustomersPage() {
                                 {customer.phone}
                               </span>
                             )}
+                            {customerKnownIps(customer).length > 0 && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                                  customerKnownIps(customer).some((ip) => blockedIps.includes(ip))
+                                    ? 'bg-red-500/15 text-red-400'
+                                    : 'bg-[#1a1d24] text-gray-400'
+                                }`}
+                                title={`Bilinen IP'ler: ${customerKnownIps(customer).join(', ')}`}
+                              >
+                                {customerKnownIps(customer).some((ip) => blockedIps.includes(ip))
+                                  ? 'IP engelli: '
+                                  : 'IP: '}
+                                {customer.last_ip || customerKnownIps(customer)[0]}
+                                {customerKnownIps(customer).length > 1 && ` +${customerKnownIps(customer).length - 1}`}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-gray-400">
@@ -562,6 +634,18 @@ export default function AdminCustomersPage() {
                                 >
                                   + Alan Adı
                                 </button>
+                                {customerKnownIps(customer).length > 0 &&
+                                  !customerKnownIps(customer).every((ip) => blockedIps.includes(ip)) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => blockCustomerIps(customer)}
+                                      disabled={busyId === customer.id}
+                                      className="px-2.5 py-2 rounded-lg text-[11px] border bg-purple-500/10 border-purple-500/40 text-purple-300 hover:bg-purple-500/20 transition disabled:opacity-50"
+                                      title={`Bilinen IP'leri engelle: ${customerKnownIps(customer).join(', ')}`}
+                                    >
+                                      IP Engelle
+                                    </button>
+                                  )}
                               </>
                             )}
                           </div>

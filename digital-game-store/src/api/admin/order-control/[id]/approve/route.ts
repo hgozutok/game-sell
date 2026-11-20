@@ -205,11 +205,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         }
       } catch (fulfillError: any) {
         autoFulfillError = String(fulfillError?.message || fulfillError)
-        // readonly/zarar/bakiye gibi queue guard'lari failed degil, kuyrukta kalmali
+        // readonly/zarar/bakiye/tahsilat gibi queue guard'lari failed degil, kuyrukta kalmali
         const code = fulfillError?.code || fulfillError?.details?.code
         const queueGuard =
           code === "READONLY" || code === "NEGATIVE_MARGIN" || code === "BALANCE" ||
-          code === "ORDER_LIMIT" ||
+          code === "ORDER_LIMIT" || code === "PAYMENT_NOT_CAPTURED" ||
           fulfillError?.name === "KinguinOrderModeError" ||
           fulfillError?.name === "KinguinInsufficientBalanceError"
         await orderModule

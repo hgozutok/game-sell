@@ -24,6 +24,8 @@ type Payload = {
   blocked: BlockedIpEntry[]
   whitelist: string[]
   config: AutoBlockConfig
+  your_ip?: string
+  your_ip_blocked?: boolean
 }
 
 function date(value?: string | null) {
@@ -151,12 +153,25 @@ export default function AdminSecurityPage() {
               Bot/tarayıcı IP&apos;lerini otomatik engelleme ve manuel yönetim
             </p>
           </div>
-          <Link
-            href="/admin/dashboard"
-            className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition"
-          >
-            ← Dashboard
-          </Link>
+          <div className="text-right">
+            {payload.your_ip && (
+              <p className="text-xs text-gray-500 mb-2">
+                Sunucunun algıladığınız IP:{" "}
+                <span className="font-mono text-gray-300">{payload.your_ip}</span>
+                {payload.your_ip_blocked ? (
+                  <span className="ms-2 text-red-400">(engelli!)</span>
+                ) : (
+                  <span className="ms-2 text-green-500/70">(engelli değil)</span>
+                )}
+              </p>
+            )}
+            <Link
+              href="/admin/dashboard"
+              className="px-4 py-2 bg-[#1a1d24] border border-gray-700 text-white rounded-lg hover:border-[#ff6b35] transition"
+            >
+              ← Dashboard
+            </Link>
+          </div>
         </div>
       </div>
 

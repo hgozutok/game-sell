@@ -13,6 +13,7 @@ import {
   emailUiText,
   resolveEmailLocale,
 } from "../utils/email"
+import { verifyOrderPaymentCaptured } from "../utils/payment-verification"
 import type KeyInventoryService from "../modules/key-inventory/service"
 
 interface FulfillDigitalOrderInput {
@@ -26,6 +27,38 @@ interface FulfillDigitalOrderInput {
     lineItemId: string
   }>
 }
+
+// Tahsilat kapisi: gercek capture kaydi veya admin onayi yoksa envanter
+// key'i atanmaz/teslim edilmez (fulfill-kinguin-order ile ayni kural).
+const verifyPaymentCapturedStep = createStep(
+  "verify-payment-captured",
+  async (input: { orderId: string }, { container }) => {
+    const status = await verifyOrderPaymentCaptured(container, input.orderId)
+    if (!status.paid) {
+      const orderModule = container.resolve(Modules.ORDER) as any
+      const order = await orderModule.retrieveOrder(input.orderId).catch(() => null)
+      if (order) {
+        await orderModule
+          .updateOrders([
+            {
+              id: input.orderId,
+              metadata: {
+                ...(order.metadata || {}),
+                fulfillment_state: "awaiting_approval",
+                fulfillment_error: `Tahsilat dogrulanamadi — odeme alinmadan key saglanmaz (${status.reason})`,
+                fulfillment_updated_at: new Date().toISOString(),
+              },
+            },
+          ])
+          .catch(() => null)
+      }
+      throw new Error(
+        `PAYMENT_NOT_CAPTURED: tahsilat dogrulanamadi — ${status.reason}`
+      )
+    }
+    return new StepResponse({ verified: true }, null)
+  }
+)
 
 const fetchKeysFromInventoryStep = createStep(
   "fetch-keys-from-inventory",
@@ -229,6 +262,9 @@ const sendKeyDeliveryEmailStep = createStep(
 export const fulfillDigitalOrderWorkflow = createWorkflow(
   "fulfill-digital-order",
   (input: FulfillDigitalOrderInput) => {
+    // Step 0: Tahsilat kapisi — para alinmadiysa key atanmaz/teslim edilmez
+    verifyPaymentCapturedStep({ orderId: input.orderId })
+
     // Step 1: Try to fetch keys from existing inventory
     const inventoryResult = fetchKeysFromInventoryStep(input)
 

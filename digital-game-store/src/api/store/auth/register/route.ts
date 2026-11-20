@@ -9,6 +9,7 @@ import {
 } from '../../../../modules/email-template/locales'
 import { clientIp, rateLimit, verifyCaptcha } from '../../../../utils/bot-protection'
 import { checkEmailBlacklist } from '../../../../utils/email-blacklist'
+import { buildCustomerIpMetadata } from '../../../../utils/customer-status'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -68,6 +69,31 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
 
+    // Kendi mağaza domainiyle müşteri kaydı — VARSAYILAN KAPALI (mağaza sahibi
+    // kendi e-postasıyla test ediyor). Üretimde kapatmak isterseniz admin
+    // ayarı: auth.block_own_domain = true
+    const storeSettings = req.scope.resolve('storeSettings') as any
+    const blockOwnDomain =
+      (await storeSettings
+        .getSettingValue('auth.block_own_domain', false)
+        .catch(() => false)) === true
+    if (blockOwnDomain) {
+      const ownEmail = String(
+        (await storeSettings
+          .getSettingValue('store.support_email', process.env.SMTP_FROM_EMAIL || '')
+          .catch(() => '')) || ''
+      ).toLowerCase()
+      const ownDomain = ownEmail.split('@')[1] || ''
+      const emailDomain = normalizedEmail.split('@')[1] || ''
+      if (ownDomain && emailDomain === ownDomain) {
+        logger.warn(`[auth] kendi domain ile kayit denemesi reddedildi: ${normalizedEmail}`)
+        return res.status(403).json({
+          code: 'self_domain_blocked',
+          message: 'Bu alan adı ile kayıt yapılamaz — lütfen destek ile iletişime geçin',
+        })
+      }
+    }
+
     const authModule = req.scope.resolve(Modules.AUTH) as any
     const customerModule = req.scope.resolve(Modules.CUSTOMER) as any
     const existing = await customerModule.listCustomers({ email: normalizedEmail })
@@ -104,6 +130,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         },
       })
       customer = result
+
+      // Kayit IP'sini musteriye yaz — bot tespiti + kullanici listesinden
+      // IP engelleme bu iz uzerinden yapilir.
+      const ipPatch = buildCustomerIpMetadata(customer.metadata, clientIp(req))
+      if (Object.keys(ipPatch).length > 0) {
+        await customerModule
+          .updateCustomers(customer.id, {
+            metadata: { ...(customer.metadata || {}), ...ipPatch },
+          })
+          .catch(() => null)
+      }
     } catch (createError: any) {
       await authModule
         .deleteAuthIdentities([reg.authIdentity.id])

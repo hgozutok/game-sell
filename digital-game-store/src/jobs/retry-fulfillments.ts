@@ -53,6 +53,35 @@ export default async function retryFulfillmentsJob(container: MedusaContainer) {
         },
       ])
     } catch (e: any) {
+      const code = e?.code || e?.details?.code
+      // Kuyruk guard'lari (readonly, zarar, bakiye, TAH SILAT): tekrar deneme
+      // sayacini tuketme — workflow awaiting_approval yazdi, koru.
+      const queueGuard =
+        code === "READONLY" ||
+        code === "NEGATIVE_MARGIN" ||
+        code === "BALANCE" ||
+        code === "ORDER_LIMIT" ||
+        code === "PAYMENT_NOT_CAPTURED" ||
+        e?.name === "KinguinOrderModeError" ||
+        e?.name === "KinguinInsufficientBalanceError"
+
+      if (queueGuard) {
+        await orderModule
+          .updateOrders([
+            {
+              id: order.id,
+              metadata: {
+                ...order.metadata,
+                fulfillment_state: "awaiting_approval",
+                fulfillment_error: String(e?.message || e),
+                fulfillment_updated_at: new Date().toISOString(),
+              },
+            },
+          ])
+          .catch(() => null)
+        continue
+      }
+
       const newAttempts = attempts + 1
       await orderModule.updateOrders([
         {

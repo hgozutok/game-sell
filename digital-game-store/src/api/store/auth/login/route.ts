@@ -5,6 +5,7 @@ import { clientIp, rateLimit, verifyCaptcha } from '../../../../utils/bot-protec
 import {
   ACCOUNT_DISABLED_CODE,
   ACCOUNT_DISABLED_MESSAGE,
+  buildCustomerIpMetadata,
   isCustomerDisabled,
 } from '../../../../utils/customer-status'
 import { checkEmailBlacklist } from '../../../../utils/email-blacklist'
@@ -157,6 +158,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     if (!authIdentityId) {
       // kimlik tasiyorumamadi — yine de oturum JWT'si uret (auth_identity yok ama actor biliniyor)
       authIdentityId = ''
+    }
+
+    // Giris IP'sini musteriye yaz — kullanici listesinden IP engelleme bu iz uzerinden yapilir.
+    const ipPatch = buildCustomerIpMetadata(customer.metadata, clientIp(req))
+    if (Object.keys(ipPatch).length > 0) {
+      await customerModule
+        .updateCustomers(customer.id, {
+          metadata: { ...(customer.metadata || {}), ...ipPatch },
+        })
+        .catch(() => null)
     }
 
     const token = mintCustomerJwt(req.scope, {

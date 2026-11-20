@@ -111,6 +111,8 @@ describe("customerAdminView", () => {
         disabled: true,
         disabled_at: "2026-02-01T00:00:00.000Z",
         email_verified: true,
+        last_ip: "154.36.176.38",
+        ips: ["154.36.176.38", "1.2.3.4"],
       },
     })
 
@@ -125,6 +127,8 @@ describe("customerAdminView", () => {
       active: false,
       disabled_at: "2026-02-01T00:00:00.000Z",
       email_verified: true,
+      last_ip: "154.36.176.38",
+      ips: ["154.36.176.38", "1.2.3.4"],
     })
     expect(JSON.stringify(view)).not.toContain("gizli")
   })

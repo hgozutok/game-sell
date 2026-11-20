@@ -19,6 +19,7 @@ import {
   when,
 } from "@medusajs/framework/workflows-sdk"
 import { encryptKeys, decryptKeys } from "../utils/key-crypto"
+import { verifyOrderPaymentCaptured } from "../utils/payment-verification"
 import {
   sendTemplateEmail,
   getAdminEmail,
@@ -89,6 +90,38 @@ async function markFulfillmentState(
     },
   ])
 }
+
+// ===================== 0) Tahsilat kapisi — PARA ALINMADAN KEY YOK =====================
+// workflow'a giren her yol (order.placed, otomatik job, retry job, admin onayi)
+// buradan gecer: gercek capture kaydi veya admin havalesi onayi yoksa
+// Kinguin'e siparis de verilmez, envanter key'i de atanmaz.
+
+const verifyPaymentCapturedStep = createStep(
+  "verify-payment-captured",
+  async (input: { orderId: string }, { container }) => {
+    const status = await verifyOrderPaymentCaptured(container, input.orderId)
+    if (!status.paid) {
+      await markFulfillmentState(container, input.orderId, "awaiting_approval", {
+        fulfillment_error: `Tahsilat dogrulanamadi — odeme alinmadan key saglanmaz (${status.reason})`,
+        payment_verification: {
+          paid: false,
+          expected_minor: status.expectedMinor,
+          captured_minor: status.capturedMinor,
+          reason: status.reason,
+          checked_at: new Date().toISOString(),
+        },
+      })
+      throw new GuardError(
+        "PAYMENT_NOT_CAPTURED",
+        `Tahsilat dogrulanamadi: ${status.reason}`
+      )
+    }
+    return new StepResponse(
+      { verified: true, source: status.source, provider: status.provider },
+      null
+    )
+  }
+)
 
 // ===================== 1) Hazirlik + guard'lar =====================
 
@@ -587,6 +620,9 @@ const deliverKeysStep = createStep(
 export const fulfillKinguinOrderWorkflow = createWorkflow(
   "fulfill-kinguin-order",
   (input: FulfillKinguinOrderInput) => {
+    // 0) Tahsilat kapisi: para alinmadiysa hicbir adim calismaz
+    verifyPaymentCapturedStep({ orderId: input.orderId })
+
     const prepared = prepareFulfillmentStep(input)
 
     const inventoryResult = transform({ prepared }, (data) => ({
