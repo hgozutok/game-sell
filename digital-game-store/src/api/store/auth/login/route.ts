@@ -7,6 +7,7 @@ import {
   ACCOUNT_DISABLED_MESSAGE,
   isCustomerDisabled,
 } from '../../../../utils/customer-status'
+import { checkEmailBlacklist } from '../../../../utils/email-blacklist'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -46,6 +47,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     if (!customer || !customer.has_account) {
       return res.status(401).json({ code: 'invalid_credentials', message: 'Geçersiz e-posta veya şifre' })
+    }
+
+    // Kara liste: engelli e-posta/alan adi ile giris engellenir
+    const blacklist = await checkEmailBlacklist(req.scope, normalizedEmail)
+    if (blacklist.blocked) {
+      logger.warn(`[auth] kara listeli giris denemesi: ${normalizedEmail} (${blacklist.kind}=${blacklist.match})`)
+      return res.status(403).json({
+        code: 'email_blocked',
+        message:
+          blacklist.kind === 'domain'
+            ? `Bu e-posta sağlayıcısı (${blacklist.match}) mağazada engellenmiştir`
+            : 'Bu e-posta adresi mağazada engellenmiştir',
+      })
     }
 
     // Yonetici tarafindan pasiflestirilen hesap giris yapamaz.

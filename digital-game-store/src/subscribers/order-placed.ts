@@ -9,7 +9,7 @@ import {
   emailUiText,
   resolveEmailLocale,
 } from "../utils/email"
-import { evaluatePurchaseVelocity } from "../utils/velocity-guard"
+import { evaluatePurchaseVelocity, evaluateCustomerVelocity } from "../utils/velocity-guard"
 import { convertOrderTotalToCurrency } from "../utils/currency"
 
 /**
@@ -214,6 +214,25 @@ export default async function orderPlacedHandler({
     })
     logger.warn(
       `[order-placed] ${orderId}: hiz alarmi (${velocity.count}/${velocity.maxOrders} siparis, ${velocity.windowMinutes}dk) — manuel kuyruk`
+    )
+    return
+  }
+
+  // -1b) Musteri basina seri alicilik: ayni e-posta kisapencerede esik ustu
+  // siparis verdiyse bu siparis manuel onay kuyruguna dusurulur. Store geneli
+  // alarmi tetiklenmese bile tek hesabin botlamasi boyle kesilir.
+  const customerVelocity = await evaluateCustomerVelocity(container, logger, {
+    email: order.email,
+    customerId: order.customer_id,
+  }).catch(() => null)
+  if (customerVelocity?.triggered) {
+    await setState("awaiting_approval", {
+      fulfillment_error: `Seri satin alma — ayni musteri ${customerVelocity.count} siparis/${customerVelocity.windowMinutes}dk, manuel onay gerekli`,
+      customer_velocity_triggered: true,
+      customer_velocity_count: customerVelocity.count,
+    })
+    logger.warn(
+      `[order-placed] ${orderId}: musteri hiz alarmi (${customerVelocity.count}/${customerVelocity.maxOrders}, ${customerVelocity.windowMinutes}dk) — manuel kuyruk`
     )
     return
   }

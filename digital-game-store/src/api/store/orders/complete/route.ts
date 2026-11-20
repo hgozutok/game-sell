@@ -1,6 +1,11 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { Modules } from '@medusajs/framework/utils'
 import { completeCartWorkflow } from '@medusajs/core-flows'
+import {
+  checkOrderRateLimit,
+  guardCartForCompletion,
+  releaseCompletionLock,
+} from '../../../../utils/order-guard'
 
 export const AUTHENTICATE = false
 
@@ -28,6 +33,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(400).json({ message: 'cart_id is required' })
   }
 
+  // Bot flood korumasi
+  const limited = checkOrderRateLimit(req, 'order-complete', 40)
+  if (limited) {
+    return res.status(limited.status!).json({ code: limited.code, message: limited.message })
+  }
+
   try {
     const cartModule = req.scope.resolve(Modules.CART) as any
     const cart = await cartModule
@@ -36,6 +47,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     if (!cart) {
       return res.status(404).json({ message: 'Cart bulunamadi' })
+    }
+
+    // Guvenlik guard'i: fiyat dogrulama + odeme saglayici/tutar kontrolu +
+    // ayni septen cift siparis engeli. requireAuthorized=false — Stripe'ta
+    // gercek authorize completeCartWorkflow icinde (Stripe API) yapilir.
+    const guard = await guardCartForCompletion(req.scope, cart.id, {
+      requireAuthorized: false,
+    })
+    if (!guard.ok) {
+      logger.warn(`🚫 [stripe-complete] order-guard red: cart=${cart.id} code=${guard.code}`)
+      return res.status(guard.status || 400).json({
+        code: guard.code,
+        message: guard.message,
+      })
     }
 
     // completeCartWorkflow requires_shipping kontrolu icin dijital teslimat metodu
@@ -50,9 +75,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       ])
     }
 
-    const { result: completed } = await completeCartWorkflow(req.scope).run({
-      input: { id: cart.id },
-    })
+    let completed: any
+    try {
+      const workflowResult = await completeCartWorkflow(req.scope).run({
+        input: { id: cart.id },
+      })
+      completed = workflowResult.result
+    } finally {
+      releaseCompletionLock(cart.id)
+    }
 
     const orderModule = req.scope.resolve(Modules.ORDER) as any
     const order = await orderModule.retrieveOrder(completed.id, { relations: ['items'] })

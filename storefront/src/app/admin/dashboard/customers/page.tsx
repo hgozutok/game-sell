@@ -67,6 +67,13 @@ export default function AdminCustomersPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
+  // E-posta / alan adi kara listesi (kayit + giris + siparis engeli)
+  const [blacklistEmails, setBlacklistEmails] = useState<string[]>([])
+  const [blacklistDomains, setBlacklistDomains] = useState<string[]>([])
+  const [newEmail, setNewEmail] = useState('')
+  const [newDomain, setNewDomain] = useState('')
+  const [blacklistBusy, setBlacklistBusy] = useState(false)
+
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState<'all' | 'active' | 'disabled'>('all')
@@ -105,6 +112,116 @@ export default function AdminCustomersPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  const loadBlacklist = useCallback(async () => {
+    try {
+      const res = await adminApi.get('/admin/email-blacklist')
+      setBlacklistEmails(res.data?.emails || [])
+      setBlacklistDomains(res.data?.domains || [])
+    } catch {
+      // panel acilirken tekrar denenebilir; sessiz gec
+    }
+  }, [])
+
+  useEffect(() => {
+    loadBlacklist()
+  }, [loadBlacklist])
+
+  const isEmailBlacklisted = (email: string) => {
+    const lower = String(email || '').toLowerCase()
+    const domain = lower.split('@')[1] || ''
+    return (
+      blacklistEmails.some((e) => e.toLowerCase() === lower) ||
+      (domain ? blacklistDomains.some((d) => d.toLowerCase() === domain) : false)
+    )
+  }
+
+  const blockCustomer = async (customer: CustomerRow, withDomain: boolean) => {
+    const domain = String(customer.email || '').split('@')[1] || ''
+    const msg = withDomain
+      ? `${customer.email} VE ${domain} alan adı kara listeye alınsın mı?\n\nKullanıcı pasifleştirilir; bu adres ve alan adı ile kayıt, giriş ve sipariş engellenir.`
+      : `${customer.email} kara listeye alınsın mı?\n\nKullanıcı pasifleştirilir; bu adresle kayıt, giriş ve sipariş engellenir.`
+    if (!window.confirm(msg)) return
+
+    setBusyId(customer.id)
+    setMessage(null)
+    try {
+      const res = await adminApi.post('/admin/email-blacklist', {
+        customerId: customer.id,
+        blockDomain: withDomain,
+      })
+      setBlacklistEmails(res.data?.emails || [])
+      setBlacklistDomains(res.data?.domains || [])
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === customer.id
+            ? { ...row, active: false, disabled_at: new Date().toISOString() }
+            : row
+        )
+      )
+      setSummary((prev) => ({
+        ...prev,
+        active: Math.max(0, prev.active - 1),
+        disabled: prev.disabled + 1,
+      }))
+      setMessage({
+        ok: true,
+        text: withDomain
+          ? `${customer.email} + ${domain} kara listeye alındı; hesap pasifleştirildi.`
+          : `${customer.email} kara listeye alındı; hesap pasifleştirildi.`,
+      })
+    } catch (e: any) {
+      setMessage({
+        ok: false,
+        text: e?.response?.data?.message || 'Kara listeye alınamadı',
+      })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const addBlacklistEntry = async (kind: 'email' | 'domain') => {
+    const value = (kind === 'email' ? newEmail : newDomain).trim()
+    if (!value) return
+    setBlacklistBusy(true)
+    setMessage(null)
+    try {
+      const res = await adminApi.post('/admin/email-blacklist',
+        kind === 'email' ? { email: value } : { domain: value })
+      setBlacklistEmails(res.data?.emails || [])
+      setBlacklistDomains(res.data?.domains || [])
+      if (kind === 'email') setNewEmail('')
+      else setNewDomain('')
+      setMessage({ ok: true, text: `${value} kara listeye eklendi.` })
+    } catch (e: any) {
+      setMessage({
+        ok: false,
+        text: e?.response?.data?.message || 'Kara listeye eklenemedi',
+      })
+    } finally {
+      setBlacklistBusy(false)
+    }
+  }
+
+  const removeBlacklistEntry = async (kind: 'email' | 'domain', value: string) => {
+    if (!window.confirm(`${value} kara listeden çıkarılsın mı?`)) return
+    setBlacklistBusy(true)
+    try {
+      const res = await adminApi.delete('/admin/email-blacklist', {
+        params: kind === 'email' ? { email: value } : { domain: value },
+      })
+      setBlacklistEmails(res.data?.emails || [])
+      setBlacklistDomains(res.data?.domains || [])
+      setMessage({ ok: true, text: `${value} kara listeden çıkarıldı.` })
+    } catch (e: any) {
+      setMessage({
+        ok: false,
+        text: e?.response?.data?.message || 'Kara listeden çıkarılamadı',
+      })
+    } finally {
+      setBlacklistBusy(false)
+    }
+  }
 
   const applySearch = (event: React.FormEvent) => {
     event.preventDefault()
@@ -399,26 +516,55 @@ export default function AdminCustomersPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {customer.has_account ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleActive(customer)}
-                              disabled={busyId === customer.id}
-                              className={`px-3 py-2 rounded-lg text-xs border transition disabled:opacity-50 ${
-                                customer.active
-                                  ? 'bg-red-500/10 border-red-500/40 text-red-400 hover:bg-red-500/20'
-                                  : 'bg-green-500/10 border-green-500/40 text-green-400 hover:bg-green-500/20'
-                              }`}
-                            >
-                              {busyId === customer.id
-                                ? 'Kaydediliyor…'
-                                : customer.active
-                                  ? 'Pasifleştir'
-                                  : 'Aktifleştir'}
-                            </button>
-                          ) : (
-                            <span className="text-xs text-gray-500">-</span>
-                          )}
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {customer.has_account && (
+                              <button
+                                type="button"
+                                onClick={() => toggleActive(customer)}
+                                disabled={busyId === customer.id}
+                                className={`px-3 py-2 rounded-lg text-xs border transition disabled:opacity-50 ${
+                                  customer.active
+                                    ? 'bg-red-500/10 border-red-500/40 text-red-400 hover:bg-red-500/20'
+                                    : 'bg-green-500/10 border-green-500/40 text-green-400 hover:bg-green-500/20'
+                                }`}
+                              >
+                                {busyId === customer.id
+                                  ? 'Kaydediliyor…'
+                                  : customer.active
+                                    ? 'Pasifleştir'
+                                    : 'Aktifleştir'}
+                              </button>
+                            )}
+                            {isEmailBlacklisted(customer.email) ? (
+                              <span
+                                className="px-2 py-2 rounded-lg text-[10px] bg-orange-500/15 text-orange-400"
+                                title="Bu e-posta veya alan adı kara listede (aşağıdaki panelden yönetilir)"
+                              >
+                                Kara listede
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => blockCustomer(customer, false)}
+                                  disabled={busyId === customer.id}
+                                  className="px-2.5 py-2 rounded-lg text-[11px] border bg-orange-500/10 border-orange-500/40 text-orange-400 hover:bg-orange-500/20 transition disabled:opacity-50"
+                                  title="E-posta adresini kara listeye al + hesabı pasifleştir"
+                                >
+                                  Kara Liste
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => blockCustomer(customer, true)}
+                                  disabled={busyId === customer.id}
+                                  className="px-2.5 py-2 rounded-lg text-[11px] border bg-orange-500/10 border-orange-500/40 text-orange-400 hover:bg-orange-500/20 transition disabled:opacity-50"
+                                  title={`E-posta + ${String(customer.email).split('@')[1] || 'alan adı'} birlikte engellenir`}
+                                >
+                                  + Alan Adı
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -450,6 +596,118 @@ export default function AdminCustomersPage() {
                 Sonraki →
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* E-posta / alan adi kara listesi */}
+        <div className="bg-[#15171c] border border-gray-800 rounded-xl">
+          <div className="px-6 py-4 border-b border-gray-800">
+            <h2 className="text-lg font-bold text-white">⛔ E-posta / Alan Adı Kara Listesi</h2>
+            <p className="text-xs text-gray-400 mt-1">
+              Kara listedeki adresler ve alan adlarıyla <strong>kayıt, giriş ve sipariş</strong>{' '}
+              engellenir. &quot;Kara Liste&quot; butonu kullanıcının adresini, &quot;+ Alan Adı&quot;
+              butonu adresi ve tüm alan adını (ör. mailinator.com) birlikte engeller.
+            </p>
+          </div>
+
+          <div className="px-6 py-5 grid md:grid-cols-2 gap-6">
+            {/* E-posta adresleri */}
+            <div>
+              <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                Engelli e-posta adresleri ({blacklistEmails.length})
+              </div>
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="kullanici@ornek.com"
+                  className="flex-1 bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm placeholder:text-gray-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => addBlacklistEntry('email')}
+                  disabled={blacklistBusy || !newEmail.trim()}
+                  className="px-3 py-2 bg-[#ff6b35] text-white rounded-lg text-sm font-semibold hover:opacity-90 transition disabled:opacity-40"
+                >
+                  Ekle
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {blacklistEmails.length === 0 ? (
+                  <span className="text-xs text-gray-500">Kayıt yok</span>
+                ) : (
+                  blacklistEmails.map((email) => (
+                    <span
+                      key={email}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs"
+                    >
+                      {email}
+                      <button
+                        type="button"
+                        onClick={() => removeBlacklistEntry('email', email)}
+                        disabled={blacklistBusy}
+                        className="text-red-400 hover:text-white transition disabled:opacity-40"
+                        title="Kara listeden çıkar"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Alan adlari */}
+            <div>
+              <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                Engelli alan adları ({blacklistDomains.length})
+              </div>
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={newDomain}
+                  onChange={(e) => setNewDomain(e.target.value)}
+                  placeholder="mailinator.com"
+                  className="flex-1 bg-[#1a1d24] border border-gray-700 text-white px-3 py-2 rounded-lg text-sm placeholder:text-gray-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => addBlacklistEntry('domain')}
+                  disabled={blacklistBusy || !newDomain.trim()}
+                  className="px-3 py-2 bg-[#ff6b35] text-white rounded-lg text-sm font-semibold hover:opacity-90 transition disabled:opacity-40"
+                >
+                  Ekle
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {blacklistDomains.length === 0 ? (
+                  <span className="text-xs text-gray-500">Kayıt yok</span>
+                ) : (
+                  blacklistDomains.map((domain) => (
+                    <span
+                      key={domain}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs"
+                    >
+                      @{domain}
+                      <button
+                        type="button"
+                        onClick={() => removeBlacklistEntry('domain', domain)}
+                        disabled={blacklistBusy}
+                        className="text-orange-400 hover:text-white transition disabled:opacity-40"
+                        title="Kara listeden çıkar"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-3 border-t border-gray-800 text-xs text-gray-500">
+            Kara listeden çıkarmak hesabı otomatik aktifleştirmez — gerekirse yukarıdaki
+            &quot;Aktifleştir&quot; butonunu kullanın. Kontrol anlıktır: kayıt, giriş ve sipariş
+            uçlarında uygulanır.
           </div>
         </div>
 

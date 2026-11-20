@@ -2,6 +2,11 @@
 // manuel moda cekilir (orders.auto_fulfillment_enabled=false). Admin inceledikten
 // sonra ayarlardan yeniden acar. Nitelik: siparis sayisi store geneli — e-posta
 // rotasyonuyla atlatilmasin diye musteri basina degil.
+//
+// evaluateCustomerVelocity: ayni musteri (e-posta) kisa pencerede birden fazla
+// siparis verdiyse O MUSTERININ siparisleri otomatik fulfillment yerine manuel
+// onay kuyruguna dusurulur. Hesabini ele geciren/botlayan kullanici bu sekilde
+// toplu anahtar cekemez; diger musterilerin akisi etkilenmez.
 import { Modules } from "@medusajs/framework/utils"
 
 export interface VelocityGuardResult {
@@ -10,6 +15,13 @@ export interface VelocityGuardResult {
   windowMinutes: number
   maxOrders: number
   alreadyDisabled: boolean
+}
+
+export interface CustomerVelocityResult {
+  triggered: boolean
+  count: number
+  windowMinutes: number
+  maxOrders: number
 }
 
 export async function evaluatePurchaseVelocity(
@@ -77,4 +89,68 @@ export async function evaluatePurchaseVelocity(
     .catch((e: any) => logger.warn(`[velocity-guard] audit kaydi yazilamadi: ${e?.message}`))
 
   return { triggered: true, count: recent.length, windowMinutes, maxOrders, alreadyDisabled: false }
+}
+
+/**
+ * Musteri basina seri alicilik kontrolu: ayni e-posta ile son pencerede
+ * verilen siparis sayisi esigi asarsa bu siparis otomatik fulfillment yerine
+ * manuel onay kuyruguna dusmelidir (tetikleyen order.placed icin cagirilir,
+ * kendisi sayima dahil edilir).
+ *
+ * Ayarlar (admin):
+ *   orders.velocity_window_minutes     — pencere dakiki (store geneliyle ortak, default 30)
+ *   orders.velocity_per_customer_max   — esik (default 2; 0/kapali = kontrol yok)
+ */
+export async function evaluateCustomerVelocity(
+  container: any,
+  logger: any,
+  params: { email?: string | null; customerId?: string | null; excludeOrderId?: string | null }
+): Promise<CustomerVelocityResult> {
+  const email = String(params.email || "").trim().toLowerCase()
+  const orderModule = container.resolve(Modules.ORDER) as any
+  const storeSettings = container.resolve("storeSettings") as any
+
+  const windowMinutes = Number(
+    (await storeSettings.getSettingValue("orders.velocity_window_minutes", 30)) ?? 30
+  )
+  const maxOrders = Number(
+    (await storeSettings.getSettingValue("orders.velocity_per_customer_max", 2)) ?? 2
+  )
+
+  const empty = { triggered: false, count: 0, windowMinutes, maxOrders }
+  if (!email || !(maxOrders > 0)) return empty
+
+  // Ayni e-postanin son siparisleri (buyuk/kucuk harf duyarsiz eslesme icin
+  // iki aday da sorgulanir; Medusa e-postalari kucuk harf saklar). Sonuclar
+  // id uzerinden tekillestirilir (citext gibi eslesmelerde cift sayim olmasin).
+  const orders = await Promise.all([
+    orderModule.listOrders({ email }).catch(() => []),
+    orderModule.listOrders({ email: email.toUpperCase() }).catch(() => []),
+  ])
+    .then(([a, b]) => {
+      const seen = new Set<string>()
+      return [...(a || []), ...(b || [])].filter((o: any) => {
+        if (!o?.id || seen.has(o.id)) return false
+        seen.add(o.id)
+        return true
+      })
+    })
+    .catch(() => [])
+
+  const cutoff = Date.now() - windowMinutes * 60 * 1000
+  const recent = (orders || []).filter((o: any) => {
+    if (String(o.status || "").toLowerCase() === "canceled") return false
+    if (params.excludeOrderId && o.id === params.excludeOrderId) return false
+    const t = new Date(o.created_at).getTime()
+    return Number.isFinite(t) && t >= cutoff
+  })
+
+  const triggered = recent.length + 1 > maxOrders
+  if (triggered) {
+    logger?.warn?.(
+      `[velocity-customer] ${email}: ${recent.length} eski + 1 yeni siparis/${windowMinutes}dk ` +
+        `(esik ${maxOrders}) — manuel onay kuyrugu`
+    )
+  }
+  return { triggered, count: recent.length + 1, windowMinutes, maxOrders }
 }

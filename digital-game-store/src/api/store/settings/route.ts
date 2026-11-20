@@ -102,6 +102,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       note: await settingsValue('payment.bank_transfer.note', ''),
     }
 
+    // Checkout kapisi: siparis icin dogrulanmis hesap zorunlu mu?
+    // (order-guard orders.require_verified_customer ayarini okur; storefront
+    // bu bayrakla giris/dogrulama ekranini gosterir.)
+    const requireVerifiedCustomerRaw = await storeSettingsModule.getSettingValue(
+      'orders.require_verified_customer',
+      true
+    )
+    const requireVerifiedCustomer =
+      requireVerifiedCustomerRaw !== false && requireVerifiedCustomerRaw !== 'false'
+
     res.json({
       theme: themeSettings,
       currencies: {
@@ -130,6 +140,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
       cart: {
         max_total_eur: Number(cartMaxTotalEur) || 0,
+      },
+      checkout: {
+        requires_verified_customer: requireVerifiedCustomer,
       },
       payments: {
         stripe_publishable_key: stripePublishableKey,

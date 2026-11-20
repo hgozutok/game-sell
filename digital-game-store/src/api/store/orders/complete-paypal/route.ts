@@ -5,6 +5,11 @@ import {
   resolveEmailLocaleFromAcceptLanguage,
   toEmailLocale,
 } from '../../../../modules/email-template/locales'
+import {
+  checkOrderRateLimit,
+  guardCartForCompletion,
+  releaseCompletionLock,
+} from '../../../../utils/order-guard'
 
 export const AUTHENTICATE = false
 
@@ -40,6 +45,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
     if (!paypal_token) {
       return res.status(400).json({ message: 'paypal_token gerekli' })
+    }
+
+    // Bot flood korumasi
+    const limited = checkOrderRateLimit(req, 'order-complete-paypal', 40)
+    if (limited) {
+      return res.status(limited.status!).json({ code: limited.code, message: limited.message })
     }
 
     const orderLocale =
@@ -111,10 +122,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       logger.info(`ℹ️ Kargo metodu zaten mevcut veya eklenemedi: ${shippingErr?.message}`)
     }
 
-    // completeCartWorkflow: authorizePayment cagirir — PayPal APPROVED durumundaysa capture eder
-    const { result: completed } = await completeCartWorkflow(req.scope).run({
-      input: { id: cart_id },
+    // Guvenlik guard'i: fiyat dogrulama + odeme saglayici/tutar kontrolu +
+    // ayni septen cift siparis engeli. requireAuthorized=false — PayPal'da
+    // gercek capture completeCartWorkflow icinde (PayPal API cagrisiyle) yapilir.
+    const guard = await guardCartForCompletion(req.scope, cart_id, {
+      requireAuthorized: false,
     })
+    if (!guard.ok) {
+      logger.warn(`🚫 [paypal-complete] order-guard red: cart=${cart_id} code=${guard.code}`)
+      return res.status(guard.status || 400).json({
+        code: guard.code,
+        message: guard.message,
+      })
+    }
+
+    // completeCartWorkflow: authorizePayment cagirir — PayPal APPROVED durumundaysa capture eder
+    let completed: any
+    try {
+      const workflowResult = await completeCartWorkflow(req.scope).run({
+        input: { id: cart_id },
+      })
+      completed = workflowResult.result
+    } finally {
+      releaseCompletionLock(cart_id)
+    }
 
     const orderModule = req.scope.resolve(Modules.ORDER) as any
     const order = await orderModule.retrieveOrder(completed.id, { relations: ['items'] })

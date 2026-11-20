@@ -8,6 +8,7 @@ import {
   toEmailLocale,
 } from '../../../../modules/email-template/locales'
 import { clientIp, rateLimit, verifyCaptcha } from '../../../../utils/bot-protection'
+import { checkEmailBlacklist } from '../../../../utils/email-blacklist'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -52,6 +53,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
 
     const normalizedEmail = String(email).toLowerCase().trim()
+
+    // Kara liste: engelli e-posta adresi/alan adi ile kayit olunamaz
+    // (admin Kullanicilar sayfasindan yonetilir).
+    const blacklist = await checkEmailBlacklist(req.scope, normalizedEmail)
+    if (blacklist.blocked) {
+      logger.warn(`[auth] kara listeli kayit denemesi: ${normalizedEmail} (${blacklist.kind}=${blacklist.match})`)
+      return res.status(403).json({
+        code: 'email_blocked',
+        message:
+          blacklist.kind === 'domain'
+            ? `Bu e-posta sağlayıcısı (${blacklist.match}) mağazada engellenmiştir`
+            : 'Bu e-posta adresi mağazada engellenmiştir',
+      })
+    }
+
     const authModule = req.scope.resolve(Modules.AUTH) as any
     const customerModule = req.scope.resolve(Modules.CUSTOMER) as any
     const existing = await customerModule.listCustomers({ email: normalizedEmail })
@@ -158,6 +174,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           `[auth] dogrulama e-postasi gonderilemedi (${normalizedEmail}): ${mail.error || 'bilinmeyen hata'}`
         )
       }
+    } else {
+      // Dogrulama politika geregi kapali (SMTP yok / auth ayari) — hesap
+      // dogrulanmis isaretlenir. Siparis kapisi (order-guard) email_verified
+      // bayragina bakar; bayrak yoksa SMTP'siz kurulumda kullanici siparis
+      // veremekten kilitlenirdi.
+      await customerModule
+        .updateCustomers(customer.id, {
+          metadata: {
+            ...preferredMetadata,
+            email_verified: true,
+            email_verified_at: new Date().toISOString(),
+            email_verified_by: 'policy:no-verification',
+          },
+        })
+        .catch((e: any) =>
+          logger.warn(`[auth] email_verified isaretlenemedi: ${e?.message}`)
+        )
     }
 
     // 5) Admine yeni kullanici bildirimi gonder

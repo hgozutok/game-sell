@@ -8,6 +8,14 @@ import { getCurrencyRates, convertCurrencyAmount } from '../../../../utils/curre
 import { resolveVariantUnitPrice } from '../../../../utils/variant-pricing'
 import { applyPaymentFee } from '../../../../utils/payment-fee'
 import {
+  checkOrderRateLimit,
+  guardCartForCompletion,
+  isAllowedPaymentProvider,
+  releaseCompletionLock,
+  requireVerifiedCustomerForOrder,
+} from '../../../../utils/order-guard'
+import { verifyEmailNotBlacklisted } from '../../../../utils/email-blacklist'
+import {
   resolveEmailLocaleFromAcceptLanguage,
   toEmailLocale,
 } from '../../../../modules/email-template/locales'
@@ -20,6 +28,12 @@ export const AUTHENTICATE = false // Disable auth for development
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
+    // Bot flood korumasi: IP basina siparis denemesi sinirlandirilir.
+    const limited = checkOrderRateLimit(req, 'order-create', 30)
+    if (limited) {
+      return res.status(limited.status!).json({ code: limited.code, message: limited.message })
+    }
+
     // CORS headers for storefront requests with credentials
     const originHeader = req.headers.origin
     const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader
@@ -62,6 +76,40 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     if (!billing_address || !shipping_address) {
       return res.status(400).json({
         message: 'Billing and shipping addresses are required',
+      })
+    }
+
+    // Odeme saglayici izin listesi: pp_system_default gibi sistem/gelistirme
+    // saglayicilariyla siparis olusturulamaz (botlarin parasiz siparis vektoru).
+    if (!isAllowedPaymentProvider(String(payment_method || 'bank-transfer'))) {
+      logger.warn(`⚠️ Izinsiz odeme saglayicisi reddedildi: ${payment_method}`)
+      return res.status(403).json({
+        code: 'payment_provider_not_allowed',
+        message: 'Geçersiz ödeme yöntemi',
+      })
+    }
+
+    // Onaylanmamis kullanici siparis veremez (orders.require_verified_customer,
+    // varsayilan acik): giris yapilmis + e-postasi dogrulanmis hesap zorunlu.
+    const customerGate = await requireVerifiedCustomerForOrder(req)
+    if (!customerGate.ok) {
+      logger.warn(`🚫 Musteri kapisi red: code=${customerGate.code}`)
+      return res.status(customerGate.status || 403).json({
+        code: customerGate.code,
+        message: customerGate.message,
+      })
+    }
+    // Girili dogrulanmis musteri varsa siparis e-postasi HESAPTAN gelir;
+    // istemciden gelen e-posta guvenilmez (baskasinin e-postasiyla siparis engeli).
+    const orderEmail = customerGate.customer?.email || email
+
+    // E-posta kara listesi: tam adres veya alan adi engelliyse siparis reddedilir.
+    const blacklistCheck = await verifyEmailNotBlacklisted(req.scope, orderEmail)
+    if (!blacklistCheck.ok) {
+      logger.warn(`🚫 Kara listeli e-posta siparis denemesi: ${orderEmail}`)
+      return res.status(blacklistCheck.status || 403).json({
+        code: blacklistCheck.code,
+        message: blacklistCheck.message,
       })
     }
 
@@ -127,20 +175,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     }
 
-    // Find or create customer
-    let customer = null
+    // Find or create customer (dogrulanmis giris varsa zaten elimizde)
+    let customer = customerGate.customer || null
     try {
-      const customers = await customerModule.listCustomers({ email })
-      customer = customers?.[0]
-      
       if (!customer) {
-        // Create customer
-        customer = await customerModule.createCustomers({
-          email,
-          first_name: billing_address.first_name || '',
-          last_name: billing_address.last_name || '',
-        })
-        logger.info(`✅ Created customer: ${email}`)
+        const customers = await customerModule.listCustomers({ email: orderEmail })
+        customer = customers?.[0]
+
+        if (!customer) {
+          // Create customer
+          customer = await customerModule.createCustomers({
+            email: orderEmail,
+            first_name: billing_address.first_name || '',
+            last_name: billing_address.last_name || '',
+          })
+          logger.info(`✅ Created customer: ${orderEmail}`)
+        }
       }
 
       // Checkout dili hesap tercihine yazilir - sonraki e-postalar da bu dilde gider
@@ -175,7 +225,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       region_id: defaultRegion.id,
       currency_code: (defaultRegion as any).currency_code || 'usd',
       customer_id: customer?.id,
-      email: email,
+      email: orderEmail,
       ...(defaultChannel?.id ? { sales_channel_id: defaultChannel.id } : {}),
       shipping_address: shipping_address,
       billing_address: billing_address,
@@ -271,6 +321,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               unit_price: paymentFeeMinor,
               // dijital urun — kargo validasyonuna takilmasin
               requires_shipping: false,
+              // order-guard bu satiri varyantsiz ozel kalem olarak taniyacak
+              metadata: { is_payment_fee: true, provider: requestedProvider },
             },
           ])
         }
@@ -311,7 +363,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const sessionBase = {
       currency_code: cartCurrency,
       amount: cartTotal,
-      context: { cart: { email, id: cart.id } },
+      context: { cart: { email: orderEmail, id: cart.id } },
     }
     // Provider kayit id'leri: pp_<modul>_<servis> (or: pp_bank-transfer_bank-transfer)
     const candidates = [
@@ -416,9 +468,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // 5) Siparisi olustur — completeCartWorkflow provider authorizePayment'i
     //    calistirir (bank-transfer sandbox'ta authorized dondurur;
     //    stripe/paypal/mollie icin istemci onayi sonrasi status authorized olmalidir).
-    const { result: completed } = await completeCartWorkflow(req.scope).run({
-      input: { id: cart.id },
+    //    Oncesi: fiyat + saglayici + tekrar korumasi (order-guard).
+    //    requireAuthorized=false — bank-transfer'de yetkilendirme workflow icinde yapilir.
+    const guard = await guardCartForCompletion(req.scope, cart.id, {
+      requireAuthorized: false,
     })
+    if (!guard.ok) {
+      logger.warn(`🚫 order-guard red: cart=${cart.id} code=${guard.code}`)
+      return res.status(guard.status || 400).json({
+        code: guard.code,
+        message: guard.message,
+      })
+    }
+
+    let completed: any
+    try {
+      const workflowResult = await completeCartWorkflow(req.scope).run({
+        input: { id: cart.id },
+      })
+      completed = workflowResult.result
+    } finally {
+      releaseCompletionLock(cart.id)
+    }
     // Output sadece order id tasir — siparis detayini order modulunden al
     const orderModule = req.scope.resolve(Modules.ORDER) as any
     const order = await orderModule.retrieveOrder(completed.id, { relations: ['items'] })

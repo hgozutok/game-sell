@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { api } from '@/lib/api'
+import { authService } from '@/lib/auth'
 import { formatMoney, convertAmount } from '@/utils/currency'
 import { getCartLimitEur } from '@/lib/cart-limit'
 import { useT } from '@/components/useT'
@@ -82,6 +83,14 @@ export default function CheckoutPage() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [defaultTaxRate, setDefaultTaxRate] = useState<number>(20)
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false)
+  // Checkout kapisi: backend orders.require_verified_customer acikken siparis
+  // icin giris yapmis + e-postasi dogrulanmis hesap gerekir. Kapaliysa misafir
+  // siparis davranisi surer.
+  const [requiresVerified, setRequiresVerified] = useState<boolean | null>(null)
+  const [authGate, setAuthGate] = useState<'checking' | 'login_required' | 'email_unverified' | 'open'>('checking')
+  const [accountCustomer, setAccountCustomer] = useState<any | null>(null)
+  const [resending, setResending] = useState(false)
+  const [resendDone, setResendDone] = useState(false)
   const [previewTotals, setPreviewTotals] = useState<{
     subtotal: number
     tax_total: number
@@ -107,6 +116,7 @@ export default function CheckoutPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
@@ -139,12 +149,48 @@ export default function CheckoutPage() {
         if (typeof rate === 'number' && isFinite(rate)) {
           setDefaultTaxRate(rate)
         }
+        setRequiresVerified(res.data?.checkout?.requires_verified_customer === true)
       } catch {
-        // ignore
+        // Ayarlar okunamazsa guvenli taraf: giris gerektir.
+        setRequiresVerified(true)
       }
     }
     loadDefaultTax()
   }, [])
+
+  // Checkout musteri kapisi: dogrulanmis hesap zorunluysa giris/e-posta
+  // dogrulama ekranini goster; girisli dogrulanmis kullaniciyi form ondoldur.
+  useEffect(() => {
+    if (requiresVerified === null) return
+    if (!requiresVerified) {
+      setAuthGate('open')
+      return
+    }
+
+    let cancelled = false
+    const resolveGate = async () => {
+      const customer = await authService.getCurrentCustomer()
+      if (cancelled) return
+      if (!customer) {
+        setAuthGate('login_required')
+        return
+      }
+      setAccountCustomer(customer)
+      if (customer.metadata?.email_verified !== true) {
+        setAuthGate('email_unverified')
+        return
+      }
+      // Dogrulanmis hesap: bilgileri ondoldur (siparis e-postasi hesaptan gelir)
+      setValue('email', customer.email)
+      if (customer.first_name) setValue('firstName', customer.first_name)
+      if (customer.last_name) setValue('lastName', customer.last_name)
+      setAuthGate('open')
+    }
+    void resolveGate()
+    return () => {
+      cancelled = true
+    }
+  }, [requiresVerified, setValue])
 
   // Load available payment methods from backend
   useEffect(() => {
@@ -357,6 +403,14 @@ export default function CheckoutPage() {
         response: error.response?.data,
         status: error.response?.status
       })
+      // Musteri kapisi hatalari: oturum dustuysa/hesap dogrulanmadiysa
+      // ilgili ekrana yonlendir (altta ilgili panel acilir).
+      const errCode = error.response?.data?.code
+      if (errCode === 'login_required') {
+        setAuthGate('login_required')
+      } else if (errCode === 'email_not_verified') {
+        setAuthGate('email_unverified')
+      }
       toast.error(error.response?.data?.message || t('checkout.orderFailed'), {
         style: {
           background: '#15171c',
@@ -401,6 +455,129 @@ export default function CheckoutPage() {
 
   if (items.length === 0) {
     return null
+  }
+
+  // Musteri kapisi: dogrulanmis hesap zorunluysa ve kullanici giris yapmadiysa
+  // veya e-postasini dogrulamadiysa odeme formu yerine yonlendirme paneli goster.
+  if (requiresVerified && authGate !== 'open') {
+    return (
+      <div className="min-h-screen bg-[#0a0b0d]">
+        <div className="bg-[#15171c] border-b border-gray-800">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center gap-2 text-sm">
+              <Link href="/" className="text-gray-400 hover:text-[#ff6b35] transition">
+                {t('common.home')}
+              </Link>
+              <span className="text-gray-600">/</span>
+              <span className="text-white font-semibold">{t('checkout.title')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="container mx-auto px-4 py-12 sm:py-20">
+          <div className="max-w-md mx-auto gaming-card p-6 sm:p-8 text-center">
+            {authGate === 'checking' ? (
+              <>
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#ff6b35] mx-auto mb-4"></div>
+                <p className="text-gray-400 text-sm">{t('checkout.gate.checking')}</p>
+              </>
+            ) : authGate === 'login_required' ? (
+              <>
+                <div className="text-4xl mb-3">🔐</div>
+                <h1 className="text-xl sm:text-2xl font-black text-white mb-2">
+                  {t('checkout.gate.loginTitle')}
+                </h1>
+                <p className="text-gray-400 text-sm mb-6">{t('checkout.gate.loginDesc')}</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link
+                    href="/login?redirect=/checkout"
+                    className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white font-bold px-6 py-3 rounded-lg hover:opacity-90 transition"
+                  >
+                    {t('checkout.gate.loginButton')}
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="border border-gray-700 text-gray-300 font-bold px-6 py-3 rounded-lg hover:border-[#ff6b35] hover:text-white transition"
+                  >
+                    {t('checkout.gate.registerButton')}
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl mb-3">📧</div>
+                <h1 className="text-xl sm:text-2xl font-black text-white mb-2">
+                  {t('checkout.gate.verifyTitle')}
+                </h1>
+                <p className="text-gray-400 text-sm mb-2">
+                  {t('checkout.gate.verifyDesc')}
+                </p>
+                {accountCustomer?.email && (
+                  <p className="text-[#ff6b35] font-semibold text-sm mb-6 break-all">
+                    {accountCustomer.email}
+                  </p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    type="button"
+                    disabled={resending || resendDone}
+                    onClick={async () => {
+                      if (!accountCustomer?.email) return
+                      setResending(true)
+                      try {
+                        await authService.resendVerification(accountCustomer.email)
+                        setResendDone(true)
+                        toast.success(t('checkout.gate.resendOk'), {
+                          style: {
+                            background: '#15171c',
+                            color: '#fff',
+                            border: '1px solid #ff6b35',
+                          },
+                        })
+                      } catch {
+                        toast.error(t('checkout.orderFailed'), {
+                          style: {
+                            background: '#15171c',
+                            color: '#fff',
+                            border: '1px solid #ff6b35',
+                          },
+                        })
+                      } finally {
+                        setResending(false)
+                      }
+                    }}
+                    className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white font-bold px-6 py-3 rounded-lg hover:opacity-90 transition disabled:opacity-50"
+                  >
+                    {resendDone
+                      ? t('checkout.gate.resendOk')
+                      : resending
+                        ? t('common.loading') || '...'
+                        : t('checkout.gate.resend')}
+                  </button>
+                  <Link
+                    href="/verify-email"
+                    className="border border-gray-700 text-gray-300 font-bold px-6 py-3 rounded-lg hover:border-[#ff6b35] hover:text-white transition"
+                  >
+                    {t('checkout.gate.verifyGo')}
+                  </Link>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void authService.logout()
+                    setAccountCustomer(null)
+                    setAuthGate('login_required')
+                  }}
+                  className="mt-6 text-gray-500 hover:text-gray-300 text-xs underline"
+                >
+                  {t('checkout.gate.switchAccount')}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -567,9 +744,15 @@ export default function CheckoutPage() {
                     <input
                       type="email"
                       {...register('email')}
-                      className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none"
+                      readOnly={!!accountCustomer}
+                      className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none disabled:opacity-70 read-only:opacity-70"
                       placeholder="your.email@example.com"
                     />
+                    {accountCustomer && (
+                      <p className="text-gray-500 text-[11px] mt-1">
+                        {t('checkout.gate.emailLocked')}
+                      </p>
+                    )}
                     {errors.email && <p className="text-red-500 text-xs sm:text-sm mt-1">{errors.email.message}</p>}
                   </div>
 

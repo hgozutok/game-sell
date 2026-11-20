@@ -75,9 +75,16 @@ function LoginPageInner() {
       const result = await authService.login(formData.email, formData.password, captchaToken)
 
       if (result.customer) {
-        console.log('✅ Login successful, redirecting to /account')
+        // Giris sonrasi hedef: ?redirect= parametresi (orne: checkout'tan
+        // gelindiyse geri don), yoksa hesap sayfasi.
+        const redirect = searchParams.get('redirect')
+        const target =
+          redirect && redirect.startsWith('/') && !redirect.startsWith('//')
+            ? redirect
+            : '/account'
+        console.log(`✅ Login successful, redirecting to ${target}`)
         // Use window.location for hard redirect (most reliable)
-        window.location.href = '/account'
+        window.location.href = target
       } else {
         console.error('❌ No customer data returned')
         setError(t('login.noCustomer'))
