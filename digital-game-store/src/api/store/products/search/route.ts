@@ -115,13 +115,40 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const havingParams: any[] = []
     const priceMin = Number(price_min)
     const priceMax = Number(price_max)
+
+    // Magaza listeleme ust fiyat limiti (catalog.max_price_eur):
+    // Listeleme sorgularinda (id ve handle belirtilmemisse), bu limitin uzerindeki urunler listelemeye HIC GIRMEZ!
+    let maxCapUsdCents: number | null = null
+    if (!id && !handle) {
+      try {
+        const capEur = Number(await storeSettings.getSettingValue('catalog.max_price_eur', 100))
+        if (capEur > 0) {
+          // 1 USD = 0.92 EUR varsayimiyla EUR -> USD cents cevirimi
+          // Ornek: 100 EUR = (100 / 0.92) * 100 = 10870 USD cents
+          maxCapUsdCents = Math.round((capEur / 0.92) * 100)
+        }
+      } catch {
+        /* varsayilan limit yok */
+      }
+    }
+
     if (Number.isFinite(priceMin) && priceMin > 0) {
       having.push(`MIN(pr.amount) >= ?`)
       havingParams.push(Math.round(priceMin * 100))
     }
+
+    let effectiveMaxCents: number | null = null
     if (Number.isFinite(priceMax) && priceMax > 0) {
+      effectiveMaxCents = Math.round(priceMax * 100)
+    }
+    if (maxCapUsdCents !== null) {
+      effectiveMaxCents =
+        effectiveMaxCents !== null ? Math.min(effectiveMaxCents, maxCapUsdCents) : maxCapUsdCents
+    }
+
+    if (effectiveMaxCents !== null && effectiveMaxCents > 0) {
       having.push(`MIN(pr.amount) <= ?`)
-      havingParams.push(Math.round(priceMax * 100))
+      havingParams.push(effectiveMaxCents)
     }
 
     // ---------- Siralama ----------

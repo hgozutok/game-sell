@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ProductCard from '@/components/products/ProductCard'
-import { usePriceCap } from '@/hooks/usePriceCap'
 import { useT } from '@/components/useT'
 
 interface ResolvedCategory {
@@ -63,8 +62,6 @@ export default function CategoryClient({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const { isOverCap } = usePriceCap()
-
   const [sortBy, setSortBy] = useState(currentSort)
   const [filterPlatform, setFilterPlatform] = useState(currentPlatform)
 
@@ -75,8 +72,8 @@ export default function CategoryClient({
     })
   }
 
-  // Cap filtresi (Admin tarafindan belirlenen azami fiyat limiti)
-  let filteredProducts = initialProducts.filter((p: any) => !isOverCap(p))
+  // Tum urunler
+  let filteredProducts = initialProducts
 
   // Platform filtresi (istemci ici anlik filtreleme)
   if (filterPlatform !== 'all') {

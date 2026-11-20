@@ -6,7 +6,6 @@ import Link from 'next/link'
 import ProductCard from '@/components/products/ProductCard'
 import { useCurrencyStore } from '@/store/currencyStore'
 import { useT } from '@/components/useT'
-import { usePriceCap } from '@/hooks/usePriceCap'
 
 interface ProductsClientProps {
   initialProducts: any[]
@@ -66,7 +65,6 @@ export default function ProductsClient({
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
 
-  const { cap, isOverCap } = usePriceCap()
   const selectedCurrency = useCurrencyStore((state) => state.selectedCurrency)
 
   const [priceMin, setPriceMin] = useState<number>(currentPriceMin)
@@ -110,11 +108,8 @@ export default function ProductsClient({
     updateFilters({ min: undefined, max: undefined, page: 1 })
   }
 
-  // Urunleri admin ust fiyat limitine gore filtrele
-  let displayProducts = initialProducts
-  if (cap > 0) {
-    displayProducts = displayProducts.filter((p: any) => !isOverCap(p))
-  }
+  // Tum urunler (sayfalamada tam adet gosterilir)
+  const displayProducts = initialProducts
 
   const totalPages = Math.max(1, Math.ceil(initialCount / currentLimit))
 
