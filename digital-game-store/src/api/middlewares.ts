@@ -7,12 +7,13 @@ import {
   ACCOUNT_DISABLED_MESSAGE,
   isCustomerDisabled,
 } from "../utils/customer-status"
-import { clientIp } from "../utils/bot-protection"
+import { clientIp, rateLimit } from "../utils/bot-protection"
 import {
   checkOrderRateLimit,
   guardCartForCompletion,
   releaseCompletionLock,
 } from "../utils/order-guard"
+import { checkEmailBlacklist } from "../utils/email-blacklist"
 import {
   evaluateAutoBlock,
   isIpBlocked,
@@ -115,7 +116,8 @@ async function ipGuard(req: MedusaRequest, res: MedusaResponse, next: any) {
       res.on("finish", () => {
         try {
           const status = res.statusCode
-          if (status !== 404 && status !== 403 && status !== 429) return
+          // 401: admin/müşteri login brute-force denemeleri de sayılır
+          if (status !== 401 && status !== 404 && status !== 403 && status !== 429) return
           const windowMs = 10 * 60 * 1000
           const count = recordSuspiciousHit(ip, windowMs)
           if (count === 1) return // ilk istek — degerlendirme gereksiz
@@ -282,6 +284,133 @@ async function storeGuard(req: MedusaRequest, res: MedusaResponse, next: any) {
     return cartCompleteGuard(req, res, next)
   }
 
+  // 3) Çekirdek müşteri oluşturma (auth register sonrası profil açma) — kara liste.
+  //    Meşru akış /store/auth/register (kendi guard'ımız) üzerinden gider;
+  //    çekirdek /auth/customer/*/register kapalı olduğundan bu uç yalnızca
+  //    meşru kimlik doğrulamalı istemlerde çalışır — e-posta kara listedeyse
+  //    profil açılamaz.
+  if (req.method === "POST" && /^\/store\/customers\/?$/.test(url)) {
+    const email = String((req.body as any)?.email || "").trim().toLowerCase()
+    const bl = await checkEmailBlacklist((req as any).scope, email).catch(
+      () =>
+        ({
+          blocked: false,
+          kind: undefined,
+          match: undefined,
+        }) as Awaited<ReturnType<typeof checkEmailBlacklist>>
+    )
+    if (bl.blocked) {
+      const logger = (req as any).scope.resolve("logger") as any
+      logger?.warn?.(`[store-guard] kara listeli çekirdek müşteri oluşturma reddi: ${email}`)
+      return res.status(403).json({
+        code: "email_blocked",
+        message:
+          bl.kind === "domain"
+            ? `Bu e-posta sağlayıcısı (${bl.match}) mağazada engellenmiştir`
+            : "Bu e-posta adresi mağazada engellenmiştir",
+      })
+    }
+  }
+
+  return next()
+}
+
+/**
+ * Çekirdek auth uçlarının kapatılması — 2026-11-21 saldırı vektörü:
+ *   /auth/user/emailpass/register     -> HERKES admin hesabı açabiliyordu!
+ *   /auth/customer/emailpass/register -> custom register'daki kara liste/rate
+ *     limit'i bypass ederek bot hesabı açılıyordu.
+ * Bu uçlar hiçbir meşru akışta kullanılmıyor: admin tek hesap deploy.sh'te
+ * `medusa user` CLI ile açılıyor; müşteri kaydı /store/auth/register'dan.
+ */
+async function authGuard(req: MedusaRequest, res: MedusaResponse, next: any) {
+  const rawUrl = fullUrl(req)
+  const url = rawUrl.toLowerCase()
+  const ip = normalizeIp(clientIp(req))
+  let scope: any = null
+  try {
+    scope = (req as any).scope
+  } catch {
+    /* yoksa akış next() ile sürer */
+  }
+
+  const deny = (code: string, message: string, status = 403) => {
+    try {
+      scope?.resolve("logger")?.warn?.(`[auth-guard] red: ${code} ${rawUrl} ip=${ip}`)
+    } catch {}
+    if (ip) {
+      const count = recordSuspiciousHit(ip, 10 * 60_000)
+      void evaluateAutoBlock(scope, ip, count)
+        .then((r) => {
+          if (r.blockedNow) {
+            scope?.resolve("logger")?.warn?.(`[ip-guard] OTOMATIK BLOK: ${ip} — ${r.count} şüpheli istek`)
+          }
+        })
+        .catch(() => {})
+    }
+    return res.status(status).json({ code, message })
+  }
+
+  // 1) ADMIN kaydı TAMAMEN yasak — admin hesapları yalnızca CLI/script ile açılır.
+  //    (ör. /auth/user/emailpass/register, /auth/user/invites token akışına da
+  //    kapatıyoruz; mevcut davetiye akışı kullanılmıyor.)
+  if (req.method === "POST" && /^\/auth\/user\/(emailpass\/)?register/.test(url)) {
+    return deny("admin_registration_disabled", "Kayıt kapalı — hesap yönetici tarafından açılır")
+  }
+  if (req.method === "POST" && /^\/auth\/user\/invites/.test(url)) {
+    return deny("admin_invites_disabled", "Davetiye akışı kapalı")
+  }
+
+  // 2) Admin login brute-force: IP başına 15 deneme / 15 dk
+  if (req.method === "POST" && /^\/auth\/user\/emailpass$/.test(url)) {
+    const { allowed, retryAfterSec } = rateLimit(`admin-login:${ip}`, 15, 15 * 60_000)
+    if (!allowed) {
+      if (scope) {
+        try {
+          scope.resolve("logger").warn(`[auth-guard] admin login rate limit: ${ip}`)
+        } catch {}
+      }
+      return res.status(429).json({
+        code: "rate_limited",
+        message: `Çok fazla deneme — ${retryAfterSec} saniye sonra tekrar deneyin`,
+      })
+    }
+    return next()
+  }
+
+  // 3) Müşteri kaydı (çekirdek route) — kara liste + hız sınırı.
+  //    Meşru kayıt akışı /store/auth/register'dan olduğu için burada Turnstile yok.
+  if (
+    req.method === "POST" &&
+    /^\/auth\/customer\/(emailpass\/)?register/.test(url)
+  ) {
+    const email = String((req.body as any)?.email || "").trim().toLowerCase()
+    const limited = rateLimit(`core-customer-register:${ip}`, 5, 15 * 60_000)
+    if (!limited.allowed) {
+      return res.status(429).json({
+        code: "rate_limited",
+        message: `Çok fazla deneme — ${limited.retryAfterSec} saniye sonra tekrar deneyin`,
+      })
+    }
+    const bl = await checkEmailBlacklist(scope, email).catch(
+      () =>
+        ({
+          blocked: false,
+          kind: undefined,
+          match: undefined,
+        }) as Awaited<ReturnType<typeof checkEmailBlacklist>>
+    )
+    if (bl.blocked) {
+      return deny(
+        "email_blocked",
+        bl.kind === "domain"
+          ? `Bu e-posta sağlayıcısı (${bl.match}) mağazada engellenmiştir`
+          : "Bu e-posta adresi mağazada engellenmiştir"
+      )
+    }
+    return next()
+  }
+
   return next()
 }
 
@@ -290,6 +419,10 @@ export default defineMiddlewares({
     {
       matcher: "/admin",
       middlewares: [adminCorsMiddleware, ipGuard],
+    },
+    {
+      matcher: "/auth",
+      middlewares: [authGuard],
     },
     {
       matcher: "/store",
