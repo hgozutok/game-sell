@@ -46,18 +46,20 @@ export default function RegisterPage() {
     }
 
     try {
+      const normalizedEmail = formData.email.trim().toLowerCase()
+
       // Create customer account using auth service
       const { requiresVerification } = await authService.register({
-        email: formData.email,
+        email: normalizedEmail,
         password: formData.password,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        phone: formData.phone || undefined,
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        phone: formData.phone?.trim() || undefined,
       }, captchaToken)
 
       if (requiresVerification) {
         // E-posta dogrulamasi bekleniyor — login ekranina bilgiyle don
-        window.location.href = `/login?verify_pending=${encodeURIComponent(formData.email)}`
+        window.location.href = `/login?verify_pending=${encodeURIComponent(normalizedEmail)}`
         return
       }
 
@@ -155,8 +157,11 @@ export default function RegisterPage() {
                 type="email"
                 required
                 maxLength={254}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
                 placeholder="you@example.com"
               />

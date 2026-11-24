@@ -24,8 +24,9 @@ export const authService = {
   // bu token ile gercek kimlik dogrulamasi yapar.
   async login(email: string, password: string, captchaToken?: string | null): Promise<AuthResponse> {
     try {
+      const normalizedEmail = String(email).trim().toLowerCase()
       const response = await api.post('/store/auth/login', {
-        email,
+        email: normalizedEmail,
         password,
         captcha_token: captchaToken || undefined,
       })
@@ -69,8 +70,9 @@ export const authService = {
     captchaToken?: string | null
   ): Promise<{ customer: Customer | null; requiresVerification: boolean }> {
     try {
+      const normalizedEmail = String(data.email).trim().toLowerCase()
       const response = await api.post('/store/auth/register', {
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
         first_name: data.first_name,
         last_name: data.last_name,
@@ -83,7 +85,7 @@ export const authService = {
 
       if (customer && !requiresVerification) {
         localStorage.setItem('customer_id', customer.id)
-        localStorage.setItem('customer_email', customer.email)
+        localStorage.setItem('customer_email', (customer.email || normalizedEmail).toLowerCase())
         localStorage.setItem('customer_first_name', customer.first_name || '')
         localStorage.setItem('customer_last_name', customer.last_name || '')
       }

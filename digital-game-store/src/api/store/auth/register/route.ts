@@ -43,7 +43,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(400).json({ code: captcha.reason || 'captcha_failed', message: 'Bot doğrulaması başarısız. Lütfen tekrar deneyin.' })
     }
 
-    if (!email || typeof email !== 'string' || !EMAIL_RE.test(email.trim()) || email.trim().length > 254) {
+    const rawEmail = typeof email === 'string' ? email : ''
+    const normalizedEmail = rawEmail.trim().toLowerCase()
+
+    if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail) || normalizedEmail.length > 254) {
       return res.status(400).json({ code: 'invalid_email', message: 'Geçerli bir e-posta gerekli (en fazla 254 karakter)' })
     }
     if (!password || typeof password !== 'string' || password.length < 8 || password.length > 256) {
@@ -55,8 +58,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     if (phone && String(phone).trim().length > 32) {
       return res.status(400).json({ code: 'invalid_phone', message: 'Telefon numarası en fazla 32 karakter olabilir' })
     }
-
-    const normalizedEmail = String(email).toLowerCase().trim()
 
     // Bot korumasi: E-posta basina rate limit
     const emailRl = rateLimit(`register:email:${normalizedEmail}`, 3, 15 * 60 * 1000)
@@ -142,6 +143,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         },
       })
       customer = result
+
+      // E-posta adresinin küçük harfle kaydedildiğini garantiye al
+      if (customer?.id && customer.email !== normalizedEmail) {
+        await customerModule
+          .updateCustomers(customer.id, { email: normalizedEmail })
+          .catch(() => null)
+        customer.email = normalizedEmail
+      }
 
       // Kayit IP'sini musteriye yaz — bot tespiti + kullanici listesinden
       // IP engelleme bu iz uzerinden yapilir.

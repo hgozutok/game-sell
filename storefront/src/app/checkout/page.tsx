@@ -314,7 +314,7 @@ export default function CheckoutPage() {
           variant_id: item.variantId,
           quantity: item.quantity,
         })),
-        email: data.email,
+        email: data.email.trim().toLowerCase(),
         billing_address: {
           first_name: data.firstName,
           last_name: data.lastName,
@@ -743,6 +743,9 @@ export default function CheckoutPage() {
                     <label className="block text-white text-xs sm:text-sm font-semibold mb-1.5">{t('checkout.email')} *</label>
                     <input
                       type="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       {...register('email')}
                       readOnly={!!accountCustomer}
                       className="w-full bg-[#1a1d24] border border-gray-700 text-white text-base px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg focus:border-[#ff6b35] focus:outline-none disabled:opacity-70 read-only:opacity-70"

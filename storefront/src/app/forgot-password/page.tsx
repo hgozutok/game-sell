@@ -51,7 +51,8 @@ function ForgotPasswordInner() {
     }
 
     try {
-      await authService.forgotPassword(email.trim(), captchaToken)
+      const normalizedEmail = email.trim().toLowerCase()
+      await authService.forgotPassword(normalizedEmail, captchaToken)
       setSent(true)
     } catch (err: any) {
       if (captcha.provider !== 'none') setCaptchaResetKey((k) => k + 1)
@@ -108,8 +109,11 @@ function ForgotPasswordInner() {
                   type="email"
                   required
                   maxLength={254}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
                   placeholder="you@example.com"
                 />

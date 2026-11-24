@@ -21,9 +21,11 @@ type PaymentSession = {
 
 type Order = {
   id: string
-  display_id?: number
+  display_id?: number | null
   created_at: string
-  email?: string
+  email?: string | null
+  customer_name?: string | null
+  customer_email?: string | null
   total?: number
   currency_code?: string
   status?: string
@@ -34,11 +36,13 @@ type Order = {
 
 type OrderDetail = {
   id: string
-  display_id?: number
+  display_id?: number | null
   status?: string
   payment_status?: string
   fulfillment_status?: string
-  email?: string
+  email?: string | null
+  customer_name?: string | null
+  customer_email?: string | null
   total?: number
   subtotal?: number
   tax_total?: number
@@ -53,6 +57,12 @@ type OrderDetail = {
   order_approved_at?: string | null
   digital_fulfilled?: boolean
   fulfillment_state?: string | null
+  canceled_at?: string | null
+  cancellation_reason?: string | null
+  refunded?: boolean
+  refunded_at?: string | null
+  refund_amount?: number | null
+  refund_reason?: string | null
   metadata?: Record<string, any>
   digital_keys?: Array<{
     id: string
@@ -104,10 +114,19 @@ function money(minor?: number | null, currency = 'usd') {
 function dateTime(value?: string | null) {
   if (!value) return '-'
   try {
-    return new Date(value).toLocaleString('tr-TR')
+    const d = new Date(value)
+    if (isNaN(d.getTime())) return '-'
+    return d.toLocaleString('tr-TR')
   } catch {
-    return value
+    return '-'
   }
+}
+
+function orderNo(order?: { id: string; display_id?: number | null } | null) {
+  if (!order) return '-'
+  if (order.display_id) return `#${order.display_id}`
+  const clean = order.id.replace(/^order_/, '')
+  return `#${clean.slice(0, 8).toUpperCase()}`
 }
 
 export default function AdminOrdersControlPage() {
@@ -241,6 +260,62 @@ export default function AdminOrdersControlPage() {
       setMessage({
         ok: false,
         text: e?.response?.data?.message || e?.message || 'Gönderim başarısız',
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const cancelOrder = async (orderId: string) => {
+    if (
+      !window.confirm(
+        'Bu siparişi iptal etmek istediğinize emin misiniz? Atanmış anahtarlar iptal edilecektir.'
+      )
+    ) {
+      return
+    }
+    setBusy(`cancel-${orderId}`)
+    setMessage(null)
+    try {
+      const res = await adminApi.post(`/admin/order-control/${orderId}/cancel`, {
+        reason: 'Yönetici tarafından sipariş detay ekranından iptal edildi',
+      })
+      setMessage({
+        ok: true,
+        text: res.data?.message || 'Sipariş başarıyla iptal edildi',
+      })
+      await loadDetail(orderId)
+      await loadOrders()
+    } catch (e: any) {
+      setMessage({
+        ok: false,
+        text: e?.response?.data?.message || e?.message || 'Sipariş iptal edilemedi',
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const refundOrder = async (orderId: string) => {
+    if (!window.confirm('Bu sipariş için para iadesi yapmak istediğinize emin misiniz?')) {
+      return
+    }
+    setBusy(`refund-${orderId}`)
+    setMessage(null)
+    try {
+      const res = await adminApi.post(`/admin/order-control/${orderId}/refund`, {
+        reason: 'Yönetici tarafından para iadesi yapıldı',
+      })
+      setMessage({
+        ok: true,
+        text: res.data?.message || 'Para iadesi başarıyla tamamlandı',
+      })
+      await loadDetail(orderId)
+      await loadOrders()
+    } catch (e: any) {
+      setMessage({
+        ok: false,
+        text: e?.response?.data?.message || e?.message || 'Para iadesi yapılamadı',
       })
     } finally {
       setBusy(null)
@@ -528,6 +603,10 @@ export default function AdminOrdersControlPage() {
                   <tbody>
                     {orders.map((order) => {
                       const isSelected = selectedId === order.id
+                      const isRefunded =
+                        order.payment_status === 'refunded' ||
+                        order.metadata?.refunded === true
+                      const isCanceled = order.status === 'canceled'
                       const approved =
                         order.metadata?.payment_approved === true ||
                         ['captured', 'partially_captured'].includes(String(order.payment_status))
@@ -540,36 +619,53 @@ export default function AdminOrdersControlPage() {
                             isSelected ? 'bg-[#1a1d24]' : 'hover:bg-[#1a1d24]/60'
                           }`}
                         >
-                          <td className="px-4 py-3 font-mono">
-                            {order.display_id ? `#${order.display_id}` : order.id.slice(0, 10)}
+                          <td className="px-4 py-3 font-mono font-semibold" title={order.id}>
+                            {orderNo(order)}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {new Date(order.created_at).toLocaleString('tr-TR')}
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-300">
+                            {dateTime(order.created_at)}
                           </td>
-                          <td className="px-4 py-3">{order.email || '-'}</td>
                           <td className="px-4 py-3">
+                            <div className="font-medium text-white truncate max-w-[200px]">
+                              {order.email || order.customer_email || '-'}
+                            </div>
+                            {order.customer_name && (
+                              <div className="text-xs text-gray-400 truncate max-w-[200px]">
+                                {order.customer_name}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-medium">
                             {money(order.total, order.currency_code || 'usd')}
                           </td>
                           <td className="px-4 py-3">
                             <span
                               className={`px-2 py-1 rounded text-xs ${
-                                approved
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-yellow-500/20 text-yellow-400'
+                                isRefunded
+                                  ? 'bg-purple-500/20 text-purple-400'
+                                  : approved
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : 'bg-yellow-500/20 text-yellow-400'
                               }`}
                             >
-                              {approved ? 'Onaylı' : 'Bekliyor'}
+                              {isRefunded ? 'İade Edildi' : approved ? 'Onaylı' : 'Bekliyor'}
                             </span>
                           </td>
                           <td className="px-4 py-3">
                             <span
                               className={`px-2 py-1 rounded text-xs ${
-                                orderOk
-                                  ? 'bg-blue-500/20 text-blue-400'
-                                  : 'bg-gray-700 text-gray-300'
+                                isCanceled
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : orderOk
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : 'bg-gray-700 text-gray-300'
                               }`}
                             >
-                              {orderOk ? 'Sipariş onaylı' : 'Sipariş onayı yok'}
+                              {isCanceled
+                                ? 'İptal Edildi'
+                                : orderOk
+                                  ? 'Sipariş onaylı'
+                                  : 'Sipariş onayı yok'}
                             </span>
                           </td>
                         </tr>
@@ -585,10 +681,15 @@ export default function AdminOrdersControlPage() {
           <div className="xl:col-span-2 bg-[#15171c] border border-gray-800 rounded-xl overflow-hidden xl:sticky xl:top-6">
             <div className="px-6 py-4 border-b border-gray-800">
               <h2 className="text-xl font-black text-white">Sipariş & Ödeme Detayı</h2>
-              <p className="text-gray-400 text-sm">
-                {detail
-                  ? `#${detail.display_id || detail.id.slice(0, 10)}`
-                  : 'Detay için soldan bir sipariş seçin'}
+              <p className="text-gray-400 text-sm font-mono">
+                {detail ? (
+                  <>
+                    <span className="text-white font-bold">{orderNo(detail)}</span>
+                    <span className="text-xs text-gray-500 ml-2">({detail.id})</span>
+                  </>
+                ) : (
+                  'Detay için soldan bir sipariş seçin'
+                )}
               </p>
             </div>
 
@@ -648,12 +749,31 @@ export default function AdminOrdersControlPage() {
                   <div className="space-y-2 text-gray-300">
                     <div className="flex justify-between gap-3">
                       <span className="text-gray-500">Müşteri</span>
-                      <span className="text-right">{detail.email || '-'}</span>
+                      <div className="text-right">
+                        <div className="text-white font-medium">{detail.email || detail.customer_email || '-'}</div>
+                        {detail.customer_name && (
+                          <div className="text-xs text-gray-400">{detail.customer_name}</div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex justify-between gap-3">
                       <span className="text-gray-500">Sipariş durumu</span>
-                      <span>{detail.status || '-'}</span>
+                      <span className={detail.status === 'canceled' ? 'text-red-400 font-bold' : ''}>
+                        {detail.status === 'canceled' ? 'İptal Edildi' : detail.status || '-'}
+                      </span>
                     </div>
+                    {detail.canceled_at && (
+                      <div className="flex justify-between gap-3 text-red-400 text-xs">
+                        <span>İptal Tarihi</span>
+                        <span>{dateTime(detail.canceled_at)}</span>
+                      </div>
+                    )}
+                    {detail.cancellation_reason && (
+                      <div className="flex justify-between gap-3 text-red-400/80 text-xs">
+                        <span>İptal Nedeni</span>
+                        <span className="text-right">{detail.cancellation_reason}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-3">
                       <span className="text-gray-500">Ödeme yöntemi</span>
                       <span>{methodLabels[detail.payment_method || ''] || detail.payment_method || '-'}</span>
@@ -664,8 +784,18 @@ export default function AdminOrdersControlPage() {
                     </div>
                     <div className="flex justify-between gap-3">
                       <span className="text-gray-500">Ödeme durumu</span>
-                      <span>{paymentLabels[detail.payment_status || ''] || detail.payment_status || '-'}</span>
+                      <span className={detail.payment_status === 'refunded' || detail.refunded ? 'text-purple-400 font-bold' : ''}>
+                        {detail.payment_status === 'refunded' || detail.refunded
+                          ? 'İade Edildi'
+                          : paymentLabels[detail.payment_status || ''] || detail.payment_status || '-'}
+                      </span>
                     </div>
+                    {(detail.refunded || detail.payment_status === 'refunded') && (
+                      <div className="flex justify-between gap-3 text-purple-400 text-xs">
+                        <span>İade Tutarı</span>
+                        <span>{money(detail.refund_amount, currency)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-3">
                       <span className="text-gray-500">Teslimat</span>
                       <span>
@@ -827,6 +957,35 @@ export default function AdminOrdersControlPage() {
                         Key gönderimi için sipariş ve ödeme onayının ikisi de gerekli.
                       </p>
                     )}
+                    {/* Sipariş İptal & Para İadesi Butonları */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-800">
+                      <button
+                        onClick={() => cancelOrder(detail.id)}
+                        disabled={detail.status === 'canceled' || busy !== null}
+                        className="px-3 py-2 bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25 rounded-lg text-xs font-semibold disabled:opacity-40 transition"
+                      >
+                        {detail.status === 'canceled'
+                          ? '❌ İptal Edildi'
+                          : busy === `cancel-${detail.id}`
+                            ? 'İptal ediliyor…'
+                            : '🚫 Siparişi İptal Et'}
+                      </button>
+                      <button
+                        onClick={() => refundOrder(detail.id)}
+                        disabled={
+                          detail.refunded ||
+                          detail.payment_status === 'refunded' ||
+                          busy !== null
+                        }
+                        className="px-3 py-2 bg-purple-500/15 border border-purple-500/40 text-purple-300 hover:bg-purple-500/25 rounded-lg text-xs font-semibold disabled:opacity-40 transition"
+                      >
+                        {detail.refunded || detail.payment_status === 'refunded'
+                          ? '↩️ İade Edildi'
+                          : busy === `refund-${detail.id}`
+                            ? 'İade ediliyor…'
+                            : '💸 Para İadesi Yap'}
+                      </button>
+                    </div>
                     <button
                       onClick={() => testKinguinSandbox(detail.id)}
                       disabled={sandboxBusy || busy !== null}

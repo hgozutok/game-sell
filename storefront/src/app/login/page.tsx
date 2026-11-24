@@ -72,7 +72,8 @@ function LoginPageInner() {
     }
 
     try {
-      const result = await authService.login(formData.email, formData.password, captchaToken)
+      const normalizedEmail = formData.email.trim().toLowerCase()
+      const result = await authService.login(normalizedEmail, formData.password, captchaToken)
 
       if (result.customer) {
         // Giris sonrasi hedef: ?redirect= parametresi (orne: checkout'tan
@@ -174,8 +175,11 @@ function LoginPageInner() {
                 type="email"
                 required
                 maxLength={254}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase().trim() })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
                 placeholder="you@example.com"
               />

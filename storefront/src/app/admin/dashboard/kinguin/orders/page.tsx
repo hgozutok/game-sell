@@ -133,10 +133,12 @@ export default function KinguinOrdersPage() {
                 <div key={order.id} className="px-6 py-4 flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <div className="text-white font-semibold">
-                      #{order.display_id || order.id.slice(0, 10)} · {order.email || 'misafir'}
+                      #{order.display_id || order.id.replace(/^order_/, '').slice(0, 8).toUpperCase()} · {order.email || 'misafir'}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {new Date(order.created_at).toLocaleString('tr-TR')} ·{' '}
+                      {order.created_at && !isNaN(new Date(order.created_at).getTime())
+                        ? new Date(order.created_at).toLocaleString('tr-TR')
+                        : '-'} ·{' '}
                       {order.metadata?.fulfillment_state || 'durum yok'}
                     </div>
                   </div>

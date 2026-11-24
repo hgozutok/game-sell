@@ -102,24 +102,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         ? await exchangeGoogle(code, cfg, redirectUri)
         : await exchangeFacebook(code, cfg, redirectUri)
 
-    if (!profile.email) {
+    const profileEmail = String(profile.email || '').trim().toLowerCase()
+    if (!profileEmail) {
       return fail(settings.frontendUrl, 'no_email')
     }
 
     // musteri bul veya yarat — saglayici e-postasi dogrulanmis kabul edilir
     const customerModule = req.scope.resolve(Modules.CUSTOMER) as any
     const authModule = req.scope.resolve(Modules.AUTH) as any
-    const existing = await customerModule.listCustomers({ email: profile.email })
+    const existing = await customerModule.listCustomers({ email: profileEmail })
     let customer = existing?.[0]
     if (!customer) {
       customer = await customerModule.createCustomers({
-        email: profile.email,
+        email: profileEmail,
         first_name: profile.firstName.substring(0, 80),
         last_name: profile.lastName.substring(0, 80),
         has_account: true,
         metadata: { email_verified: true, email_verified_at: new Date().toISOString(), social_provider: provider },
       })
-      logger.info(`[oauth] yeni musteri: ${profile.email} (${provider})`)
+      logger.info(`[oauth] yeni musteri: ${profileEmail} (${provider})`)
 
       try {
         const adminEmail = await getAdminEmail(req.scope)
@@ -130,7 +131,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             locale: 'tr',
             data: {
               customer_name: `${profile.firstName} ${profile.lastName}`,
-              customer_email: profile.email,
+              customer_email: profileEmail,
               registration_date: new Date().toLocaleString('tr-TR'),
               verification_status: `Doğrulandı (${provider})`,
             },

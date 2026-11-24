@@ -136,7 +136,7 @@ export default function OrdersPage() {
                   <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-2xl font-black text-white">{t('account.orderNumber')} #{order.display_id}</h3>
+                        <h3 className="text-2xl font-black text-white">{t('account.orderNumber')} #{order.display_id || order.id.replace(/^order_/, '').slice(0, 8).toUpperCase()}</h3>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}
                         >

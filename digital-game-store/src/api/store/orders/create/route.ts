@@ -103,7 +103,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
     // Girili dogrulanmis musteri varsa siparis e-postasi HESAPTAN gelir;
     // istemciden gelen e-posta guvenilmez (baskasinin e-postasiyla siparis engeli).
-    const orderEmail = customerGate.customer?.email || email
+    const orderEmail = String(customerGate.customer?.email || email || '').trim().toLowerCase()
 
     // E-posta kara listesi: tam adres veya alan adi engelliyse siparis reddedilir.
     const blacklistCheck = await verifyEmailNotBlacklisted(req.scope, orderEmail)

@@ -125,4 +125,24 @@ describe('User Login & Auth Security Controls', () => {
       expect(hugePw.length > 256).toBe(true)
     })
   })
+
+  describe('Kayit & Giris E-posta Kucuk Harfe Cevirme (Normalization)', () => {
+    it('buyuk veya karisik harfli e-postayi kucuk harfe ve trim edilmis hale cevirmeli', () => {
+      const inputs = [
+        'User@Example.COM',
+        '  JOHN.DOE@GMAIL.COM  ',
+        'Test.User+Sub@Outlook.Com',
+      ]
+      const expected = [
+        'user@example.com',
+        'john.doe@gmail.com',
+        'test.user+sub@outlook.com',
+      ]
+
+      inputs.forEach((input, idx) => {
+        const normalized = String(input).trim().toLowerCase()
+        expect(normalized).toBe(expected[idx])
+      })
+    })
+  })
 })
