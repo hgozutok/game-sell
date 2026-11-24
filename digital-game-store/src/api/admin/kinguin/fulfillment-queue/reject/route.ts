@@ -1,5 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
+import { cancelOrderWorkflow } from "@medusajs/core-flows"
 import { z } from "zod"
 
 const BodySchema = z.object({
@@ -22,14 +23,43 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!order) return res.status(404).json({ message: "Siparis bulunamadi" })
 
   try {
-    await orderModule.cancelOrder(parsed.data.order_id)
-    await orderModule.updateOrder(parsed.data.order_id, {
-      metadata: {
-        ...(order.metadata || {}),
-        fulfillment_state: "rejected",
-        fulfillment_error: parsed.data.reason || "admin reddi",
-      },
-    })
+    let alreadyCanceled = false
+    // Medusa v2.11 Order modulunde cancelOrder metodu YOK — iptal core-flows
+    // workflow'u ile yapilir (kuyruktaki siparisler 'pending' oldugundan
+    // cancelable'dir; captured odeme yoksa iade adimi da sorun cikarmaz).
+    try {
+      await cancelOrderWorkflow(req.scope).run({
+        input: { order_id: parsed.data.order_id },
+      })
+    } catch (cancelErr: any) {
+      // "has been canceled" = zaten iptal edilmis (orn. toplu temizlikte) —
+      // idempotent davran: metadata'yi 'rejected' yap, 200 don.
+      if (/has been canceled/i.test(String(cancelErr?.message || ""))) {
+        alreadyCanceled = true
+      } else {
+        throw cancelErr
+      }
+    }
+    try {
+      await orderModule.updateOrder(parsed.data.order_id, {
+        metadata: {
+          ...(order.metadata || {}),
+          fulfillment_state: "rejected",
+          fulfillment_error: parsed.data.reason || (alreadyCanceled ? "siparis zaten iptal edilmisti" : "admin reddi"),
+        },
+      })
+    } catch (metaErr: any) {
+      // Iptal edilmis sipariste metadata update kisiyorsa sessiz gec —
+      // asil islem (iptal) tamamlanmis durumda.
+      logger?.warn?.(
+        `[fulfillment-queue] metadata guncellenemedi (zaten iptal): ${metaErr?.message}`
+      )
+    }
+    if (alreadyCanceled) {
+      logger.warn(
+        `[fulfillment-queue] ${parsed.data.order_id}: zaten iptal edilmisti — kuyruk kaydi temizlendi`
+      )
+    }
     await auditLog.log({
       action: "fulfillment.reject",
       entity: "order",

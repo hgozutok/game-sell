@@ -7,14 +7,16 @@ import type { TVars } from './types'
  * Sunucu bilesenleri icin aktif dil.
  * Cerez yoksa Accept-Language basligina duser.
  */
-export function getServerLocale(): Locale {
-  const cookieLocale = cookies().get(LOCALE_COOKIE)?.value
+export async function getServerLocale(): Promise<Locale> {
+  const cookieStore = await cookies()
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value
   if (cookieLocale) return resolveLocale(cookieLocale)
-  return matchAcceptLanguage(headers().get('accept-language'))
+  const headerStore = await headers()
+  return matchAcceptLanguage(headerStore.get('accept-language'))
 }
 
 /** Sunucu bilesenlerinde t('anahtar') yardimcisi. */
-export function getServerT(): (key: string, vars?: TVars) => string {
-  const locale = getServerLocale()
+export async function getServerT(): Promise<(key: string, vars?: TVars) => string> {
+  const locale = await getServerLocale()
   return (key: string, vars?: TVars) => translate(locale, key, vars)
 }

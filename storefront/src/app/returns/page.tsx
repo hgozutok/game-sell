@@ -1,19 +1,20 @@
+import type { Metadata } from 'next'
 import PolicyLayout from '@/components/layout/PolicyLayout'
 import Link from 'next/link'
 import { formatDate } from '@/i18n'
 import { getServerLocale, getServerT } from '@/i18n/server'
 
-export function generateMetadata() {
-  const t = getServerT()
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT()
   return {
     title: t('content.returns.metaTitle'),
     description: t('content.returns.metaDescription'),
   }
 }
 
-export default function ReturnsPage() {
-  const t = getServerT()
-  const locale = getServerLocale()
+export default async function ReturnsPage() {
+  const t = await getServerT()
+  const locale = await getServerLocale()
 
   return (
     <PolicyLayout

@@ -1,0 +1,1 @@
+var e=e=>{let[t,n,...r]=e.split(`_`);if(!n)return e;let i=n.split(`-`).map(e=>e.charAt(0).toUpperCase()+e.slice(1)).join(` `);return r.length?`${i} (${r.length===1?r[0].toUpperCase():r.join(`_`)})`:i};export{e as t};

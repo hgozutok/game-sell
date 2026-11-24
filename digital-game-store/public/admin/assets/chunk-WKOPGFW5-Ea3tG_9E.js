@@ -1,0 +1,1 @@
+var e=e=>e.quantity-e.detail.fulfilled_quantity;export{e as t};

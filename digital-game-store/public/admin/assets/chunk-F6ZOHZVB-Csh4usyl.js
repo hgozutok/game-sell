@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-D7DE--It.js";var t=e(),n=({children:e})=>(0,t.jsx)(`span`,{className:`sr-only`,children:e});export{n as t};

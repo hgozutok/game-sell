@@ -19,8 +19,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     {},
     { take: 200, order: { created_at: "DESC" }, relations: ["items"] }
   )
-  const queued = (orders || []).filter((o: any) =>
-    QUEUE_STATES.includes((o.metadata as any)?.fulfillment_state)
+  const queued = (orders || []).filter(
+    (o: any) =>
+      // Iptal edilmis siparisler kuyrukta GÖRÜNMEZ (metadata eski state tasiyabilir)
+      o.status !== "canceled" &&
+      QUEUE_STATES.includes((o.metadata as any)?.fulfillment_state)
   )
 
   const settings = await kinguin.getSettings()

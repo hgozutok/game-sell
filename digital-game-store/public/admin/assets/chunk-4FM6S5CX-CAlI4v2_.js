@@ -1,0 +1,1 @@
+var e=new Intl.NumberFormat([],{style:`percent`,minimumFractionDigits:2,maximumFractionDigits:4}),t=(t,n=!1)=>{let r=t||0;return n||(r/=100),e.format(r)};export{t};

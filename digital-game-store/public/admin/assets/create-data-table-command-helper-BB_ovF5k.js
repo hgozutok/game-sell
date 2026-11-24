@@ -1,0 +1,1 @@
+var e=()=>({command:e=>e});export{e as t};

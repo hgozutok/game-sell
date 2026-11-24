@@ -16,30 +16,49 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger = req.scope.resolve('logger') as any
   try {
     const { email, password, captcha_token } = (req.body || {}) as Record<string, string>
-    if (!email || !password) {
+    if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
       return res.status(400).json({ code: 'missing_fields', message: 'Email ve şifre gerekli' })
     }
 
-    // Bot korumasi 1) IP rate limit — 15 dk'da 10 deneme
-    const rl = rateLimit(`login:${clientIp(req)}`, 10, 15 * 60 * 1000)
-    if (!rl.allowed) {
+    const trimmedEmail = email.trim()
+    if (trimmedEmail.length > 254 || !EMAIL_RE.test(trimmedEmail)) {
+      return res.status(400).json({ code: 'invalid_email', message: 'Geçersiz e-posta formatı' })
+    }
+
+    if (password.length > 256) {
+      return res.status(400).json({ code: 'invalid_password', message: 'Şifre çok uzun (en fazla 256 karakter)' })
+    }
+
+    const normalizedEmail = trimmedEmail.toLowerCase()
+    const ip = clientIp(req)
+
+    // Bot korumasi 1) IP rate limit — 15 dk'da 5 deneme
+    const ipRl = rateLimit(`login:ip:${ip}`, 5, 15 * 60 * 1000)
+    if (!ipRl.allowed) {
       return res.status(429).json({
         code: 'rate_limited',
-        message: `Çok fazla deneme. ${Math.ceil(rl.retryAfterSec / 60)} dakika sonra tekrar deneyin.`,
+        message: `Çok fazla deneme. ${Math.ceil(ipRl.retryAfterSec / 60)} dakika sonra tekrar deneyin.`,
       })
     }
 
-    // Bot korumasi 2) CAPTCHA (admin panelde aciksa) — fail closed
+    // Bot korumasi 2) Hesap/Email rate limit (Credential Stuffing / Dağıtık Brute-force koruması)
+    const emailRl = rateLimit(`login:account:${normalizedEmail}`, 5, 15 * 60 * 1000)
+    if (!emailRl.allowed) {
+      return res.status(429).json({
+        code: 'rate_limited',
+        message: `Bu hesap için çok fazla deneme yapıldı. ${Math.ceil(emailRl.retryAfterSec / 60)} dakika sonra tekrar deneyin.`,
+      })
+    }
+
+    // Bot korumasi 3) CAPTCHA (admin panelde aciksa) — fail closed
     const captcha = await verifyCaptcha(req.scope, {
       token: captcha_token,
       action: 'login',
-      ip: clientIp(req),
+      ip,
     })
     if (!captcha.ok) {
       return res.status(400).json({ code: captcha.reason || 'captcha_failed', message: 'Bot doğrulaması başarısız. Lütfen tekrar deneyin.' })
     }
-
-    const normalizedEmail = String(email).toLowerCase().trim()
 
     const authModule = req.scope.resolve(Modules.AUTH) as any
     const customerModule = req.scope.resolve(Modules.CUSTOMER) as any

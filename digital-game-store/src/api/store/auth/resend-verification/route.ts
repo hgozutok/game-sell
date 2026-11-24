@@ -11,17 +11,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     'Eğer hesabınız doğrulanmayı bekliyorsa yeni bir bağlantı gönderildi.'
   try {
     const { email } = (req.body || {}) as Record<string, string>
-    if (!email) {
-      return res.status(400).json({ code: 'missing_email', message: 'Email gerekli' })
-    }
-    // Bot korumasi: 30 dk'da 3 istek
-    const rl = rateLimit(`resend:${clientIp(req)}`, 3, 30 * 60 * 1000)
-    if (!rl.allowed) {
-      return res.status(429).json({
-        message: `Çok fazla istek. ${Math.ceil(rl.retryAfterSec / 60)} dakika sonra tekrar deneyin.`,
-      })
+    if (!email || typeof email !== 'string' || email.trim().length === 0 || email.length > 254) {
+      return res.status(400).json({ code: 'missing_email', message: 'Geçerli bir email gerekli' })
     }
     const normalizedEmail = String(email).toLowerCase().trim()
+
+    // Bot korumasi: IP ve e-posta bazinda 30 dk'da 3 istek
+    const rl = rateLimit(`resend:ip:${clientIp(req)}`, 3, 30 * 60 * 1000)
+    const emailRl = rateLimit(`resend:email:${normalizedEmail}`, 3, 30 * 60 * 1000)
+    if (!rl.allowed || !emailRl.allowed) {
+      const wait = Math.max(rl.retryAfterSec, emailRl.retryAfterSec)
+      return res.status(429).json({
+        message: `Çok fazla istek. ${Math.ceil(wait / 60)} dakika sonra tekrar deneyin.`,
+      })
+    }
 
     const customerModule = req.scope.resolve(Modules.CUSTOMER) as any
     const settings = await getAuthSettings(req.scope)

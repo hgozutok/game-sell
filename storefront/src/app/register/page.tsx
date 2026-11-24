@@ -121,6 +121,7 @@ export default function RegisterPage() {
                   id="first_name"
                   type="text"
                   required
+                  maxLength={64}
                   value={formData.first_name}
                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
@@ -136,6 +137,7 @@ export default function RegisterPage() {
                   id="last_name"
                   type="text"
                   required
+                  maxLength={64}
                   value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                   className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
@@ -152,6 +154,7 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 required
+                maxLength={254}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
@@ -166,6 +169,7 @@ export default function RegisterPage() {
               <input
                 id="phone"
                 type="tel"
+                maxLength={32}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
@@ -182,6 +186,7 @@ export default function RegisterPage() {
                 type="password"
                 required
                 minLength={8}
+                maxLength={128}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"

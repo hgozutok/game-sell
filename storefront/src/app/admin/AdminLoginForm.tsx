@@ -92,6 +92,7 @@ export default function AdminLoginForm({ gateKey }: { gateKey?: string }) {
                   id="email"
                   type="email"
                   required
+                  maxLength={254}
                   autoComplete="username"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -108,6 +109,7 @@ export default function AdminLoginForm({ gateKey }: { gateKey?: string }) {
                   id="password"
                   type="password"
                   required
+                  maxLength={128}
                   autoComplete="current-password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}

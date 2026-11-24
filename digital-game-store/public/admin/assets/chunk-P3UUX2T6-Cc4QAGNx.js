@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-D7DE--It.js";var t=e(),n=()=>(0,t.jsx)(`div`,{className:`flex h-full w-full items-center`,children:(0,t.jsx)(`span`,{className:`text-ui-fg-muted`,children:`-`})});export{n as t};

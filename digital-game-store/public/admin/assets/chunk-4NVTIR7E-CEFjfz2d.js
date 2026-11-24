@@ -1,0 +1,1 @@
+import{tr as e}from"./index-v50bSNcJ.js";var t=e(`product`,`*categories,*shipping_profile,-variants`);export{t};

@@ -1,0 +1,1 @@
+import{tr as e}from"./index-DC8gcomK.js";var t=e(`product`,`*categories,*shipping_profile,-variants`);export{t};

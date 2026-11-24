@@ -1,0 +1,1 @@
+var e=()=>({accessor:(e,t)=>({id:e,...t}),custom:e=>e});export{e as t};

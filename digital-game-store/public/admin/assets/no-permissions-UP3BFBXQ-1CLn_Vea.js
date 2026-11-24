@@ -1,0 +1,1 @@
+export{s as Component}from"./index-ReEidB5s.js";

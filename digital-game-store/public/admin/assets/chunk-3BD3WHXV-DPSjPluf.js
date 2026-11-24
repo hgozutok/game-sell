@@ -1,0 +1,1 @@
+import{zi as e}from"./index-ReEidB5s.js";e(`sales_channel_status`,(e,t,n)=>({color:e?`grey`:`green`,label:n(e?`general.disabled`:`general.enabled`)}));

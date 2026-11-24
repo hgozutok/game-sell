@@ -104,6 +104,23 @@ export const authService = {
     await api.post('/store/auth/resend-verification', { email })
   },
 
+  // Sifremi unuttum / sifre sifirlama akisi
+  async forgotPassword(email: string, captchaToken?: string | null): Promise<{ message: string }> {
+    const response = await api.post('/store/auth/forgot-password', {
+      email,
+      captcha_token: captchaToken || undefined,
+    })
+    return response.data
+  },
+
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    const response = await api.post('/store/auth/reset-password', {
+      token,
+      password,
+    })
+    return response.data
+  },
+
   // Sosyal giris saglayici + bot korumasi konfigurasyonu (admin ayarlarindan gelir)
   async getSocialProviders(): Promise<Array<{ provider: string; enabled: boolean }>> {
     const config = await this.getAuthProvidersConfig()

@@ -43,17 +43,29 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.status(400).json({ code: captcha.reason || 'captcha_failed', message: 'Bot doğrulaması başarısız. Lütfen tekrar deneyin.' })
     }
 
-    if (!email || !EMAIL_RE.test(email)) {
-      return res.status(400).json({ code: 'invalid_email', message: 'Geçerli bir e-posta gerekli' })
+    if (!email || typeof email !== 'string' || !EMAIL_RE.test(email.trim()) || email.trim().length > 254) {
+      return res.status(400).json({ code: 'invalid_email', message: 'Geçerli bir e-posta gerekli (en fazla 254 karakter)' })
     }
-    if (!password || password.length < 8) {
-      return res.status(400).json({ code: 'weak_password', message: 'Şifre en az 8 karakter olmalı' })
+    if (!password || typeof password !== 'string' || password.length < 8 || password.length > 256) {
+      return res.status(400).json({ code: 'weak_password', message: 'Şifre 8 ile 256 karakter arasında olmalı' })
     }
-    if (!first_name || !last_name) {
-      return res.status(400).json({ code: 'missing_name', message: 'Ad ve soyad gerekli' })
+    if (!first_name || !last_name || String(first_name).trim().length > 64 || String(last_name).trim().length > 64) {
+      return res.status(400).json({ code: 'invalid_name', message: 'Ad ve soyad gerekli (en fazla 64 karakter)' })
+    }
+    if (phone && String(phone).trim().length > 32) {
+      return res.status(400).json({ code: 'invalid_phone', message: 'Telefon numarası en fazla 32 karakter olabilir' })
     }
 
     const normalizedEmail = String(email).toLowerCase().trim()
+
+    // Bot korumasi: E-posta basina rate limit
+    const emailRl = rateLimit(`register:email:${normalizedEmail}`, 3, 15 * 60 * 1000)
+    if (!emailRl.allowed) {
+      return res.status(429).json({
+        code: 'rate_limited',
+        message: `Bu e-posta adresi için çok sık kayıt isteği yapıldı. ${Math.ceil(emailRl.retryAfterSec / 60)} dakika sonra tekrar deneyin.`,
+      })
+    }
 
     // Kara liste: engelli e-posta adresi/alan adi ile kayit olunamaz
     // (admin Kullanicilar sayfasindan yonetilir).

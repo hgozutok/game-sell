@@ -16,12 +16,12 @@ export const dynamic = 'force-dynamic'
 const PER_PAGE = 20
 
 interface PageProps {
-  params: { slug: string }
-  searchParams: {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{
     page?: string
     sort?: string
     platform?: string
-  }
+  }>
 }
 
 interface ResolvedCategory {
@@ -107,8 +107,8 @@ async function fetchCategoryData(slug: string, page: number) {
 
 /** Dinamik SEO Metadata */
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
-  const { slug } = params
-  const page = Math.max(1, parseInt(searchParams.page || '1', 10) || 1)
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
+  const page = Math.max(1, parseInt(resolvedSearchParams.page || '1', 10) || 1)
   const data = await fetchCategoryData(slug, page)
 
   if (!data || !data.category) {
@@ -162,10 +162,10 @@ function CategorySkeleton() {
 }
 
 export default async function CategoryPage({ params, searchParams }: PageProps) {
-  const { slug } = params
-  const page = Math.max(1, parseInt(searchParams.page || '1', 10) || 1)
-  const sort = searchParams.sort || 'featured'
-  const platform = searchParams.platform || 'all'
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
+  const page = Math.max(1, parseInt(resolvedSearchParams.page || '1', 10) || 1)
+  const sort = resolvedSearchParams.sort || 'featured'
+  const platform = resolvedSearchParams.platform || 'all'
 
   const data = await fetchCategoryData(slug, page)
   if (!data || !data.category) {

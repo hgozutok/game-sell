@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-WkwZ5CU-.js";import{a as t,n}from"./chunk-RX6DPJGC-Dgim-Tp-.js";import{n as r}from"./jsx-runtime-D7DE--It.js";import{p as i}from"./chunk-6KYCQHYJ-ubhy9_2L.js";var a=e(r(),1),o=()=>{let{isInstalled:e,isLoading:r}=t(n),o=i();return(0,a.useEffect)(()=>{!r&&!e&&o(-1)},[e,r,o]),e};export{o as t};

@@ -361,20 +361,46 @@ async function authGuard(req: MedusaRequest, res: MedusaResponse, next: any) {
     return deny("admin_invites_disabled", "Davetiye akışı kapalı")
   }
 
-  // 2) Admin login brute-force: IP başına 15 deneme / 15 dk
+  // 2) Admin login brute-force: IP ve Hesap başına 5 deneme / 15 dk
   if (req.method === "POST" && /^\/auth\/user\/emailpass$/.test(url)) {
-    const { allowed, retryAfterSec } = rateLimit(`admin-login:${ip}`, 15, 15 * 60_000)
-    if (!allowed) {
+    const adminEmail = String((req.body as any)?.email || "").trim().toLowerCase()
+    const password = String((req.body as any)?.password || "")
+
+    if (adminEmail.length > 254 || password.length > 256) {
+      return res.status(400).json({
+        code: "invalid_input",
+        message: "Girdi sınırları aşıldı",
+      })
+    }
+
+    const ipLimit = rateLimit(`admin-login:ip:${ip}`, 5, 15 * 60_000)
+    if (!ipLimit.allowed) {
       if (scope) {
         try {
-          scope.resolve("logger").warn(`[auth-guard] admin login rate limit: ${ip}`)
+          scope.resolve("logger").warn(`[auth-guard] admin login IP rate limit: ${ip}`)
         } catch {}
       }
       return res.status(429).json({
         code: "rate_limited",
-        message: `Çok fazla deneme — ${retryAfterSec} saniye sonra tekrar deneyin`,
+        message: `Çok fazla deneme — ${ipLimit.retryAfterSec} saniye sonra tekrar deneyin`,
       })
     }
+
+    if (adminEmail) {
+      const emailLimit = rateLimit(`admin-login:email:${adminEmail}`, 5, 15 * 60_000)
+      if (!emailLimit.allowed) {
+        if (scope) {
+          try {
+            scope.resolve("logger").warn(`[auth-guard] admin login email rate limit: ${adminEmail}`)
+          } catch {}
+        }
+        return res.status(429).json({
+          code: "rate_limited",
+          message: `Bu hesap için çok fazla deneme yapıldı — ${emailLimit.retryAfterSec} saniye sonra tekrar deneyin`,
+        })
+      }
+    }
+
     return next()
   }
 

@@ -1,0 +1,1 @@
+import{D as e}from"./chunk-POUREA6Y-3Om-0qXw.js";import{n as t}from"./chunk-56JWEPQ5-mhfla5oz.js";import{r as n,t as r}from"./chunk-NFEK63OE-DK31y6in.js";var i=t(`price-preferences`),a=(t,a)=>{let{canRead:o}=e(),{data:s,...c}=n({queryFn:()=>r.admin.pricePreference.list(t),queryKey:i.list(t),...a,enabled:(a?.enabled??!0)&&o});return{...s,...c}};export{a as n,i as t};

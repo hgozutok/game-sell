@@ -4,17 +4,17 @@ import { formatDate } from '@/i18n'
 import { getServerLocale, getServerT } from '@/i18n/server'
 import { BLOG_POSTS } from '@/lib/blog-posts'
 
-export function generateMetadata(): Metadata {
-  const t = getServerT()
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT()
   return {
     title: t('content.blog.metaTitle'),
     description: t('content.blog.metaDescription'),
   }
 }
 
-export default function BlogIndexPage() {
-  const t = getServerT()
-  const locale = getServerLocale()
+export default async function BlogIndexPage() {
+  const t = await getServerT()
+  const locale = await getServerLocale()
   const [featured, ...rest] = BLOG_POSTS
 
   // Ceviri yoksa Ingilizce kaynak metne don.

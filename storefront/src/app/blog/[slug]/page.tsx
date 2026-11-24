@@ -11,9 +11,14 @@ export function generateStaticParams() {
   return BLOG_POSTS.map((post) => ({ slug: post.slug }))
 }
 
-export function generateMetadata({ params }: { params: Params }): Metadata {
-  const t = getServerT()
-  const post = getBlogPost(params.slug)
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Params>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const t = await getServerT()
+  const post = getBlogPost(slug)
   if (!post) return { title: t('content.blog.notFoundTitle') }
 
   const titleKey = `content.blog.post.${post.slug}.title`
@@ -35,10 +40,11 @@ export function generateMetadata({ params }: { params: Params }): Metadata {
   }
 }
 
-export default function BlogPostPage({ params }: { params: Params }) {
-  const t = getServerT()
-  const locale = getServerLocale()
-  const post = getBlogPost(params.slug)
+export default async function BlogPostPage({ params }: { params: Promise<Params> }) {
+  const { slug } = await params
+  const t = await getServerT()
+  const locale = await getServerLocale()
+  const post = getBlogPost(slug)
   if (!post) notFound()
 
   // Ceviri yoksa Ingilizce kaynak metne don.

@@ -42,17 +42,19 @@ async function getGaMeasurementId(): Promise<string> {
 }
 
 /** Aktif dili cerezden, yoksa tarayici dilinden cozer. */
-function resolveRequestLocale(): Locale {
-  const cookieLocale = cookies().get(LOCALE_COOKIE)?.value
+async function resolveRequestLocale(): Promise<Locale> {
+  const cookieStore = await cookies()
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value
   if (cookieLocale) return resolveLocale(cookieLocale)
-  return matchAcceptLanguage(headers().get('accept-language'))
+  const headerStore = await headers()
+  return matchAcceptLanguage(headerStore.get('accept-language'))
 }
 
 // Next layout'ta tanimli disa aktarim listesi disina cikmamak icin const kalir
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
-export function generateMetadata(): Metadata {
-  const locale = resolveRequestLocale()
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await resolveRequestLocale()
   const title = translate(locale, 'meta.title')
   const description = translate(locale, 'meta.description')
 
@@ -119,7 +121,7 @@ function SiteJsonLd() {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = resolveRequestLocale()
+  const locale = await resolveRequestLocale()
   const dir = localeDir(locale)
   const gaMeasurementId = await getGaMeasurementId()
 

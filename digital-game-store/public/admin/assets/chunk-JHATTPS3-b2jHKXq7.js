@@ -1,0 +1,1 @@
+var e=`inventory_item_ids`;export{e as t};

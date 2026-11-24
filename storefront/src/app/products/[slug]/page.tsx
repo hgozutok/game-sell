@@ -94,9 +94,9 @@ function toDescription(text: string, max = 160): string {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { slug } = params
+  const { slug } = await params
   const product = await fetchProduct(slug)
 
   if (!product) {
@@ -146,9 +146,9 @@ export async function generateMetadata({
 export default async function ProductPage({
   params,
 }: {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }) {
-  const { slug } = params
+  const { slug } = await params
   const product = await fetchProduct(slug)
 
   if (!product) {

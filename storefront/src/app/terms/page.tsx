@@ -1,10 +1,11 @@
+import type { Metadata } from 'next'
 import PolicyLayout from '@/components/layout/PolicyLayout'
 import Link from 'next/link'
 import { INTL_LOCALE } from '@/i18n'
 import { getServerLocale, getServerT } from '@/i18n/server'
 
-export function generateMetadata() {
-  const t = getServerT()
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT()
   return {
     title: t('legal.terms.metaTitle'),
     description: t('legal.terms.metaDescription'),
@@ -14,9 +15,9 @@ export function generateMetadata() {
 /** Politikanin yururluk tarihi; her dilde ayni gunu gosterir. */
 const LAST_UPDATED = new Date(2026, 10, 13)
 
-export default function TermsPage() {
-  const t = getServerT()
-  const locale = getServerLocale()
+export default async function TermsPage() {
+  const t = await getServerT()
+  const locale = await getServerLocale()
   const lastUpdated = new Intl.DateTimeFormat(
     `${INTL_LOCALE[locale].replace(/-u-.*$/, '')}-u-ca-gregory-nu-latn`,
     { dateStyle: 'long' }

@@ -1,0 +1,1 @@
+import{s as e}from"./en-US-08VPgJMU.js";function t(t){let n=e(t),r=new Date(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate(),n.getHours(),n.getMinutes(),n.getSeconds(),n.getMilliseconds()));return r.setUTCFullYear(n.getFullYear()),+t-r}export{t};

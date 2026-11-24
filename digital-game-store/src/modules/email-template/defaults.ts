@@ -145,6 +145,85 @@ function verifyEmail(locale: Locale): string {
   )
 }
 
+interface ResetPasswordCopy {
+  name: string
+  subject: string
+  title: string
+  heading: string
+  body: string
+  button: string
+  fallback: string
+}
+
+const RESET_PASSWORD: Record<Locale, ResetPasswordCopy> = {
+  en: {
+    name: "Password Reset",
+    subject: "{{store_name}} — Reset your password",
+    title: "Password reset",
+    heading: "Reset your password",
+    body: `Hi {{first_name}}, click the button below to set a new password for your {{store_name}} account.
+     The link is valid for {{expires_hours}} hour.`,
+    button: "Reset Password",
+    fallback: "If the button doesn't work, copy this address into your browser:",
+  },
+  tr: {
+    name: "Şifre Sıfırlama",
+    subject: "{{store_name}} — Şifrenizi sıfırlayın",
+    title: "Şifre sıfırlama",
+    heading: "Şifrenizi sıfırlayın",
+    body: `Merhaba {{first_name}}, {{store_name}} hesabınız için yeni bir şifre belirlemek üzere aşağıdaki butona tıklayın.
+     Bağlantı {{expires_hours}} saat geçerlidir.`,
+    button: "Şifremi Sıfırla",
+    fallback: "Buton çalışmıyorsa bu adresi tarayıcınıza kopyalayın:",
+  },
+  de: {
+    name: "Passwort zurücksetzen",
+    subject: "{{store_name}} — Passwort zurücksetzen",
+    title: "Passwort zurücksetzen",
+    heading: "Setzen Sie Ihr Passwort zurück",
+    body: `Hallo {{first_name}}, klicken Sie auf die Schaltfläche unten, um ein neues Passwort für Ihr {{store_name}}-Konto festzulegen.
+     Der Link ist {{expires_hours}} Stunde gültig.`,
+    button: "Passwort zurücksetzen",
+    fallback: "Wenn die Schaltfläche nicht funktioniert, kopieren Sie diese Adresse in Ihren Browser:",
+  },
+  fr: {
+    name: "Réinitialisation du mot de passe",
+    subject: "{{store_name}} — Réinitialisez votre mot de passe",
+    title: "Réinitialisation du mot de passe",
+    heading: "Réinitialisez votre mot de passe",
+    body: `Bonjour {{first_name}}, cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe pour votre compte {{store_name}}.
+     Le lien est valable {{expires_hours}} heure.`,
+    button: "Réinitialiser le mot de passe",
+    fallback: "Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :",
+  },
+  ar: {
+    name: "إعادة تعيين كلمة المرور",
+    subject: "{{store_name}} — إعادة تعيين كلمة المرور",
+    title: "إعادة تعيين كلمة المرور",
+    heading: "إعادة تعيين كلمة المرور",
+    body: `مرحبًا {{first_name}}، اضغط على الزر أدناه لتعيين كلمة مرور جديدة لحسابك في {{store_name}}.
+     الرابط صالح لمدة {{expires_hours}} ساعة.`,
+    button: "إعادة تعيين كلمة المرور",
+    fallback: "إذا لم يعمل الزر، فانسخ هذا العنوان والصقه في متصفحك:",
+  },
+}
+
+function resetPasswordEmail(locale: Locale): string {
+  const copy = RESET_PASSWORD[locale]
+  return layout(
+    locale,
+    copy.title,
+    `<h1 style="margin:0 0 12px;font-size:22px;color:#111827;">${copy.heading}</h1>
+   <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">
+     ${copy.body}
+   </p>
+   <p style="margin:0 0 20px;">
+     <a href="{{reset_url}}" style="display:inline-block;background:#ff6b35;color:#ffffff;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:bold;text-decoration:none;">${copy.button}</a>
+   </p>
+   <p style="margin:0;font-size:13px;color:#6b7280;">${copy.fallback}<br/>{{reset_url}}</p>`
+  )
+}
+
 interface OrderKeysCopy {
   name: string
   subject: string
@@ -794,8 +873,16 @@ const VERIFY_COPY = Object.fromEntries(
   ])
 ) as Record<Locale, { name: string; subject: string }>
 
+const RESET_PASSWORD_COPY = Object.fromEntries(
+  SUPPORTED_EMAIL_LOCALES.map((locale) => [
+    locale,
+    { name: RESET_PASSWORD[locale].name, subject: RESET_PASSWORD[locale].subject },
+  ])
+) as Record<Locale, { name: string; subject: string }>
+
 export const DEFAULT_EMAIL_TEMPLATES: DefaultEmailTemplate[] = [
   ...build("verify-email", VERIFY_COPY, verifyEmail),
+  ...build("reset-password", RESET_PASSWORD_COPY, resetPasswordEmail),
   ...build("order-digital-keys", ORDER_KEYS_COPY, orderDigitalKeys),
   ...build("order-confirmation", ORDER_CONFIRMATION_COPY, orderConfirmation),
   ...build("order-bank-transfer", ORDER_BANK_TRANSFER_COPY, orderBankTransfer),

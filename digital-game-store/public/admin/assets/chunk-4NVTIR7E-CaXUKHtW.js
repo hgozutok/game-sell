@@ -1,0 +1,1 @@
+import{tr as e}from"./index-ReEidB5s.js";var t=e(`product`,`*categories,*shipping_profile,-variants`);export{t};

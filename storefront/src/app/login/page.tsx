@@ -173,6 +173,7 @@ function LoginPageInner() {
                 id="email"
                 type="email"
                 required
+                maxLength={254}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"
@@ -188,6 +189,7 @@ function LoginPageInner() {
                 id="password"
                 type="password"
                 required
+                maxLength={128}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="w-full px-4 py-3 bg-[#1a1d24] border border-gray-700 text-white rounded-lg focus:border-[#ff6b35] focus:outline-none transition"

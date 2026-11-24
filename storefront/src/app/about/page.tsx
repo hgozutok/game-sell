@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { formatDate } from '@/i18n'
 import { getServerLocale, getServerT } from '@/i18n/server'
 
-export function generateMetadata(): Metadata {
-  const t = getServerT()
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT()
   return {
     title: t('content.about.metaTitle'),
     description: t('content.about.metaDescription'),
@@ -26,9 +26,9 @@ const ACTIVITIES = [
   { code: '62012', titleKey: 'content.about.activity4Title', descKey: 'content.about.activity4Desc' },
 ]
 
-export default function AboutPage() {
-  const t = getServerT()
-  const locale = getServerLocale()
+export default async function AboutPage() {
+  const t = await getServerT()
+  const locale = await getServerLocale()
   const incorporated = formatDate(COMPANY.incorporated, locale, {
     day: 'numeric',
     month: 'long',

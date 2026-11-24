@@ -1,0 +1,1 @@
+var e=`product_variant_ids`;export{e as t};

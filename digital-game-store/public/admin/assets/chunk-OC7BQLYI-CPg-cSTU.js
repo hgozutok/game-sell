@@ -1,0 +1,1 @@
+import{z as e}from"./chunk-NFEK63OE-DK31y6in.js";import{t}from"./jsx-runtime-D7DE--It.js";var n=t(),r=({children:t,showTooltip:r=!1,...i})=>r?(0,n.jsx)(e,{...i,children:t}):t;export{r as t};

@@ -1,10 +1,11 @@
+import type { Metadata } from 'next'
 import PolicyLayout from '@/components/layout/PolicyLayout'
 import Link from 'next/link'
 import { formatDate } from '@/i18n'
 import { getServerLocale, getServerT } from '@/i18n/server'
 
-export function generateMetadata() {
-  const t = getServerT()
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT()
   return {
     title: t('content.digitalPolicy.metaTitle'),
     description: t('content.digitalPolicy.metaDescription'),
@@ -21,9 +22,9 @@ export function generateMetadata() {
   }
 }
 
-export default function DigitalProductPolicyPage() {
-  const t = getServerT()
-  const locale = getServerLocale()
+export default async function DigitalProductPolicyPage() {
+  const t = await getServerT()
+  const locale = await getServerLocale()
 
   return (
     <PolicyLayout

@@ -1,0 +1,1 @@
+export{s as Component}from"./index-v50bSNcJ.js";

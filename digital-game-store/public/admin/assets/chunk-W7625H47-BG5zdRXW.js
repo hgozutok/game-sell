@@ -1,0 +1,1 @@
+import{n as e}from"./useTranslation-DU71q6iK.js";var t=()=>{let{t}=e();return[{label:t(`fields.createdAt`),key:`created_at`},{label:t(`fields.updatedAt`),key:`updated_at`}].map(e=>({key:e.key,label:e.label,type:`date`}))};export{t};

@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-WkwZ5CU-.js";import{n as t}from"./jsx-runtime-D7DE--It.js";var n=e(t(),1),r=(0,n.createContext)(null),i=()=>{let e=(0,n.useContext)(r);if(!e)throw Error(`useExtension must be used within a ExtensionProvider`);return e};export{i as n,r as t};

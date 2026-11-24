@@ -1,0 +1,1 @@
+import{_ as e}from"./chunk-6KYCQHYJ-ubhy9_2L.js";function t(t,n){let[r]=e(),i={};return t.forEach(e=>{let t=n?`${n}_${e}`:e,a=r.get(t)||void 0;i[e]=a}),i}export{t};

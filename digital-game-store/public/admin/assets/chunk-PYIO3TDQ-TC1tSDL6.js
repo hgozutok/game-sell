@@ -1,0 +1,1 @@
+var e=(e=>(e.FlatRate=`flat`,e.Calculated=`calculated`,e))(e||{}),t=`geo-zone`,n=`conditional-prices`,r=`item_total`,i=`region_id`;export{e as a,i,t as n,r,n as t};

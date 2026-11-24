@@ -1,7 +1,10 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Docker imaji icin minimal sunucu cikti klasoru (.next/standalone)
   output: 'standalone',
+  outputFileTracingRoot: path.join(__dirname),
 
   images: {
     formats: ['image/avif', 'image/webp'],

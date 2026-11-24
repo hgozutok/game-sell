@@ -1,0 +1,1 @@
+var e=e=>typeof e==`string`?Number(e.replace(`,`,`.`)):e;export{e as t};

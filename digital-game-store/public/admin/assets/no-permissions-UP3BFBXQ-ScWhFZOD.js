@@ -1,0 +1,1 @@
+export{s as Component}from"./index-DC8gcomK.js";

@@ -1,0 +1,1 @@
+var e=`*payment_providers,*countries,+automatic_taxes`;export{e as t};

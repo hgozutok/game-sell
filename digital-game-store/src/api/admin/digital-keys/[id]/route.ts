@@ -20,7 +20,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
 const UpdateKeySchema = z.object({
   status: z.enum(["available", "assigned", "delivered", "revoked"]).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 // POST /admin/digital-keys/:id - Update a digital key

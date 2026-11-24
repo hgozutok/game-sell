@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-WkwZ5CU-.js";import{n as t}from"./jsx-runtime-D7DE--It.js";import{w as n}from"./useTranslation-DU71q6iK.js";var r=e(t()),i=r.forwardRef(({className:e,...t},i)=>r.createElement(`div`,{ref:i,className:n(`w-full rounded-lg bg-ui-bg-base px-6 py-4 shadow-elevation-card-rest`,e),...t}));i.displayName=`Container`;export{i as t};

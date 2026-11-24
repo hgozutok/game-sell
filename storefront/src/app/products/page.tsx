@@ -12,7 +12,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hupiplay.uk'
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
-  searchParams: {
+  searchParams: Promise<{
     page?: string
     limit?: string
     platform?: string
@@ -20,15 +20,21 @@ interface PageProps {
     sort?: string
     min?: string
     max?: string
-  }
+  }>
 }
 
 /** Dinamik SEO Metadata Uretimi */
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
-  const page = Math.max(1, parseInt(searchParams.page || '1', 10) || 1)
+  const resolvedSearchParams = await searchParams
+  const page = Math.max(1, parseInt(resolvedSearchParams.page || '1', 10) || 1)
   const platform =
-    searchParams.platform && searchParams.platform !== 'all' ? searchParams.platform : null
-  const genre = searchParams.genre && searchParams.genre !== 'all' ? searchParams.genre : null
+    resolvedSearchParams.platform && resolvedSearchParams.platform !== 'all'
+      ? resolvedSearchParams.platform
+      : null
+  const genre =
+    resolvedSearchParams.genre && resolvedSearchParams.genre !== 'all'
+      ? resolvedSearchParams.genre
+      : null
 
   let baseTitle = 'All Games — Buy Digital Game Keys'
   if (platform && genre) {
@@ -176,14 +182,15 @@ function ProductGridSkeleton() {
 }
 
 export default async function ProductsPage({ searchParams }: PageProps) {
-  const page = Math.max(1, parseInt(searchParams.page || '1', 10) || 1)
-  const limitNum = parseInt(searchParams.limit || '20', 10)
+  const resolvedSearchParams = await searchParams
+  const page = Math.max(1, parseInt(resolvedSearchParams.page || '1', 10) || 1)
+  const limitNum = parseInt(resolvedSearchParams.limit || '20', 10)
   const limit = [20, 40, 80, 100].includes(limitNum) ? limitNum : 20
-  const platform = searchParams.platform || 'all'
-  const genre = searchParams.genre || 'all'
-  const sort = searchParams.sort || 'popular'
-  const min = searchParams.min ? Number(searchParams.min) : 0
-  const max = searchParams.max ? Number(searchParams.max) : 1000
+  const platform = resolvedSearchParams.platform || 'all'
+  const genre = resolvedSearchParams.genre || 'all'
+  const sort = resolvedSearchParams.sort || 'popular'
+  const min = resolvedSearchParams.min ? Number(resolvedSearchParams.min) : 0
+  const max = resolvedSearchParams.max ? Number(resolvedSearchParams.max) : 1000
 
   // Paralel veri cekimi (Urunler + Fasetler)
   const [{ products, count }, { platforms, genres }] = await Promise.all([

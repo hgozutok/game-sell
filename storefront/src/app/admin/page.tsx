@@ -43,9 +43,10 @@ async function checkAdminAccess(key: string): Promise<GateState> {
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined }
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const rawKey = searchParams?.key
+  const resolvedSearchParams = await searchParams
+  const rawKey = resolvedSearchParams?.key
   const key = typeof rawKey === 'string' ? rawKey.trim() : ''
   const gate = await checkAdminAccess(key)
 

@@ -1,0 +1,1 @@
+var e=(e,t)=>{let n=typeof t==`number`?{status:t}:t??{};return new Response(JSON.stringify(e),{...n,headers:{"Content-Type":`application/json; charset=utf-8`,...n.headers}})};export{e as t};
