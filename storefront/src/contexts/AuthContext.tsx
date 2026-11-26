@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authService.isAuthenticated()) {
       const customerData = await authService.getCurrentCustomer()
       setCustomer(customerData)
+      if (!customerData) return
 
       // Hesaptaki kayitli tercihleri uygula (kur, dil, wishlist)
       const prefs = prefsFromCustomer(customerData)
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch {}
       }
     } else {
+      await authService.logout()
       setCustomer(null)
     }
   }

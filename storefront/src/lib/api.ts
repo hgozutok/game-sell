@@ -49,9 +49,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("medusa_auth_token")
-      window.location.href = "/login"
+      localStorage.removeItem("customer_token")
+      localStorage.removeItem("customer_id")
+      localStorage.removeItem("customer_email")
+      localStorage.removeItem("customer_first_name")
+      localStorage.removeItem("customer_last_name")
+      const reqUrl = String(error.config?.url || "")
+      if (!reqUrl.includes("/store/customers/me") && !window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login"
+      }
     }
     return Promise.reject(error)
   }

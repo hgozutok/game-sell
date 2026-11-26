@@ -81,9 +81,12 @@ export const authService = {
       })
 
       const customer = response.data.customer
+      const token = response.data.token
       const requiresVerification = response.data.requires_verification === true
 
-      if (customer && !requiresVerification) {
+      if (customer && token && !requiresVerification) {
+        localStorage.setItem('medusa_auth_token', token)
+        localStorage.setItem('customer_token', token)
         localStorage.setItem('customer_id', customer.id)
         localStorage.setItem('customer_email', (customer.email || normalizedEmail).toLowerCase())
         localStorage.setItem('customer_first_name', customer.first_name || '')
@@ -166,59 +169,101 @@ export const authService = {
     }
   },
 
-  // Get current customer — backend'den taze veri (metadata dahil); JWT gecersizse
-  // lokal aynaya dusulur.
+  // Get current customer — gercek JWT oturumu gereklidir; token yoksa, suresi
+  // dolmussa veya backend 401/403 donerse tum oturum verisi temizlenir.
   async getCurrentCustomer(): Promise<Customer | null> {
-    try {
-      const token = localStorage.getItem('medusa_auth_token')
-      if (token) {
-        try {
-          const response = await api.get('/store/customers/me')
-          const c = response.data?.customer
-          if (c) {
-            localStorage.setItem('customer_id', c.id)
-            localStorage.setItem('customer_email', c.email)
-            localStorage.setItem('customer_first_name', c.first_name || '')
-            localStorage.setItem('customer_last_name', c.last_name || '')
-            return c as Customer
-          }
-        } catch {
-          /* backend erisilemedi — lokal aynaya dus */
-        }
-      }
-
-      const customerId = localStorage.getItem('customer_id')
-      const customerEmail = localStorage.getItem('customer_email')
-      const firstName = localStorage.getItem('customer_first_name')
-      const lastName = localStorage.getItem('customer_last_name')
-
-      if (!customerId || !customerEmail) return null
-
-      return {
-        id: customerId,
-        email: customerEmail,
-        first_name: firstName || '',
-        last_name: lastName || '',
-        has_account: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as Customer
-    } catch (error) {
-      console.error('Failed to get customer:', error)
-      // Clear invalid session
+    const clearSession = () => {
       localStorage.removeItem('customer_id')
       localStorage.removeItem('customer_email')
       localStorage.removeItem('customer_first_name')
       localStorage.removeItem('customer_last_name')
       localStorage.removeItem('customer_token')
+      localStorage.removeItem('medusa_auth_token')
+    }
+
+    const isTokenExpired = (jwt: string): boolean => {
+      try {
+        const parts = jwt.split('.')
+        if (parts.length !== 3) return false
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+        const payload = JSON.parse(atob(base64))
+        if (typeof payload?.exp === 'number' && payload.exp * 1000 < Date.now()) {
+          return true
+        }
+        return false
+      } catch {
+        return false
+      }
+    }
+
+    try {
+      const token = localStorage.getItem('medusa_auth_token') || localStorage.getItem('customer_token')
+      if (!token || isTokenExpired(token)) {
+        clearSession()
+        return null
+      }
+
+      if (!localStorage.getItem('medusa_auth_token')) {
+        localStorage.setItem('medusa_auth_token', token)
+      }
+
+      try {
+        const response = await api.get('/store/customers/me')
+        const c = response.data?.customer
+        if (c) {
+          localStorage.setItem('customer_id', c.id)
+          localStorage.setItem('customer_email', c.email)
+          localStorage.setItem('customer_first_name', c.first_name || '')
+          localStorage.setItem('customer_last_name', c.last_name || '')
+          return c as Customer
+        }
+        clearSession()
+        return null
+      } catch (err: any) {
+        const status = err?.response?.status
+        // Yetkisiz / engelli / bulunamayan hesapta bayat localStorage verisini temizle
+        if (status === 401 || status === 403 || status === 404) {
+          clearSession()
+          return null
+        }
+        // Yalnizca gecici ag hatasinda gecerli token varsa lokal aynaya dus
+        const customerId = localStorage.getItem('customer_id')
+        const customerEmail = localStorage.getItem('customer_email')
+        if (!customerId || !customerEmail) return null
+
+        return {
+          id: customerId,
+          email: customerEmail,
+          first_name: localStorage.getItem('customer_first_name') || '',
+          last_name: localStorage.getItem('customer_last_name') || '',
+          has_account: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Customer
+      }
+    } catch (error) {
+      console.error('Failed to get customer:', error)
+      clearSession()
       return null
     }
   },
 
-  // Check if user is authenticated
+  // Check if user is authenticated (requires actual non-expired auth token)
   isAuthenticated(): boolean {
     if (typeof window === 'undefined') return false
-    return !!localStorage.getItem('customer_id')
+    const token = localStorage.getItem('medusa_auth_token') || localStorage.getItem('customer_token')
+    if (!token) return false
+    try {
+      const parts = token.split('.')
+      if (parts.length === 3) {
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+        const payload = JSON.parse(atob(base64))
+        if (typeof payload?.exp === 'number' && payload.exp * 1000 < Date.now()) {
+          return false
+        }
+      }
+    } catch {}
+    return true
   },
 
   // Get customer ID from storage
