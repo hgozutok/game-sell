@@ -53,10 +53,26 @@ async function resolveRequestLocale(): Promise<Locale> {
 // Next layout'ta tanimli disa aktarim listesi disina cikmamak icin const kalir
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
+/**
+ * Istek yapilan sayfanin yolu; middleware `x-pathname` istek basligi ile tasir
+ * (headers() yolu vermez). Sorgu dizisi eklenmez: filtre/siralama parametreleri
+ * ayni sayfanin kopyasi. Sayfalama yapan sayfalar kendi canonical'ini verir.
+ * Yol yoksa null doner ki yanlis bir ana sayfa canonical'i yazilmasin.
+ */
+async function resolveRequestPathname(): Promise<string | null> {
+  const pathname = (await headers()).get('x-pathname')
+  if (!pathname || !pathname.startsWith('/') || pathname.startsWith('//')) return null
+  return pathname
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await resolveRequestLocale()
   const title = translate(locale, 'meta.title')
   const description = translate(locale, 'meta.description')
+
+  const pathname = await resolveRequestPathname()
+  const pageUrl =
+    pathname && pathname !== '/' ? `${SITE_URL.replace(/\/+$/, '')}${pathname}` : SITE_URL
 
   return {
     // Alt sayfalarda sadece kendi basligini verir; %s yerine genisletilir
@@ -66,14 +82,17 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     metadataBase: new URL(SITE_URL),
-    alternates: { canonical: '/' },
+    // Canonical ve og:url istek yapilan sayfadir. Sabit "/" verilirse alternates
+    // tanimlamayan her alt sayfaya ana sayfa olarak miras kalir ve arama
+    // motorlari o sayfalari ana sayfanin kopyasi sayar.
+    alternates: pathname ? { canonical: pageUrl } : undefined,
     openGraph: {
       title,
       description,
       type: 'website',
       locale: INTL_LOCALE[locale].replace('-', '_'),
       siteName: 'HUPIPLAY',
-      url: SITE_URL,
+      ...(pathname ? { url: pageUrl } : {}),
     },
     twitter: {
       card: 'summary_large_image',

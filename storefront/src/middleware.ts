@@ -6,9 +6,16 @@ const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
 /**
  * Ilk ziyarette tarayici diline gore cerez yazar; sonraki isteklerde
  * sunucu bilesenleri ayni dili render eder.
+ *
+ * Ayrica istek yolunu `x-pathname` istek basligi ile sunucu bilesenlerine
+ * tasir: root layout headers() ile yolu edinemedigi icin canonical ve og:url
+ * bu basligi izler (bkz. app/layout.tsx).
  */
 export function middleware(request: NextRequest) {
-  const response = NextResponse.next()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-pathname', request.nextUrl.pathname)
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
 
   if (!request.cookies.get(LOCALE_COOKIE)) {
     const locale = matchAcceptLanguage(request.headers.get('accept-language'))
